@@ -1,0 +1,158 @@
+export type BlockId =
+  | "overview"
+  | "screens"
+  | "navigation"
+  | "sections"
+  | "design"
+  | "stack"
+  | "structure"
+  | "conventions"
+  | "requirements"
+  | "additional"
+  | "delivery"
+
+export type PromptTarget = {
+  id: string
+  name: string
+  description: string
+  /** how block titles are rendered */
+  format: "markdown" | "xml"
+  order: BlockId[]
+  /** opening line, before the first block */
+  preamble: (projectName: string) => string
+  /** closing line, after the last block */
+  closing: string
+  /** v0 ships its own stack, so the stack block is trimmed there */
+  stackDetail: "full" | "condensed"
+  fileExtension: string
+}
+
+export const promptTargets: PromptTarget[] = [
+  {
+    id: "claude-code",
+    name: "Claude Code",
+    description: "Agentic build in an existing repo. Rules first, verbose.",
+    format: "xml",
+    order: [
+      "overview",
+      "stack",
+      "structure",
+      "conventions",
+      "screens",
+      "navigation",
+      "sections",
+      "design",
+      "requirements",
+      "additional",
+      "delivery",
+    ],
+    preamble: (name) =>
+      `You are building the frontend for **${name}**. Read every section below before writing code, then implement the whole thing — all screens, wired together, no placeholders and no TODOs.`,
+    closing:
+      "Work screen by screen in the navigation order given. After each screen, verify it typechecks and renders its loading, empty and error states before moving on.",
+    stackDetail: "full",
+    fileExtension: "md",
+  },
+  {
+    id: "v0",
+    name: "v0.dev",
+    description: "Generative UI. Opinionated stack, visual detail wins.",
+    format: "markdown",
+    order: [
+      "overview",
+      "screens",
+      "navigation",
+      "sections",
+      "design",
+      "requirements",
+      "structure",
+      "additional",
+      "delivery",
+    ],
+    preamble: (name) =>
+      `Create ${name} — a modern, fully responsive web app using shadcn/ui and Tailwind CSS.`,
+    closing:
+      "Keep navigation, spacing and typography consistent across every screen so the result reads as one product.",
+    stackDetail: "condensed",
+    fileExtension: "md",
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    description: "In-editor agent. Structure and conventions up front.",
+    format: "markdown",
+    order: [
+      "overview",
+      "stack",
+      "structure",
+      "conventions",
+      "screens",
+      "navigation",
+      "sections",
+      "design",
+      "requirements",
+      "additional",
+      "delivery",
+    ],
+    preamble: (name) =>
+      `Implement the frontend for ${name} in this workspace, following the existing project conventions where they already exist.`,
+    closing:
+      "Create each file in the structure described above. Do not restructure existing folders.",
+    stackDetail: "full",
+    fileExtension: "md",
+  },
+  {
+    id: "lovable",
+    name: "Lovable",
+    description: "Full-app generation from a product brief.",
+    format: "markdown",
+    order: [
+      "overview",
+      "screens",
+      "navigation",
+      "sections",
+      "design",
+      "stack",
+      "requirements",
+      "additional",
+      "delivery",
+    ],
+    preamble: (name) =>
+      `Build ${name}: a complete, responsive web application described screen by screen below.`,
+    closing:
+      "Every screen listed must exist and be reachable through the navigation described.",
+    stackDetail: "condensed",
+    fileExtension: "md",
+  },
+  {
+    id: "generic",
+    name: "Generic / any LLM",
+    description: "Plain markdown brief with no tool-specific wording.",
+    format: "markdown",
+    order: [
+      "overview",
+      "stack",
+      "structure",
+      "conventions",
+      "screens",
+      "navigation",
+      "sections",
+      "design",
+      "requirements",
+      "additional",
+      "delivery",
+    ],
+    preamble: (name) => `Frontend build brief — ${name}.`,
+    closing: "Ask before inventing requirements that are not stated above.",
+    stackDetail: "full",
+    fileExtension: "md",
+  },
+]
+
+export const targetMap = Object.fromEntries(
+  promptTargets.map((t) => [t.id, t])
+) as Record<string, PromptTarget>
+
+export function getTarget(id: string): PromptTarget {
+  return targetMap[id] ?? targetMap["claude-code"]
+}
