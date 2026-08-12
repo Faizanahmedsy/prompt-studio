@@ -1,0 +1,250 @@
+"use client"
+
+import {
+  AlertTriangle,
+  ClipboardCopy,
+  Code2,
+  Download,
+  FileInput,
+  MessageSquareCode,
+} from "lucide-react"
+import { useMemo, useState } from "react"
+import { toast } from "sonner"
+
+import { WarningList } from "@/components/shared/feedback"
+import { PanelHeader, SectionLabel } from "@/components/shared/layout"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
+import { parseFlow } from "@/features/flow-lang/parser"
+import { serializeFlow } from "@/features/flow-lang/serializer"
+import { builtInProfiles } from "@/features/stack/data/profiles"
+import { copyText, downloadFile } from "@/lib/download"
+import { useProjectStore } from "@/stores/use-project-store"
+import type { Project, ProjectDoc } from "@/types/project"
+
+/**
+ * The code surface: the project as `.flow` source, the button that hands the
+ * language to ChatGPT, and the paste-back path with a preview before commit.
+ */
+export function FlowCodeView({ project }: { project: Project }) {
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const source = useMemo(() => serializeFlow(project), [project])
+
+  return (
+    <div className="flex h-full flex-col">
+      <PanelHeader
+        title="Flow source"
+        actions={
+          <>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                copyText(source)
+                toast.success("Flow source copied")
+              }}
+            >
+              <ClipboardCopy /> Copy
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() =>
+                downloadFile(
+                  `${project.name.toLowerCase().replace(/\s+/g, "-")}.flow`,
+                  source
+                )
+              }
+            >
+              <Download /> .flow
+            </Button>
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap gap-1.5 border-b border-border p-3">
+        <Button
+          size="sm"
+          onClick={() => {
+            copyText(buildAuthoringPrompt())
+            toast.success("Diagram-syntax prompt copied", {
+              description:
+                "Paste it into ChatGPT with the client requirements, then paste the Flow file it returns back here.",
+            })
+          }}
+        >
+          <MessageSquareCode /> Copy prompt for diagram syntax
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)}>
+          <FileInput /> Paste Flow
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <pre className="code-surface whitespace-pre rounded-lg bg-surface p-3">
+          {source}
+        </pre>
+      </div>
+
+      <PasteFlowDialog open={pasteOpen} onOpenChange={setPasteOpen} />
+    </div>
+  )
+}
+
+export function PasteFlowDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const [text, setText] = useState("")
+  const replaceDoc = useProjectStore((s) => s.replaceDoc)
+  const update = useProjectStore((s) => s.update)
+
+  const parsed = useMemo(() => (text.trim() ? parseFlow(text) : null), [text])
+
+  const applyProfile = (doc: ProjectDoc, profileName?: string) => {
+    if (!profileName) return doc
+    const profile = builtInProfiles.find(
+      (p) => p.name.toLowerCase() === profileName.toLowerCase()
+    )
+    if (!profile) return doc
+    return {
+      ...doc,
+      stack: structuredClone(profile.stack),
+      structure: structuredClone(profile.structure),
+      conventions: structuredClone(profile.conventions),
+    }
+  }
+
+  const commit = (mode: "replace" | "merge") => {
+    if (!parsed) return
+    const incoming = applyProfile(parsed.doc, parsed.profile)
+
+    if (mode === "replace") {
+      replaceDoc(incoming)
+    } else {
+      update((doc) => {
+        doc.screens = [...doc.screens, ...incoming.screens]
+        doc.edges = [...doc.edges, ...incoming.edges]
+        doc.sections = [
+          ...doc.sections,
+          ...incoming.sections.map((section, index) => ({
+            ...section,
+            order: doc.sections.length + index,
+          })),
+        ]
+      })
+    }
+
+    toast.success(
+      mode === "replace" ? "Flow imported" : "Flow merged into this project",
+      {
+        description: `${incoming.screens.length} screens · ${incoming.edges.length} connections${
+          parsed.warnings.length ? ` · ${parsed.warnings.length} warnings` : ""
+        }`,
+      }
+    )
+    setText("")
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Paste Flow source</DialogTitle>
+          <DialogDescription>
+            Paste what ChatGPT produced. It is parsed before anything is applied —
+            nothing changes until you choose replace or merge.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder={'app "My product" {\n  target claude-code\n}\n\nscreen login "Sign In" { template auth; layout auth-split }'}
+          className="code-surface h-56 resize-none"
+          spellCheck={false}
+          autoFocus
+        />
+
+        {parsed && (
+          <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border p-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Code2 className="size-4 text-primary" />
+              <strong className="font-medium">{parsed.doc.name}</strong>
+              <span className="text-muted-foreground">
+                {parsed.doc.screens.length} screens · {parsed.doc.edges.length}{" "}
+                connections · {parsed.doc.sections.length} sections
+              </span>
+            </div>
+
+            {parsed.errors.length > 0 && (
+              <ul className="space-y-1">
+                {parsed.errors.map((issue) => (
+                  <li
+                    key={`${issue.line}-${issue.message}`}
+                    className="flex items-start gap-2 rounded-md bg-destructive-soft/60 px-2 py-1.5 text-[11px]"
+                  >
+                    <AlertTriangle className="mt-px size-3.5 shrink-0 text-destructive" />
+                    <span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        line {issue.line}
+                      </span>{" "}
+                      {issue.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <WarningList
+              warnings={parsed.warnings.map(
+                (issue) => `line ${issue.line}: ${issue.message}`
+              )}
+            />
+
+            {parsed.doc.screens.length > 0 && (
+              <div>
+                <SectionLabel>Screens found</SectionLabel>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {parsed.doc.screens.map((s) => s.title).join(" · ")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!parsed || parsed.doc.screens.length === 0}
+            onClick={() => commit("merge")}
+          >
+            Merge into project
+          </Button>
+          <Button
+            disabled={!parsed || (!parsed.doc.screens.length && !parsed.doc.sections.length)}
+            onClick={() => commit("replace")}
+          >
+            Replace project
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}

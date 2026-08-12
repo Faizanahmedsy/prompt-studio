@@ -6,8 +6,14 @@
 > from the old repo.
 
 Repo: `/home/faizan/devstree_projects/Intelli Wealth Repos/prompt-studio`
-Status: **scaffolded + data/engine layer written, no UI yet, never built or run.**
+Status: **v1 complete.** All features built. `pnpm test` (32 tests),
+`pnpm typecheck` and `pnpm build` all pass. Never opened in a browser yet —
+first job for anyone picking this up is `pnpm dev` and a visual pass at 360 /
+768 / 1280px in both themes.
 Date started: 2026-08-11.
+
+> Sections 4–5 below describe the mid-build state and are kept for the design
+> rationale. For the shipped file map read `README.md` first.
 
 ---
 

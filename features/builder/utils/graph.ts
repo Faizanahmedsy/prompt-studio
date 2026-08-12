@@ -120,25 +120,28 @@ export function autoLayout(
   edges: FlowEdge[],
   opts: { colWidth?: number; rowHeight?: number } = {}
 ): Screen[] {
-  const colWidth = opts.colWidth ?? 280
-  const rowHeight = opts.rowHeight ?? 170
+  // Wide enough that an edge label fits in the gap between two columns.
+  const colWidth = opts.colWidth ?? 360
+  const rowHeight = opts.rowHeight ?? 210
   const { entries } = analyseGraph(screens, edges)
   const depth = new Map<string, number>()
   const start = entries.length ? entries : screens.slice(0, 1)
 
+  // Breadth-first, first visit wins. Deliberately shortest-path rather than
+  // longest-path: a cycle (save → list → edit → save) would otherwise keep
+  // relaxing depths upward and fling screens thousands of pixels to the right.
   const queue: Array<{ id: string; d: number }> = start.map((s) => ({
     id: s.id,
     d: 0,
   }))
-  const guard = screens.length * screens.length + screens.length
-  let steps = 0
-  while (queue.length && steps < guard) {
-    steps += 1
+  while (queue.length) {
     const { id, d } = queue.shift()!
-    if ((depth.get(id) ?? -1) >= d) continue
+    if (depth.has(id)) continue
     depth.set(id, d)
-    for (const edge of edges.filter((e) => e.from === id)) {
-      queue.push({ id: edge.to, d: d + 1 })
+    for (const edge of edges) {
+      if (edge.from === id && !depth.has(edge.to)) {
+        queue.push({ id: edge.to, d: d + 1 })
+      }
     }
   }
 

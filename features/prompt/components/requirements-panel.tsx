@@ -1,0 +1,76 @@
+"use client"
+
+import { SelectField, TextAreaField, ToggleRow } from "@/components/shared/form"
+import { SectionLabel } from "@/components/shared/layout"
+import { snippets } from "@/features/library/data/snippets"
+import { promptTargets } from "@/features/prompt/engine/targets"
+import { useProjectStore } from "@/stores/use-project-store"
+import type { Project } from "@/types/project"
+
+export function RequirementsPanel({ project }: { project: Project }) {
+  const update = useProjectStore((s) => s.update)
+
+  const grouped = snippets.reduce<Record<string, typeof snippets>>((acc, item) => {
+    acc[item.category] = [...(acc[item.category] ?? []), item]
+    return acc
+  }, {})
+
+  return (
+    <div className="space-y-5">
+      <SelectField
+        label="Prompt target"
+        hint="Changes wording, block order and formatting."
+        value={project.target}
+        onValueChange={(target) =>
+          update((doc) => {
+            doc.target = target
+          })
+        }
+        options={promptTargets.map((t) => ({ value: t.id, label: t.name }))}
+      />
+
+      <TextAreaField
+        label="Additional requirements"
+        hint="Business rules, integrations, edge cases — anything the diagram cannot express."
+        rows={8}
+        value={project.requirements}
+        onChange={(event) =>
+          update((doc) => {
+            doc.requirements = event.target.value
+          })
+        }
+      />
+
+      <section className="space-y-2 border-t border-border pt-4">
+        <SectionLabel>Requirement packs</SectionLabel>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Reusable blocks appended to the technical requirements. Toggle the ones
+          this build must honour.
+        </p>
+        {Object.entries(grouped).map(([category, items]) => (
+          <div key={category} className="space-y-0.5">
+            <p className="pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/70">
+              {category}
+            </p>
+            {items.map((snippet) => (
+              <ToggleRow
+                key={snippet.id}
+                variant="checkbox"
+                title={snippet.name}
+                description={snippet.description}
+                checked={project.snippetIds.includes(snippet.id)}
+                onCheckedChange={(checked) =>
+                  update((doc) => {
+                    doc.snippetIds = checked
+                      ? [...doc.snippetIds, snippet.id]
+                      : doc.snippetIds.filter((id) => id !== snippet.id)
+                  })
+                }
+              />
+            ))}
+          </div>
+        ))}
+      </section>
+    </div>
+  )
+}

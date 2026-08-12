@@ -1,0 +1,309 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ===========================================================
+   PROMPT STUDIO — design system
+   Tokens in :root / .dark, Tailwind theme via @theme inline,
+   component-level helpers in @layer components.
+   Palette: indigo/violet workbench — deliberately unlike the
+   IntelliWealth product it sits beside.
+   =========================================================== */
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-code), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.9);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.7rem;
+
+  --background: oklch(0.985 0.004 285);
+  --foreground: oklch(0.21 0.02 285);
+  --surface: oklch(0.97 0.006 285);
+  --card: oklch(1 0 0);
+  --card-foreground: var(--foreground);
+  --popover: oklch(1 0 0);
+  --popover-foreground: var(--foreground);
+
+  --primary: oklch(0.53 0.19 283);
+  --primary-foreground: oklch(0.99 0.005 285);
+  --primary-soft: oklch(0.95 0.03 285);
+
+  --secondary: oklch(0.96 0.008 285);
+  --secondary-foreground: oklch(0.3 0.02 285);
+
+  --muted: oklch(0.96 0.006 285);
+  --muted-foreground: oklch(0.53 0.02 285);
+
+  --accent: oklch(0.94 0.03 250);
+  --accent-foreground: oklch(0.3 0.06 270);
+
+  --destructive: oklch(0.58 0.21 25);
+  --destructive-foreground: oklch(0.99 0 0);
+  --destructive-soft: oklch(0.95 0.04 25);
+
+  --success: oklch(0.58 0.14 155);
+  --success-soft: oklch(0.94 0.05 155);
+  --warning: oklch(0.72 0.15 75);
+  --warning-soft: oklch(0.95 0.06 85);
+  --info: oklch(0.6 0.13 240);
+  --info-soft: oklch(0.95 0.04 240);
+
+  --border: oklch(0.9 0.008 285);
+  --input: oklch(0.93 0.008 285);
+  --ring: oklch(0.53 0.19 283);
+
+  --canvas-dot: oklch(0.87 0.01 285);
+}
+
+.dark {
+  --background: oklch(0.17 0.012 285);
+  --foreground: oklch(0.95 0.006 285);
+  --surface: oklch(0.21 0.014 285);
+  --card: oklch(0.22 0.015 285);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.23 0.016 285);
+  --popover-foreground: var(--foreground);
+
+  --primary: oklch(0.68 0.16 285);
+  --primary-foreground: oklch(0.17 0.02 285);
+  --primary-soft: oklch(0.3 0.06 285);
+
+  --secondary: oklch(0.26 0.015 285);
+  --secondary-foreground: oklch(0.93 0.006 285);
+
+  --muted: oklch(0.26 0.014 285);
+  --muted-foreground: oklch(0.72 0.015 285);
+
+  --accent: oklch(0.3 0.04 270);
+  --accent-foreground: oklch(0.93 0.02 285);
+
+  --destructive: oklch(0.65 0.19 25);
+  --destructive-foreground: oklch(0.16 0.02 25);
+  --destructive-soft: oklch(0.32 0.08 25);
+
+  --success: oklch(0.7 0.14 155);
+  --success-soft: oklch(0.3 0.06 155);
+  --warning: oklch(0.79 0.14 80);
+  --warning-soft: oklch(0.33 0.07 80);
+  --info: oklch(0.7 0.12 240);
+  --info-soft: oklch(0.3 0.06 240);
+
+  --border: oklch(0.31 0.014 285);
+  --input: oklch(0.33 0.015 285);
+  --ring: oklch(0.68 0.16 285);
+
+  --canvas-dot: oklch(0.3 0.014 285);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* dvh so mobile browser chrome cannot clip a full-height workbench */
+    min-height: 100dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 25%, transparent);
+  }
+
+  /* Slim, theme-aware scrollbars — the workbench is full of scroll areas. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent)
+      transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--foreground) 18%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--foreground) 32%, transparent);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /* -------------------------------------------------------------
+     Wireframe thumbnails.
+     Every tone is derived with color-mix from --foreground or the
+     per-thumb --thumb-accent, so one definition works in both
+     themes and each thumbnail can adopt the project's own colour.
+     ------------------------------------------------------------- */
+  .wire-thumb {
+    --thumb-line: color-mix(in oklab, var(--foreground) 13%, transparent);
+    --thumb-strong: color-mix(in oklab, var(--foreground) 32%, transparent);
+    --thumb-surface: color-mix(in oklab, var(--foreground) 6%, transparent);
+    --thumb-hairline: color-mix(in oklab, var(--foreground) 14%, transparent);
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--foreground) 1.5%, transparent),
+      transparent 60%
+    );
+  }
+
+  .wire-line {
+    background-color: var(--thumb-line);
+  }
+  .wire-strong {
+    background-color: var(--thumb-strong);
+  }
+  .wire-surface {
+    background-color: var(--thumb-surface);
+  }
+  .wire-accent {
+    background-color: var(--thumb-accent);
+  }
+  .wire-accent-soft {
+    background-color: color-mix(in oklab, var(--thumb-accent) 14%, transparent);
+  }
+  .wire-accent-line {
+    background-color: color-mix(in oklab, var(--thumb-accent) 45%, transparent);
+  }
+  .wire-border {
+    border-color: var(--thumb-hairline);
+  }
+  .wire-border-b {
+    border-bottom-color: var(--thumb-hairline);
+  }
+  .wire-border-accent {
+    border-color: color-mix(in oklab, var(--thumb-accent) 40%, transparent);
+  }
+  .wire-field {
+    background-color: color-mix(in oklab, var(--card) 70%, transparent);
+  }
+  .wire-donut {
+    background: conic-gradient(
+      var(--thumb-accent) 0 62%,
+      color-mix(in oklab, var(--thumb-accent) 22%, transparent) 62% 100%
+    );
+    mask: radial-gradient(circle, transparent 52%, black 53%);
+    -webkit-mask: radial-gradient(circle, transparent 52%, black 53%);
+  }
+
+  /* Canvas dot grid, shared by the flow canvas and its empty state. */
+  .canvas-grid {
+    background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  .panel {
+    background: var(--card);
+    border-color: var(--border);
+  }
+
+  .code-surface {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    tab-size: 2;
+  }
+}
+
+/* React Flow needs its own variables mapped onto our tokens. */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: color-mix(in oklab, var(--foreground) 35%, transparent);
+  --xy-edge-stroke-selected: var(--primary);
+  --xy-connectionline-stroke: var(--primary);
+  --xy-handle-background-color: var(--primary);
+  --xy-handle-border-color: var(--card);
+  --xy-attribution-background-color: transparent;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__edge-text {
+  fill: var(--foreground);
+  font-size: 11px;
+}
+.react-flow__edge-textbg {
+  fill: var(--card);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  .print-page {
+    max-width: none;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
