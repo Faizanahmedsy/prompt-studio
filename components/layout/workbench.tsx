@@ -92,15 +92,21 @@ export function Workbench({ project }: { project: Project }) {
 
         {isDesktop ? (
           <PanelGroup
+            // `autoSaveId` lets the library persist sizes to localStorage
+            // itself. Feeding sizes through our own store instead caused
+            // onLayout → setState → new defaultSize → onLayout to loop until
+            // the renderer died.
+            autoSaveId={advanced ? "ps-panels-advanced" : "ps-panels-easy"}
             direction="horizontal"
             className="min-h-0 flex-1"
-            onLayout={(sizes) => ui.setPanelSizes(sizes)}
           >
             {/* Advanced: library. Easy: the selected screen — nothing global. */}
             {(showLeft || !advanced) && (
               <>
                 <Panel
-                  defaultSize={advanced ? (ui.panelSizes[0] ?? 20) : 22}
+                  id="left"
+                  order={1}
+                  defaultSize={advanced ? 20 : 22}
                   minSize={14}
                   maxSize={32}
                   className="border-r border-border bg-card"
@@ -116,8 +122,9 @@ export function Workbench({ project }: { project: Project }) {
             )}
 
             <Panel
-              key={showLeft ? "with-left" : "no-left"}
-              defaultSize={showLeft ? (ui.panelSizes[1] ?? 54) : 52}
+              id="centre"
+              order={2}
+              defaultSize={52}
               minSize={30}
               className="relative min-w-0"
             >
@@ -128,7 +135,9 @@ export function Workbench({ project }: { project: Project }) {
               <>
                 <ResizeHandle />
                 <Panel
-                  defaultSize={ui.panelSizes[2] ?? 26}
+                  id="right"
+                  order={3}
+                  defaultSize={26}
                   minSize={18}
                   maxSize={40}
                   className="border-l border-border bg-card"

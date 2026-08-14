@@ -58,19 +58,23 @@ function CanvasInner({ project }: { project: Project }) {
    */
   useEffect(() => {
     if (hasFitted.current || !nodesInitialized || !project.screens.length) return
+    hasFitted.current = true
 
     // Projects saved before the layout fix can hold runaway coordinates; a graph
     // wider than any real flow gets re-arranged instead of fitted to a viewport
-    // where every node is a speck. The fit then happens on the next pass.
+    // where every node is a speck. Guarded by the same ref so a graph that
+    // somehow stays wide can never re-trigger this in a loop.
     const spread = Math.max(...project.screens.map((s) => s.x))
     if (spread > 400 * project.screens.length) {
       arrangeScreens()
+      requestAnimationFrame(() =>
+        fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.4, duration: 0 })
+      )
       return
     }
 
-    hasFitted.current = true
     fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.4, duration: 0 })
-  }, [nodesInitialized, project.screens, fitView])
+  }, [nodesInitialized, project.screens.length, fitView])
 
   const entries = useMemo(
     () => new Set(analyseGraph(project.screens, project.edges).entries.map((s) => s.id)),
