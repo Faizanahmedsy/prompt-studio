@@ -322,6 +322,42 @@ export const useProjectStore = create<ProjectState>()(
       // Rehydration is triggered from a client effect so the server render and
       // the first client render always agree.
       skipHydration: true,
+      version: SCHEMA_VERSION,
+      /**
+       * Without this, a bumped version makes zustand throw the saved state away
+       * — every project the user had, gone. `merge` below is what actually
+       * reconciles the shape, so migration just hands the data through.
+       */
+      migrate: (persisted) => persisted,
+      /**
+       * Anything already in localStorage was written by an older build of this
+       * app, which is exactly as untrusted as a pasted file: a project saved
+       * before a field existed would otherwise reach components missing it and
+       * take the whole render down. Parsing through the schema fills defaults
+       * for new fields and drops anything unrecoverable.
+       */
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<ProjectState>
+        const projects = Array.isArray(saved.projects)
+          ? saved.projects.flatMap((entry) => {
+              const parsed = projectSchema.safeParse(entry)
+              return parsed.success ? [parsed.data] : []
+            })
+          : []
+        const profiles = Array.isArray(saved.profiles)
+          ? saved.profiles.filter(
+              (p): p is StackProfile =>
+                Boolean(p) && typeof (p as StackProfile).id === "string"
+            )
+          : []
+        const activeId =
+          typeof saved.activeId === "string" &&
+          projects.some((p) => p.id === saved.activeId)
+            ? saved.activeId
+            : (projects[0]?.id ?? null)
+
+        return { ...current, projects, profiles, activeId }
+      },
       // History is deliberately session-scoped, and `hydrated` is runtime state.
       partialize: (state) => ({
         projects: state.projects,

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { RequirementsPanel } from "@/features/prompt/components/requirements-panel"
 import { ThemeEditor } from "@/features/theme/components/theme-editor"
+import { describeDesignLanguage } from "@/features/theme/data/design-languages"
 import { cn } from "@/lib/utils"
 import type { Project } from "@/types/project"
 
@@ -111,5 +112,7 @@ function BarButton({
 }
 
 function describeSummary(project: Project) {
-  return project.theme.designLanguage.replace(/-/g, " ")
+  // Via the catalogue rather than the raw id, so an unknown or missing value
+  // still reads as something.
+  return describeDesignLanguage(project.theme?.designLanguage ?? "").name
 }
