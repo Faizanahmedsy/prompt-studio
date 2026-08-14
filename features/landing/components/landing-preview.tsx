@@ -3,9 +3,11 @@
 import { LayoutPanelTop } from "lucide-react"
 
 import { EmptyState } from "@/components/shared/feedback"
+import { addSection } from "@/features/builder/utils/actions"
+import { AddMenu } from "@/features/library/components/add-menu"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout } from "@/features/library/data/layouts"
-import { sectionTypeMap } from "@/features/library/data/section-types"
+import { sectionTypeMap, sectionTypes } from "@/features/library/data/section-types"
 import { cn } from "@/lib/utils"
 import type { Project } from "@/types/project"
 import { useUiStore } from "@/stores/use-ui-store"
@@ -14,20 +16,38 @@ import { useUiStore } from "@/stores/use-ui-store"
 export function LandingPreview({ project }: { project: Project }) {
   const selectedId = useUiStore((s) => s.selectedId)
   const select = useUiStore((s) => s.select)
+  const advanced = useUiStore((s) => s.experience === "advanced")
   const ordered = [...project.sections].sort((a, b) => a.order - b.order)
+
+  const addSectionMenu = (
+    <AddMenu
+      label="Add section"
+      items={sectionTypes}
+      onPick={(type) => {
+        const id = addSection(type)
+        if (id) select(id)
+      }}
+    />
+  )
 
   if (!ordered.length) {
     return (
       <EmptyState
         icon={<LayoutPanelTop />}
         title="No sections yet"
-        description="Add sections from the library on the left. They stack in the order you add them, and that order is exactly what the prompt describes."
+        description={
+          advanced
+            ? "Add sections from the library on the left. They stack in the order you add them, and that order is exactly what the prompt describes."
+            : "Sections stack in the order you add them, and that order is exactly what the prompt describes."
+        }
+        action={!advanced ? addSectionMenu : undefined}
       />
     )
   }
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-3 p-4">
+      {!advanced && <div className="flex justify-end">{addSectionMenu}</div>}
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {ordered.map((section, index) => {
           const layout = describeLayout(section.layout)

@@ -16,9 +16,14 @@ import {
   updateScreen,
 } from "@/features/builder/utils/actions"
 import { analyseGraph } from "@/features/builder/utils/graph"
+import { AddMenu } from "@/features/library/components/add-menu"
 import { describeLayout, layoutsForTemplate } from "@/features/library/data/layouts"
-import { screenTemplateMap } from "@/features/library/data/templates"
+import {
+  screenTemplateMap,
+  screenTemplates,
+} from "@/features/library/data/templates"
 import { cn } from "@/lib/utils"
+import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
 import { ScreenConnections } from "./screen-connections"
@@ -31,10 +36,24 @@ import { ScreenConnections } from "./screen-connections"
 export function OutlineList({ project }: { project: Project }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const [pickerFor, setPickerFor] = useState<string | null>(null)
+  const advanced = useUiStore((s) => s.experience === "advanced")
+  const select = useUiStore((s) => s.select)
 
   const { ordered, entries } = analyseGraph(project.screens, project.edges)
   const entryIds = new Set(entries.map((s) => s.id))
   const pickerScreen = project.screens.find((s) => s.id === pickerFor)
+
+  // Easy mode has no library pane, so the list carries its own add affordance.
+  const addMenu = (
+    <AddMenu
+      label="Add screen"
+      items={screenTemplates}
+      onPick={(template) => {
+        const id = addScreen(template)
+        if (id) select(id)
+      }}
+    />
+  )
 
   if (!project.screens.length) {
     return (
@@ -43,16 +62,23 @@ export function OutlineList({ project }: { project: Project }) {
         title="No screens yet"
         description="Add a screen to start describing the app."
         action={
-          <Button size="sm" onClick={() => addScreen("auth")}>
-            <Plus /> Add screen
-          </Button>
+          advanced ? (
+            <Button size="sm" onClick={() => addScreen("auth")}>
+              <Plus /> Add screen
+            </Button>
+          ) : (
+            addMenu
+          )
         }
       />
     )
   }
 
   return (
-    <div className="space-y-2 p-3">
+    // Extra bottom padding in Easy mode so the floating settings bar never
+    // covers the last screen in the list.
+    <div className={cn("space-y-2 p-3", !advanced && "pb-24")}>
+      {!advanced && <div className="flex justify-end">{addMenu}</div>}
       {ordered.map((screen, index) => {
         const template = screenTemplateMap[screen.template]
         const layout = describeLayout(screen.layout)

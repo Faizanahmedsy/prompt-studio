@@ -4,6 +4,7 @@ import { Keyboard, Library, PanelRight } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 
+import { GlobalSettingsBar } from "@/components/layout/global-settings-bar"
 import { Inspector } from "@/components/layout/inspector"
 import { TopBar } from "@/components/layout/top-bar"
 import { Button } from "@/components/ui/button"
@@ -48,12 +49,16 @@ export function Workbench({ project }: { project: Project }) {
   useWorkbenchHotkeys()
   useShareImport(hydrated)
 
+  // Easy mode has no library pane at all — adding happens on the canvas.
+  const advanced = ui.experience === "advanced"
+  const showLeft = advanced && ui.leftOpen
+
   // Opening a screen on a phone should surface the inspector, not hide it.
   useEffect(() => {
     if (!isDesktop && ui.selectedId) setInspectorOpen(true)
   }, [isDesktop, ui.selectedId])
 
-  const centre =
+  const canvas =
     ui.mode === "code" ? (
       <FlowCodeView project={project} />
     ) : ui.mode === "landing" ? (
@@ -68,6 +73,18 @@ export function Workbench({ project }: { project: Project }) {
       </div>
     )
 
+  // Easy mode floats the project-wide settings over the canvas instead of
+  // mixing them into the inspector, where they read as properties of whatever
+  // happens to be selected.
+  const centre = advanced ? (
+    canvas
+  ) : (
+    <div className="relative h-full">
+      {canvas}
+      <GlobalSettingsBar project={project} />
+    </div>
+  )
+
   return (
     <TooltipProvider delayDuration={400}>
       <div className="flex h-dvh flex-col overflow-hidden bg-background">
@@ -79,22 +96,28 @@ export function Workbench({ project }: { project: Project }) {
             className="min-h-0 flex-1"
             onLayout={(sizes) => ui.setPanelSizes(sizes)}
           >
-            {ui.leftOpen && (
+            {/* Advanced: library. Easy: the selected screen — nothing global. */}
+            {(showLeft || !advanced) && (
               <>
                 <Panel
-                  defaultSize={ui.panelSizes[0] ?? 20}
+                  defaultSize={advanced ? (ui.panelSizes[0] ?? 20) : 22}
                   minSize={14}
-                  maxSize={30}
+                  maxSize={32}
                   className="border-r border-border bg-card"
                 >
-                  <LibraryPanel project={project} />
+                  {advanced ? (
+                    <LibraryPanel project={project} />
+                  ) : (
+                    <Inspector project={project} variant="selection" />
+                  )}
                 </Panel>
                 <ResizeHandle />
               </>
             )}
 
             <Panel
-              defaultSize={ui.panelSizes[1] ?? 54}
+              key={showLeft ? "with-left" : "no-left"}
+              defaultSize={showLeft ? (ui.panelSizes[1] ?? 54) : 52}
               minSize={30}
               className="relative min-w-0"
             >
@@ -110,15 +133,19 @@ export function Workbench({ project }: { project: Project }) {
                   maxSize={40}
                   className="border-l border-border bg-card"
                 >
-                  <PanelGroup direction="vertical">
-                    <Panel defaultSize={52} minSize={25}>
-                      <Inspector project={project} />
-                    </Panel>
-                    <ResizeHandle vertical />
-                    <Panel defaultSize={48} minSize={25}>
-                      <PromptPanel project={project} />
-                    </Panel>
-                  </PanelGroup>
+                  {advanced ? (
+                    <PanelGroup direction="vertical">
+                      <Panel defaultSize={52} minSize={25}>
+                        <Inspector project={project} />
+                      </Panel>
+                      <ResizeHandle vertical />
+                      <Panel defaultSize={48} minSize={25}>
+                        <PromptPanel project={project} />
+                      </Panel>
+                    </PanelGroup>
+                  ) : (
+                    <PromptPanel project={project} />
+                  )}
                 </Panel>
               </>
             )}
@@ -128,15 +155,17 @@ export function Workbench({ project }: { project: Project }) {
             <main className="min-h-0 flex-1 overflow-hidden">{centre}</main>
 
             <nav className="flex shrink-0 items-center justify-around border-t border-border bg-card px-2 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex-1 flex-col gap-0.5 text-[10px]"
-                onClick={() => setLibraryOpen(true)}
-              >
-                <Library />
-                Library
-              </Button>
+              {advanced && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 flex-col gap-0.5 text-[10px]"
+                  onClick={() => setLibraryOpen(true)}
+                >
+                  <Library />
+                  Library
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -169,7 +198,10 @@ export function Workbench({ project }: { project: Project }) {
                 <SheetTitle className="sr-only">Inspector</SheetTitle>
                 <div className="flex h-full flex-col">
                   <div className="min-h-0 flex-1">
-                    <Inspector project={project} />
+                    <Inspector
+                      project={project}
+                      variant={advanced ? "full" : "selection"}
+                    />
                   </div>
                   <div className="h-[45%] shrink-0 border-t border-border">
                     <PromptPanel project={project} />

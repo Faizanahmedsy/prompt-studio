@@ -150,17 +150,19 @@ export function TopBar({ project }: { project: Project }) {
         </Hint>
 
         <span className="hidden items-center xl:flex">
-          <Hint label="Toggle library">
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              onClick={ui.toggleLeft}
-              aria-label="Toggle library panel"
-              aria-pressed={ui.leftOpen}
-            >
-              <PanelLeft />
-            </Button>
-          </Hint>
+          {advanced && (
+            <Hint label="Toggle library">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={ui.toggleLeft}
+                aria-label="Toggle library panel"
+                aria-pressed={ui.leftOpen}
+              >
+                <PanelLeft />
+              </Button>
+            </Hint>
+          )}
           <Hint label="Toggle inspector">
             <Button
               size="icon-sm"

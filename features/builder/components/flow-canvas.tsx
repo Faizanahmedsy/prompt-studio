@@ -31,6 +31,8 @@ import {
   deleteScreen,
   moveScreen,
 } from "@/features/builder/utils/actions"
+import { AddMenu } from "@/features/library/components/add-menu"
+import { screenTemplates } from "@/features/library/data/templates"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
@@ -43,6 +45,7 @@ const edgeTypes = { flow: FlowEdge }
 function CanvasInner({ project }: { project: Project }) {
   const select = useUiStore((s) => s.select)
   const selectedId = useUiStore((s) => s.selectedId)
+  const advanced = useUiStore((s) => s.experience === "advanced")
   const { screenToFlowPosition, fitView } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const hasFitted = useRef(false)
@@ -140,11 +143,27 @@ function CanvasInner({ project }: { project: Project }) {
         <EmptyState
           icon={<Workflow />}
           title="No screens yet"
-          description="Add screens from the library on the left, paste a Flow file, or start from a template. Then drag from a screen's right edge to connect it to the next one."
+          description={
+            advanced
+              ? "Add screens from the library on the left, paste a Flow file, or start from a template. Then drag from a screen's right edge to connect it to the next one."
+              : "Add a screen, or paste a Flow file from the header. Then drag from a screen's right edge to the next screen to connect them."
+          }
           action={
-            <Button size="sm" onClick={() => addScreen("auth")}>
-              <Plus /> Add first screen
-            </Button>
+            advanced ? (
+              <Button size="sm" onClick={() => addScreen("auth")}>
+                <Plus /> Add first screen
+              </Button>
+            ) : (
+              <AddMenu
+                label="Add first screen"
+                align="center"
+                items={screenTemplates}
+                onPick={(template) => {
+                  const id = addScreen(template)
+                  if (id) select(id)
+                }}
+              />
+            )
           }
         />
       </div>
@@ -191,6 +210,18 @@ function CanvasInner({ project }: { project: Project }) {
         showInteractive={false}
         className="rounded-lg! border! border-border! bg-card! shadow-sm! [&_button]:border-border! [&_button]:bg-card! [&_button]:text-foreground! hover:[&_button]:bg-muted!"
       />
+      {!advanced && (
+        <div className="absolute left-3 top-3 z-10">
+          <AddMenu
+            label="Add screen"
+            items={screenTemplates}
+            onPick={(template) => {
+              const id = addScreen(template)
+              if (id) select(id)
+            }}
+          />
+        </div>
+      )}
       <div className="absolute right-3 top-3 z-10 flex gap-1.5">
         <Button
           size="sm"
