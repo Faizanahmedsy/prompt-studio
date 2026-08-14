@@ -15,7 +15,7 @@ export function serializeFlow(doc: ProjectDoc): string {
   out.push(`  target ${doc.target}`)
   out.push(`  creativity ${doc.creativity}`)
   out.push(
-    `  theme { primary ${doc.theme.primaryColor}; secondary ${doc.theme.secondaryColor}; radius ${doc.theme.borderRadius}; buttons ${doc.theme.buttonStyle}; density ${doc.theme.density} }`
+    `  theme { design ${doc.theme.designLanguage}; primary ${doc.theme.primaryColor}; secondary ${doc.theme.secondaryColor}; radius ${doc.theme.borderRadius}; buttons ${doc.theme.buttonStyle}; density ${doc.theme.density} }`
   )
   out.push("}")
 

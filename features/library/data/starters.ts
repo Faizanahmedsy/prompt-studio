@@ -50,7 +50,7 @@ flow {
 
 structure feature-based
 conventions [kebab-files, barrel-exports, alias-@, states-required, a11y-baseline, tokens-only]
-snippets [a11y, states, tables]`,
+snippets [a11y, states, tables, api-hooks, pagination]`,
   },
   {
     id: "auth-flow",
@@ -115,7 +115,7 @@ flow {
 
 structure feature-based
 conventions [kebab-files, barrel-exports, no-deep-imports, alias-@, states-required, a11y-baseline]
-snippets [a11y, states, tables, rbac]
+snippets [a11y, states, tables, rbac, api-hooks, pagination]
 
 requirements """
 Every destructive action names the record in its confirmation and writes an audit entry.
@@ -183,7 +183,7 @@ flow {
 
 structure feature-based
 conventions [kebab-files, alias-@, states-required, a11y-baseline, tokens-only]
-snippets [a11y, states, forms, responsive]
+snippets [a11y, states, forms, responsive, api-hooks]
 
 requirements """
 The order summary stays visible at every checkout step, including on mobile.

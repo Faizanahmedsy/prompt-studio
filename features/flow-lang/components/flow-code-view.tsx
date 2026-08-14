@@ -1,13 +1,6 @@
 "use client"
 
-import {
-  AlertTriangle,
-  ClipboardCopy,
-  Code2,
-  Download,
-  FileInput,
-  MessageSquareCode,
-} from "lucide-react"
+import { AlertTriangle, ClipboardCopy, Code2, Download } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -23,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
+import { FlowActions } from "@/features/flow-lang/components/flow-actions"
 import { parseFlow } from "@/features/flow-lang/parser"
 import { serializeFlow } from "@/features/flow-lang/serializer"
 import { builtInProfiles } from "@/features/stack/data/profiles"
@@ -36,7 +29,6 @@ import type { Project, ProjectDoc } from "@/types/project"
  * language to ChatGPT, and the paste-back path with a preview before commit.
  */
 export function FlowCodeView({ project }: { project: Project }) {
-  const [pasteOpen, setPasteOpen] = useState(false)
   const source = useMemo(() => serializeFlow(project), [project])
 
   return (
@@ -71,22 +63,9 @@ export function FlowCodeView({ project }: { project: Project }) {
         }
       />
 
+      {/* Same pair as the header — one component, so they never drift. */}
       <div className="flex flex-wrap gap-1.5 border-b border-border p-3">
-        <Button
-          size="sm"
-          onClick={() => {
-            copyText(buildAuthoringPrompt())
-            toast.success("Diagram-syntax prompt copied", {
-              description:
-                "Paste it into ChatGPT with the client requirements, then paste the Flow file it returns back here.",
-            })
-          }}
-        >
-          <MessageSquareCode /> Copy prompt for diagram syntax
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)}>
-          <FileInput /> Paste Flow
-        </Button>
+        <FlowActions />
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-3">
@@ -94,8 +73,6 @@ export function FlowCodeView({ project }: { project: Project }) {
           {source}
         </pre>
       </div>
-
-      <PasteFlowDialog open={pasteOpen} onOpenChange={setPasteOpen} />
     </div>
   )
 }

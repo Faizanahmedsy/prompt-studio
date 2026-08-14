@@ -5,7 +5,10 @@ import { SectionLabel } from "@/components/shared/layout"
 import { Slider } from "@/components/ui/misc"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout } from "@/features/library/data/layouts"
+import { DesignLanguageCard } from "@/features/theme/components/design-language-card"
+import { designLanguages } from "@/features/theme/data/design-languages"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useUiStore } from "@/stores/use-ui-store"
 import {
   borderRadiusValues,
   buttonStyleValues,
@@ -28,6 +31,7 @@ const creativityWords = [
 
 export function ThemeEditor({ project }: { project: Project }) {
   const update = useProjectStore((s) => s.update)
+  const advanced = useUiStore((s) => s.experience === "advanced")
   const theme = project.theme
 
   const set = (patch: Partial<Project["theme"]>) =>
@@ -37,6 +41,27 @@ export function ThemeEditor({ project }: { project: Project }) {
 
   return (
     <div className="space-y-4">
+      <section className="space-y-2">
+        <div>
+          <SectionLabel>Design language</SectionLabel>
+          <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            The overall character of the UI. Each preview is a real mock built
+            with that language's radii, borders, shadows and type.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {designLanguages.map((language) => (
+            <DesignLanguageCard
+              key={language.id}
+              language={language}
+              accent={theme.primaryColor}
+              selected={theme.designLanguage === language.id}
+              onSelect={() => set({ designLanguage: language.id })}
+            />
+          ))}
+        </div>
+      </section>
+
       <div className="rounded-lg border border-border bg-surface p-2">
         <LayoutThumb
           wire={describeLayout("dashboard-sidebar").wire}
@@ -44,7 +69,7 @@ export function ThemeEditor({ project }: { project: Project }) {
           accent={theme.primaryColor}
         />
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Live preview — every layout thumbnail uses these colours.
+          Layout preview — every thumbnail uses these colours.
         </p>
       </div>
 
@@ -71,6 +96,8 @@ export function ThemeEditor({ project }: { project: Project }) {
         }))}
       />
 
+      {advanced && (
+        <>
       <SelectField
         label="Button style"
         value={theme.buttonStyle}
@@ -95,6 +122,8 @@ export function ThemeEditor({ project }: { project: Project }) {
           { value: "spacious", label: "Spacious" },
         ]}
       />
+        </>
+      )}
 
       <div className="space-y-2 border-t border-border pt-3">
         <div className="flex items-baseline justify-between">

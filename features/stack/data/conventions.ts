@@ -103,6 +103,30 @@ export const conventions: Convention[] = [
     line: "Comment intent and trade-offs, not restatements of the code.",
   },
   {
+    id: "git-permission",
+    label: "Never touch git without asking",
+    group: "Process",
+    line: "Never run any git command that changes state — commit, push, branch, merge, reset, rebase, stash — without asking for permission first. Stage and describe the change; the human commits.",
+  },
+  {
+    id: "story-docs",
+    label: "Story doc per feature",
+    group: "Process",
+    line: "Every new feature gets a markdown file in `docs/stories/` written as story points of the actual implemented flow: purpose, actors, screens, API contract used, states, permissions and open follow-ups. Update it whenever the behaviour changes — a stale story is worse than none.",
+  },
+  {
+    id: "kt-doc",
+    label: "Maintain a KT prompt",
+    group: "Process",
+    line: "Maintain `docs/kt.md` — a knowledge-transfer prompt that lets a fresh session pick up the whole project from one read: what it is, decisions already made, current state, folder map, and the exact next step. Update it at the end of any session that changed the shape of the project.",
+  },
+  {
+    id: "reuse-components",
+    label: "Global shared components, reused",
+    group: "UI",
+    line: "Prefer global shared components and reuse them everywhere. Build a new one-off component only when reuse is genuinely impossible, and say why. Any markup appearing a second time becomes a shared component instead.",
+  },
+  {
     id: "conventional-commits",
     label: "Conventional commits",
     group: "Process",
@@ -126,8 +150,13 @@ export const defaultConventionIds = [
   "no-deep-imports",
   "alias-@",
   "shared-first",
+  "reuse-components",
   "typed-payloads",
   "states-required",
   "a11y-baseline",
   "tokens-only",
+  // Working agreements every build here is expected to honour.
+  "git-permission",
+  "story-docs",
+  "kt-doc",
 ]

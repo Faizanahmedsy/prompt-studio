@@ -24,6 +24,7 @@ import { getTarget } from "@/features/prompt/engine/targets"
 import { copyText, downloadFile } from "@/lib/download"
 import { countWords, estimateTokens } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 import { cn } from "@/lib/utils"
 
@@ -31,6 +32,7 @@ export function PromptPanel({ project }: { project: Project }) {
   const [lastGenerated, setLastGenerated] = useState("")
   const [copied, setCopied] = useState(false)
   const saveVersion = useProjectStore((s) => s.saveVersion)
+  const advanced = useUiStore((s) => s.experience === "advanced")
 
   const built = useMemo(() => buildPrompt(project), [project])
   const target = getTarget(project.target)
@@ -109,15 +111,17 @@ export function PromptPanel({ project }: { project: Project }) {
         <div className="shrink-0 px-3 pt-2">
           <TabsList className="w-full">
             <TabsTrigger value="preview">Preview</TabsTrigger>
-            <TabsTrigger value="diff">
-              <FileDiff />
-              Diff
-              {(stats.added > 0 || stats.removed > 0) && lastGenerated && (
-                <span className="ml-1 text-[10px] text-muted-foreground">
-                  +{stats.added}/−{stats.removed}
-                </span>
-              )}
-            </TabsTrigger>
+            {advanced && (
+              <TabsTrigger value="diff">
+                <FileDiff />
+                Diff
+                {(stats.added > 0 || stats.removed > 0) && lastGenerated && (
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    +{stats.added}/−{stats.removed}
+                  </span>
+                )}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="checks">
               Checks
               {built.warnings.length > 0 && (
@@ -142,7 +146,7 @@ export function PromptPanel({ project }: { project: Project }) {
           </PanelBody>
         </TabsContent>
 
-        <TabsContent value="diff" className="min-h-0">
+        <TabsContent value="diff" className={cn("min-h-0", !advanced && "hidden")}>
           <PanelBody>
             {!lastGenerated ? (
               <p className="text-xs text-muted-foreground">

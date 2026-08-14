@@ -10,6 +10,7 @@ import {
   stackWarnings,
 } from "@/features/stack/data/stack-catalogue"
 import { structureMap } from "@/features/stack/data/structures"
+import { describeDesignLanguage } from "@/features/theme/data/design-languages"
 import type { ProjectDoc } from "@/types/project"
 
 import { type BlockId, getTarget } from "./targets"
@@ -166,7 +167,10 @@ function sectionsBlock(doc: ProjectDoc): string {
 
 function designBlock(doc: ProjectDoc): string {
   const t = doc.theme
+  const language = describeDesignLanguage(t.designLanguage)
   return [
+    `Design language — **${language.name}**: ${language.promptDetails}`,
+    "",
     list([
       `Primary colour: ${t.primaryColor} — used for primary actions, active states and focus rings.`,
       `Secondary / accent colour: ${t.secondaryColor} — supporting highlights and charts.`,

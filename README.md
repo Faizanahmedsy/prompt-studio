@@ -34,7 +34,7 @@ pnpm build
 - **Layout library** — 60+ layouts, each with a wireframe thumbnail rendered from
   a small declarative DSL, tinted with the project's own primary colour.
 - **Stack profiles** — technology, folder structure and conventions saved
-  together and reusable across projects. Ships an "IntelliWealth house rules"
+  together and reusable across projects. Ships a "House rules"
   profile.
 - **Prompt panel** — live preview, char/word/token meter, warnings, diff against
   the last generated version.

@@ -48,6 +48,71 @@ export const snippets: Snippet[] = [
     ],
   },
   {
+    id: "api-hooks",
+    name: "Generic data hooks (house API layer)",
+    description: "useFetchData / usePostData / usePutData / usePatchData",
+    category: "Data",
+    lines: [
+      "Build the API layer as four generic hooks over TanStack Query and ONE shared axios instance. Components never call axios or fetch directly, and never hand-roll a useQuery/useMutation.",
+      `Implement them with exactly these contracts:
+
+\`\`\`ts
+// hooks/use-fetch-data.ts
+const useFetchData = <TData, TParams>({
+  url,
+  params,           // serialised through a shared buildQueryString()
+  queryKey,         // defaults to [url, params, token]
+  queryOptions,     // Omit<UseQueryOptions, "queryKey" | "queryFn">
+  enabled = true,
+  token,            // optional per-call bearer override
+  requiredPermission, action,   // opt-in permission gate: skips the request entirely
+}: FetchDataOptions<TData, TParams>) => { /* ... */ }
+// Returns the query plus isLoading = query.isLoading || query.isFetching, so a
+// background refetch from a filter or page change still shows the skeleton.
+
+// hooks/use-post-data.ts  (and use-put-data.ts / use-patch-data.ts, same shape)
+const usePostData = <TData, TVariables>({
+  url,
+  mutationOptions,
+  headers,
+  refetchQueries,   // string[] of query keys refetched on success
+  onSuccess, onError,
+  skipToast = false,          // screens that own their success UX pass true
+  toastDuration, toastPosition,
+}: UsePostDataProps<TData, TVariables>) => { /* ... */ }
+\`\`\``,
+      "Mutations unwrap `response.data`, toast success and error through sonner using a shared TOAST_CONFIG, throw an Error carrying `statusCode` and `messageCode` on failure, and refetch the query keys listed in `refetchQueries`.",
+      "Error text comes from one shared `extractErrorInfo(error)` helper — never surface a raw axios or exception message to the user.",
+      "The axios instance owns auth headers, response-envelope normalisation, 401 refresh and error conversion. Nothing above it repeats that logic.",
+      "Feature services are thin wrappers over these hooks (e.g. `useClients()` calls `useFetchData({ url: API.clients.list })`) and live in `features/<feature>/services/`.",
+    ],
+  },
+  {
+    id: "pagination",
+    name: "Shared pagination hook",
+    description: "usePagination + table wiring, no per-page boilerplate",
+    category: "Data",
+    lines: [
+      "Every list screen uses ONE shared `usePagination()` hook instead of a hand-rolled `useState({ page, limit })`.",
+      `\`\`\`ts
+// hooks/use-pagination.ts
+export interface PaginationState { page: number; limit: number; [key: string]: any }
+
+export function usePagination(initial?: Partial<PaginationState>): {
+  pagination: PaginationState              // spread straight into the list fetch hook
+  setPagination: Dispatch<SetStateAction<PaginationState>>
+  onPaginationChange: (page: number, pageSize: number) => void  // wire to the table
+  resetPage: () => void                    // call after any search/filter change
+}
+// Seeds every provided key (status, search, …) so filters autofill from a URL query
+// on first render, with page/limit falling back to DEFAULT_PAGE_NUMBER/DEFAULT_PAGE_SIZE.
+\`\`\``,
+      "Pass `pagination` as the params of the list fetch hook so a page or filter change re-keys the query and refetches automatically.",
+      "Wire the table with `paginationCallbacks={{ onPaginationChange }}`; call `resetPage()` whenever a filter or search term changes so the user is never stranded on an empty page 7.",
+      "Page size options and defaults come from shared constants, not per-screen literals.",
+    ],
+  },
+  {
     id: "tables",
     name: "Data table pack",
     description: "Sort, filter, paginate, export",

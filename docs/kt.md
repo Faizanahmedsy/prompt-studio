@@ -50,7 +50,7 @@ mode, desktop-only, drag-broken canvas, connections made by clicking a "→ Page
 button). Read it only for feature reference. **Do not copy its code.**
 
 ### House reference
-`../frontend` (IntelliWealth, Next 16) is the conventions reference — read its
+`../frontend` (the main product, Next 16) is the conventions reference — read its
 `CLAUDE.md`. Same folder philosophy and code rules, **deliberately different UI**
 (different shell, different palette). Never edit `../frontend` or `../backend`.
 
@@ -72,7 +72,7 @@ button). Read it only for feature reference. **Do not copy its code.**
 | Mobile | Full editing on small screens: panes become sheets/tabs, canvas swaps to an **editable outline list** (same model, two views). Not view-only. |
 | Layout thumbnails | Declarative wireframe DSL + one renderer, token-coloured, theme-aware, three sizes, hover/selected/focus states. |
 | `.flow` language | Real language with a tolerant hand-written parser (~200 lines, no parser generator) + serializer for round-trip. JSON+zod import stays as fallback. |
-| Stack/structure/conventions | Selectable catalogues, saved together as reusable **Stack Profiles**; ships an "IntelliWealth house rules" profile. |
+| Stack/structure/conventions | Selectable catalogues, saved together as reusable **Stack Profiles**; ships a "House rules" profile. |
 | Deps | radix primitives, zustand, cmdk, react-hotkeys-hook, sonner, lucide-react, zod, next-themes, `@xyflow/react`, `react-resizable-panels`, vitest (dev). No TanStack Query / axios (zero network). |
 
 ---
@@ -160,7 +160,7 @@ All schemas above. `SCHEMA_VERSION = 1`.
 - `structures.ts` — 6 folder presets incl. the house feature-based tree + custom.
 - `conventions.ts` — 18 convention lines grouped Naming/Structure/Code/UI/Process
   + `defaultConventionIds`.
-- `profiles.ts` — built-in Stack Profiles: **IntelliWealth house rules**,
+- `profiles.ts` — built-in Stack Profiles: **House rules**,
   Marketing site, Vite SPA prototype.
 
 ### `features/builder/utils/graph.ts`
@@ -195,7 +195,7 @@ file's current contents before assuming either state.
 ## 5. What is NOT built yet (the remaining work, in order)
 
 1. **`app/globals.css`** — Tailwind v4 `@theme inline` tokens (own palette,
-   *not* IntelliWealth green), light + dark, plus the `.wire-*` classes the
+   *not* the product green), light + dark, plus the `.wire-*` classes the
    thumbnail renderer needs:
    `wire-line`, `wire-strong`, `wire-surface`, `wire-accent`,
    `wire-accent-soft`, `wire-accent-line`, `wire-border`, `wire-border-b`,
@@ -286,7 +286,7 @@ stack {
 structure feature-based            # or: structure custom """ <ascii tree> """
 conventions [kebab-files, barrel-exports, alias-@]
 snippets [a11y, states]
-profile "IntelliWealth house"      # shorthand: expands stack + structure + conventions
+profile "House rules"      # shorthand: expands stack + structure + conventions
 requirements """
 Multi-tenant, role-gated admin actions.
 """

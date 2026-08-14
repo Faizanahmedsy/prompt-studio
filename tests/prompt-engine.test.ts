@@ -64,6 +64,32 @@ describe("prompt engine", () => {
     expect(text.indexOf("Sign In")).toBeLessThan(text.indexOf("Settings"))
   })
 
+  it("names the chosen design language and its rules", () => {
+    const base = doc()
+    const corporate = buildPrompt({
+      ...base,
+      theme: { ...base.theme, designLanguage: "corporate" },
+    }).text
+    expect(corporate).toContain("Corporate & precise")
+    expect(corporate).toContain("hairline borders")
+    expect(corporate).not.toContain("Modern & friendly")
+  })
+
+  it("carries the working agreements when their conventions are on", () => {
+    const base = doc()
+    const { text } = buildPrompt({
+      ...base,
+      conventions: {
+        ...base.conventions,
+        ids: ["git-permission", "story-docs", "kt-doc", "reuse-components"],
+      },
+    })
+    expect(text).toContain("without asking for permission first")
+    expect(text).toContain("docs/stories/")
+    expect(text).toContain("docs/kt.md")
+    expect(text).toContain("shared components")
+  })
+
   it("switches format with the target", () => {
     const base = doc()
     const claude = buildPrompt({ ...base, target: "claude-code" }).text

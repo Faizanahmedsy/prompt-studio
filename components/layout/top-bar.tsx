@@ -15,7 +15,10 @@ import {
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
+import { ExperienceToggle } from "@/components/layout/experience-toggle"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { FlowActions } from "@/features/flow-lang/components/flow-actions"
 import { Hint, Kbd } from "@/components/ui/misc"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ProjectMenu } from "@/features/projects/components/project-menu"
@@ -32,11 +35,13 @@ import {
   useCanUndo,
   useProjectStore,
 } from "@/stores/use-project-store"
+import { cn } from "@/lib/utils"
 import { type WorkMode, useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
 export function TopBar({ project }: { project: Project }) {
   const ui = useUiStore()
+  const advanced = ui.experience === "advanced"
   const update = useProjectStore((s) => s.update)
   const undo = useProjectStore((s) => s.undo)
   const redo = useProjectStore((s) => s.redo)
@@ -70,14 +75,22 @@ export function TopBar({ project }: { project: Project }) {
             <LayoutPanelTop />
             <span className="hidden sm:inline">Landing</span>
           </TabsTrigger>
-          <TabsTrigger value="code">
-            <Code2 />
-            <span className="hidden sm:inline">Code</span>
-          </TabsTrigger>
+          {advanced && (
+            <TabsTrigger value="code">
+              <Code2 />
+              <span className="hidden sm:inline">Code</span>
+            </TabsTrigger>
+          )}
         </TabsList>
       </Tabs>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-1.5">
+        <FlowActions />
+
+        <Separator orientation="vertical" className="mx-0.5 h-6 max-lg:hidden" />
+
+        <ExperienceToggle />
+
         <Select
           value={project.target}
           onValueChange={(target) =>
@@ -86,7 +99,9 @@ export function TopBar({ project }: { project: Project }) {
             })
           }
         >
-          <SelectTrigger className="hidden h-8 w-40 text-xs lg:flex">
+          <SelectTrigger
+            className={cn("hidden h-8 w-40 text-xs", advanced && "lg:flex")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

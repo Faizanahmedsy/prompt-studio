@@ -34,9 +34,11 @@ import {
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
+import { FlowEdge } from "./flow-edge"
 import { ScreenNode } from "./screen-node"
 
 const nodeTypes = { screen: ScreenNode }
+const edgeTypes = { flow: FlowEdge }
 
 function CanvasInner({ project }: { project: Project }) {
   const select = useUiStore((s) => s.select)
@@ -97,13 +99,9 @@ function CanvasInner({ project }: { project: Project }) {
         id: edge.id,
         source: edge.from,
         target: edge.to,
-        label: edge.trigger || undefined,
-        type: "smoothstep",
+        label: edge.trigger || "",
+        type: "flow",
         animated: false,
-        labelShowBg: true,
-        labelBgPadding: [6, 3] as [number, number],
-        labelBgBorderRadius: 6,
-        labelStyle: { fontSize: 10 },
         markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
       })),
     [project.edges]
@@ -158,6 +156,7 @@ function CanvasInner({ project }: { project: Project }) {
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onConnect={onConnect}

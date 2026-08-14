@@ -15,6 +15,7 @@ import type { Project } from "@/types/project"
 
 export function Inspector({ project }: { project: Project }) {
   const selectedId = useUiStore((s) => s.selectedId)
+  const advanced = useUiStore((s) => s.experience === "advanced")
   const screen = project.screens.find((s) => s.id === selectedId)
   const section = project.sections.find((s) => s.id === selectedId)
 
@@ -26,7 +27,7 @@ export function Inspector({ project }: { project: Project }) {
           <TabsList className="w-full">
             <TabsTrigger value="selection">Selection</TabsTrigger>
             <TabsTrigger value="design">Design</TabsTrigger>
-            <TabsTrigger value="stack">Stack</TabsTrigger>
+            {advanced && <TabsTrigger value="stack">Stack</TabsTrigger>}
             <TabsTrigger value="brief">Brief</TabsTrigger>
           </TabsList>
         </div>
@@ -53,11 +54,13 @@ export function Inspector({ project }: { project: Project }) {
           </PanelBody>
         </TabsContent>
 
-        <TabsContent value="stack" className="min-h-0">
-          <PanelBody>
-            <StackPanel project={project} />
-          </PanelBody>
-        </TabsContent>
+        {advanced && (
+          <TabsContent value="stack" className="min-h-0">
+            <PanelBody>
+              <StackPanel project={project} />
+            </PanelBody>
+          </TabsContent>
+        )}
 
         <TabsContent value="brief" className="min-h-0">
           <PanelBody>

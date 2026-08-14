@@ -6,6 +6,7 @@ import { promptTargets } from "@/features/prompt/engine/targets"
 import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
+import { designLanguages } from "@/features/theme/data/design-languages"
 
 /**
  * The prompt a developer copies into ChatGPT alongside the client's
@@ -69,7 +70,7 @@ decide what screens the product needs, and write the Flow file.
 app "Product name" {
   target claude-code          # who will build it
   creativity 6                # 0 = follow spec literally, 10 = free rein
-  theme { primary #2563eb; secondary #10b981; radius md; buttons filled; density comfortable }
+  theme { design modern-soft; primary #2563eb; secondary #10b981; radius md; buttons filled; density comfortable }
 }
 
 screen login "Sign In" {
@@ -120,6 +121,9 @@ Notes on syntax: braces and semicolons are optional, \`->\` may also be written
 
 ## targets
 ${promptTargets.map((t) => `- ${t.id} — ${t.description}`).join("\n")}
+
+## design languages (theme \`design\`)
+${designLanguages.map((d) => `- ${d.id} — ${d.tagline}`).join("\n")}
 
 ## screen templates
 ${screenTemplates.map((t) => `- ${t.id} — ${t.description}`).join("\n")}

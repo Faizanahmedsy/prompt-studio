@@ -6,6 +6,7 @@ import { screenTemplates } from "@/features/library/data/templates"
 import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
+import { designLanguages } from "@/features/theme/data/design-languages"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
   type FlowEdge,
@@ -485,6 +486,29 @@ function applyThemeProp(
 ) {
   const normalised = value.trim().toLowerCase()
   switch (key) {
+    case "design":
+    case "designlanguage":
+    case "style": {
+      const ids = designLanguages.map((d) => d.id)
+      if (ids.includes(normalised)) {
+        doc.theme.designLanguage = normalised
+        return
+      }
+      const suggestion = closestMatch(normalised, ids)
+      if (suggestion) {
+        doc.theme.designLanguage = suggestion
+        warnings.push({
+          line,
+          message: `Unknown design language "${value.trim()}" — using "${suggestion}".`,
+        })
+      } else {
+        warnings.push({
+          line,
+          message: `Unknown design language "${value.trim()}" — keeping ${doc.theme.designLanguage}.`,
+        })
+      }
+      return
+    }
     case "primary":
     case "primarycolor":
       doc.theme.primaryColor = normaliseColor(value, doc.theme.primaryColor, line, warnings)

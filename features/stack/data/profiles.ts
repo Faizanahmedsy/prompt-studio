@@ -8,8 +8,8 @@ import { defaultConventionIds } from "./conventions"
  */
 export const builtInProfiles: StackProfile[] = [
   {
-    id: "house-intelliwealth",
-    name: "IntelliWealth house rules",
+    id: "house-rules",
+    name: "House rules",
     stack: {
       framework: "next-16",
       language: "ts-strict",
@@ -34,6 +34,7 @@ export const builtInProfiles: StackProfile[] = [
         "ssr-safe",
         "no-todo",
       ],
+      // Keep in sync with the snippets enabled by default for this profile.
       custom:
         "Backend is a separate repo — never modify it. If the API needs a change, state the required contract instead of working around it.",
     },

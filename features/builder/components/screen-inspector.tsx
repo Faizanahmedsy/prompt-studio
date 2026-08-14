@@ -29,6 +29,7 @@ export function ScreenInspector({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const select = useUiStore((s) => s.select)
+  const advanced = useUiStore((s) => s.experience === "advanced")
   const layout = describeLayout(screen.layout)
 
   return (
@@ -39,13 +40,15 @@ export function ScreenInspector({
         onChange={(event) => updateScreen(screen.id, { title: event.target.value })}
       />
 
-      <TextField
-        label="Key"
-        hint="Used in Flow source and in the generated prompt."
-        value={screen.key}
-        onChange={(event) => updateScreen(screen.id, { key: event.target.value })}
-        className="[&_input]:font-mono [&_input]:text-xs"
-      />
+      {advanced && (
+        <TextField
+          label="Key"
+          hint="Used in Flow source and in the generated prompt."
+          value={screen.key}
+          onChange={(event) => updateScreen(screen.id, { key: event.target.value })}
+          className="[&_input]:font-mono [&_input]:text-xs"
+        />
+      )}
 
       <SelectField
         label="Screen type"

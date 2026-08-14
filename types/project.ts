@@ -27,6 +27,8 @@ export const buttonStyleValues = [
 ] as const
 
 export const themeSchema = z.object({
+  /** id from features/theme/data/design-languages.ts */
+  designLanguage: z.string().default("modern-soft"),
   primaryColor: z.string().default("#4f46e5"),
   secondaryColor: z.string().default("#0ea5e9"),
   borderRadius: z.enum(borderRadiusValues).default("medium"),
