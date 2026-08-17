@@ -24,6 +24,7 @@ import {
 } from "@/features/library/data/templates"
 import { cn } from "@/lib/utils"
 import { useUiStore } from "@/stores/use-ui-store"
+import type { Surface } from "@/types/project"
 import type { Project } from "@/types/project"
 
 import { ScreenConnections } from "./screen-connections"
@@ -33,13 +34,25 @@ import { ScreenConnections } from "./screen-connections"
  * (where a pannable canvas is hostile) and as a keyboard-friendly alternative
  * everywhere else — one model, two views.
  */
-export function OutlineList({ project }: { project: Project }) {
+export function OutlineList({
+  project,
+  surface = "web",
+}: {
+  project: Project
+  surface?: Surface
+}) {
   const [openId, setOpenId] = useState<string | null>(null)
   const [pickerFor, setPickerFor] = useState<string | null>(null)
   const advanced = useUiStore((s) => s.experience === "advanced")
   const select = useUiStore((s) => s.select)
 
-  const { ordered, entries } = analyseGraph(project.screens, project.edges)
+  // Mobile-width fallback for the canvas — it shows one build at a time too.
+  const surfaceScreens = project.screens.filter((s) => s.surface === surface)
+  const surfaceIds = new Set(surfaceScreens.map((s) => s.id))
+  const surfaceEdges = project.edges.filter(
+    (e) => surfaceIds.has(e.from) && surfaceIds.has(e.to)
+  )
+  const { ordered, entries } = analyseGraph(surfaceScreens, surfaceEdges)
   const entryIds = new Set(entries.map((s) => s.id))
   const pickerScreen = project.screens.find((s) => s.id === pickerFor)
 
@@ -55,7 +68,7 @@ export function OutlineList({ project }: { project: Project }) {
     />
   )
 
-  if (!project.screens.length) {
+  if (!surfaceScreens.length) {
     return (
       <EmptyState
         icon={<Workflow />}

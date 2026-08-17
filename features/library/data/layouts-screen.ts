@@ -697,4 +697,145 @@ export const screenLayouts: LayoutOption[] = [
       align: "center",
     }),
   },
+  // ------------------------------------------------------------------ mobile
+  // Native screens are a different shape from web ones: one column, a fixed
+  // chrome top and bottom, and everything reachable by thumb. Reusing
+  // `dashboard-sidebar` for a phone screen would describe a layout that cannot
+  // exist, so these are separate rather than a responsive note on the web ones.
+  {
+    id: "mobile-tabs",
+    name: "Tab Bar Home",
+    description: "Bottom tabs, scrolling content.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "dashboard", "list"],
+    promptDetails:
+      "A phone screen inside a bottom tab bar: a large title header that collapses on scroll, a single scrolling column of content, and 3–5 bottom tabs with icon plus label. The tab bar respects the home-indicator safe area and the active tab is visually obvious.",
+    wire: frame(
+      col(
+        [
+          heading(55),
+          card(),
+          card(),
+          spacer(1),
+          row([pill(20), pill(20), pill(20), pill(20)], { gap: 1, align: "between" }),
+        ],
+        { gap: 1 }
+      ),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-list",
+    name: "Scrolling List",
+    description: "Search, pull to refresh, rows.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "table", "list", "search"],
+    promptDetails:
+      "A phone list screen: a search field pinned under the header, a virtualised scrolling list of rows (never a table), pull-to-refresh, infinite scroll with a footer spinner, swipe actions on a row where they apply, and an illustrated empty state.",
+    wire: frame(
+      col([heading(50), pill(100, "surface"), card(), card(), card(), card()], { gap: 1 }),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-detail",
+    name: "Detail with Hero",
+    description: "Image header, content, sticky action.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "detail", "product"],
+    promptDetails:
+      "A phone detail screen: a hero image or coloured header that parallaxes away on scroll, a back control overlaid top-left, the record's fields in a single scrolling column, and a sticky bottom action bar holding the primary action above the safe area.",
+    wire: frame(
+      col([bar(100, "accentSoft", 3), heading(60), sub(80), sub(70), spacer(1), pill(100)], {
+        gap: 1,
+      }),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-form",
+    name: "Form Screen",
+    description: "Stacked fields, keyboard aware.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "form"],
+    promptDetails:
+      "A phone form: full-width stacked fields with labels above them, the keyboard never covering the focused field (keyboard-avoiding scroll), Next/Done keyboard actions moving between fields, inline validation under each field, and a submit button pinned above the keyboard.",
+    wire: frame(
+      col([heading(45), field(), field(), field(), spacer(1), pill(100)], { gap: 1 }),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-sheet",
+    name: "Bottom Sheet",
+    description: "Modal sheet over a screen.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "form", "detail"],
+    promptDetails:
+      "Content presented as a bottom sheet over the screen beneath: a drag handle, detents (half and full height), dismissal by swipe-down and by backdrop tap, and the underlying screen dimmed but still visible. Never used for content the user must not lose.",
+    wire: frame(
+      col([spacer(1), card([bar(18, "line", 1), heading(55), sub(70), pill(100)])], { gap: 1 }),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-onboarding",
+    name: "Onboarding Slides",
+    description: "Paged intro, dots, skip.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "onboarding"],
+    promptDetails:
+      "A paged onboarding flow: full-bleed illustration per page, a heading and one line of copy, page dots showing position, a Skip control top-right, and a primary button that becomes Get Started on the final page.",
+    wire: frame(
+      col(
+        [
+          spacer(1),
+          circle("lg", "accentSoft"),
+          heading(60),
+          sub(75),
+          row([circle("sm"), circle("sm"), circle("sm")], { gap: 1, align: "center" }),
+          pill(100),
+        ],
+        { gap: 1, align: "center" }
+      ),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-map",
+    name: "Map Screen",
+    description: "Full-bleed map, sheet over it.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "dashboard"],
+    promptDetails:
+      "A full-bleed map filling the screen with markers, a floating recentre control, and a bottom sheet listing what is on the map that expands to full height. Handles location permission denied and location unavailable as visible states, not silence.",
+    wire: frame(
+      col([bar(100, "accentSoft", 3), spacer(1), card([heading(50), sub(70)])], { gap: 1 }),
+      "phone"
+    ),
+  },
+  {
+    id: "mobile-profile",
+    name: "Profile / Settings List",
+    description: "Avatar header, grouped rows.",
+    category: "Mobile",
+    scope: "screen",
+    templates: ["mobile", "profile", "settings"],
+    promptDetails:
+      "A phone profile or settings screen: an avatar and name header, then grouped rows with section headings, each row a label with a chevron, a value or a switch. Destructive actions sit in their own group at the bottom and confirm before running.",
+    wire: frame(
+      col([circle("md", "accentSoft"), heading(40), card(), card(), card()], {
+        gap: 1,
+        align: "center",
+      }),
+      "phone"
+    ),
+  },
 ]

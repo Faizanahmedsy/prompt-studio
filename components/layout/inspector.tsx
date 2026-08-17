@@ -5,6 +5,7 @@ import { MousePointerSquareDashed } from "lucide-react"
 import { EmptyState } from "@/components/shared/feedback"
 import { PanelBody, PanelHeader } from "@/components/shared/layout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ModuleInspector } from "@/features/builder/components/module-inspector"
 import { ScreenInspector } from "@/features/builder/components/screen-inspector"
 import { SectionInspector } from "@/features/landing/components/section-inspector"
 import { RequirementsPanel } from "@/features/prompt/components/requirements-panel"
@@ -24,10 +25,13 @@ export function Inspector({
   const selectedId = useUiStore((s) => s.selectedId)
   const advanced = useUiStore((s) => s.experience === "advanced")
   const screen = project.screens.find((s) => s.id === selectedId)
+  const module = project.modules.find((m) => m.id === selectedId)
   const section = project.sections.find((s) => s.id === selectedId)
 
   const selection = screen ? (
     <ScreenInspector project={project} screen={screen} />
+  ) : module ? (
+    <ModuleInspector project={project} module={module} />
   ) : section ? (
     <SectionInspector project={project} section={section} />
   ) : (
@@ -41,7 +45,7 @@ export function Inspector({
   if (variant === "selection") {
     return (
       <div className="flex h-full flex-col">
-        <PanelHeader title={section ? "Section" : "Screen"} />
+        <PanelHeader title={section ? "Section" : module ? "Module" : "Screen"} />
         <PanelBody>{selection}</PanelBody>
       </div>
     )

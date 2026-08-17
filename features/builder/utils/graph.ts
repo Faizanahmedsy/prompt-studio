@@ -118,11 +118,29 @@ export function edgeExists(edges: FlowEdge[], from: string, to: string) {
 export function autoLayout(
   screens: Screen[],
   edges: FlowEdge[],
-  opts: { colWidth?: number; rowHeight?: number } = {}
+  opts: {
+    colWidth?: number
+    rowHeight?: number
+    rowGap?: number
+    /**
+     * Rendered height per screen. Screens showing their modules are several
+     * times taller than collapsed ones, and stacking every row at a fixed
+     * pitch drops them straight through the screen below.
+     */
+    heights?: Map<string, number> | Record<string, number>
+  } = {}
 ): Screen[] {
   // Wide enough that an edge label fits in the gap between two columns.
   const colWidth = opts.colWidth ?? 360
   const rowHeight = opts.rowHeight ?? 210
+  const rowGap = opts.rowGap ?? 42
+  const heightOf = (id: string) => {
+    const map = opts.heights
+    const value =
+      map instanceof Map ? map.get(id) : map ? (map[id] as number | undefined) : undefined
+    // Default keeps the historical pitch for a collapsed graph.
+    return value && value > 0 ? value : rowHeight - rowGap
+  }
   const { entries } = analyseGraph(screens, edges)
   const depth = new Map<string, number>()
   const start = entries.length ? entries : screens.slice(0, 1)
@@ -145,11 +163,13 @@ export function autoLayout(
     }
   }
 
-  const perColumn = new Map<number, number>()
+  // Each column keeps its own running offset, so a tall expanded screen pushes
+  // the rest of its column down instead of overlapping it.
+  const nextY = new Map<number, number>()
   return screens.map((screen) => {
     const column = depth.get(screen.id) ?? 0
-    const row = perColumn.get(column) ?? 0
-    perColumn.set(column, row + 1)
-    return { ...screen, x: column * colWidth, y: row * rowHeight }
+    const y = nextY.get(column) ?? 0
+    nextY.set(column, y + heightOf(screen.id) + rowGap)
+    return { ...screen, x: column * colWidth, y }
   })
 }

@@ -9,7 +9,12 @@ import {
 import { Plus, X } from "lucide-react"
 import { useState } from "react"
 
-import { deleteEdge, updateEdge } from "@/features/builder/utils/actions"
+import {
+  deleteEdge,
+  deleteModuleEdge,
+  updateEdge,
+  updateModuleEdge,
+} from "@/features/builder/utils/actions"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,9 +34,15 @@ export function FlowEdge({
   markerEnd,
   label,
   selected,
+  data,
 }: EdgeProps) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(label ?? ""))
+  // Screen transitions and module transitions render identically but live in
+  // different arrays, so the edit and delete calls have to be told apart.
+  const inner = data?.level === "module"
+  const remove = inner ? deleteModuleEdge : deleteEdge
+  const rename = inner ? updateModuleEdge : updateEdge
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -44,7 +55,7 @@ export function FlowEdge({
   })
 
   const commit = () => {
-    updateEdge(id, draft.trim())
+    rename(id, draft.trim())
     setEditing(false)
   }
 
@@ -59,8 +70,13 @@ export function FlowEdge({
         style={{
           stroke: selected
             ? "var(--primary)"
-            : "color-mix(in oklab, var(--foreground) 35%, transparent)",
-          strokeWidth: selected ? 2.5 : 1.5,
+            : inner
+              ? "color-mix(in oklab, var(--foreground) 22%, transparent)"
+              : "color-mix(in oklab, var(--foreground) 35%, transparent)",
+          strokeWidth: selected ? 2.5 : inner ? 1.2 : 1.5,
+          // Inner transitions are dashed so a glance separates "moves inside
+          // this screen" from "leaves for another screen".
+          strokeDasharray: inner && !selected ? "4 3" : undefined,
         }}
       />
 
@@ -113,7 +129,7 @@ export function FlowEdge({
 
           <button
             type="button"
-            onClick={() => deleteEdge(id)}
+            onClick={() => remove(id)}
             aria-label="Delete connection"
             title="Delete connection"
             className={cn(

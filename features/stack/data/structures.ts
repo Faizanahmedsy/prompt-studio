@@ -106,6 +106,103 @@ types/`,
     notes: ["Fine below roughly a dozen screens; split by feature after that."],
   },
   {
+    id: "expo-feature-based",
+    name: "Expo Router, feature-based",
+    description: "File routes under app/, features beside them.",
+    tree: `app/                    # Expo Router — the file tree IS the navigation
+  _layout.tsx           #   root stack + providers + theme
+  (auth)/               #   signed-out group
+    _layout.tsx
+    sign-in.tsx
+  (tabs)/               #   bottom tab navigator
+    _layout.tsx         #     the <Tabs> definition
+    index.tsx           #     first tab
+    clients/
+      index.tsx         #     /clients
+      [id].tsx          #     /clients/:id
+  +not-found.tsx
+features/
+  <feature>/
+    index.ts            #   public entry
+    components/         #   screen pieces (not routes)
+    services/           #   data hooks
+    data/               #   schemas
+components/
+  ui/                   # design-system primitives (Button, Text, Sheet)
+  shared/               # cross-feature components
+hooks/                  # generic hooks
+stores/                 # zustand stores (persisted via MMKV)
+lib/                    # api client, formatters, theme
+assets/                 # fonts, images
+app.json                # Expo config — permissions, icons, splash`,
+    notes: [
+      "Files under `app/` are routes and nothing else — a screen's real implementation lives in `features/` and the route file just renders it. This keeps the navigation tree readable and stops route files from growing into 800-line screens.",
+      "`_layout.tsx` is where a navigator is declared; it is not a screen.",
+      "Every permission the app requests is declared in `app.json` with a usage description — a missing one is an App Store rejection, not a warning.",
+    ],
+  },
+  {
+    id: "rn-navigation",
+    name: "React Native, React Navigation",
+    description: "Navigators declared in code, features beside them.",
+    tree: `src/
+  navigation/
+    root-navigator.tsx    # the navigator tree
+    tab-navigator.tsx
+    types.ts              # typed param list per navigator
+  screens/                # one file per screen, thin
+    clients/
+      client-list-screen.tsx
+      client-detail-screen.tsx
+  features/
+    <feature>/
+      index.ts
+      components/
+      services/
+  components/
+    ui/                   # design-system primitives
+    shared/
+  hooks/
+  stores/
+  lib/                    # api client, theme, formatters
+  assets/`,
+    notes: [
+      "Every navigator has a typed param list in `navigation/types.ts`; `navigation.navigate` is never called with an untyped route name.",
+      "Screens stay thin — they wire params to a feature component and nothing more.",
+    ],
+  },
+  {
+    id: "swift-features",
+    name: "SwiftUI, feature folders",
+    description: "One folder per feature, shared design system.",
+    tree: `App/
+  <Name>App.swift         # @main, root scene, dependency wiring
+  RootView.swift          # NavigationStack / TabView
+Features/
+  Clients/
+    ClientListView.swift
+    ClientListModel.swift # @Observable, owns the state
+    ClientDetailView.swift
+    ClientRow.swift       # feature-only subviews
+DesignSystem/
+  Theme.swift             # colours + spacing + type scale
+  Components/             # shared Buttons, Cards, EmptyState
+Networking/
+  APIClient.swift         # actor over URLSession
+  Endpoints.swift
+  APIError.swift
+Models/                   # Codable domain models
+Persistence/              # SwiftData / Keychain
+Resources/
+  Assets.xcassets         # colour sets with light + dark
+  Localizable.xcstrings`,
+    notes: [
+      "A view and its `@Observable` model sit together in the feature folder; the model holds the state and the view stays declarative.",
+      "Colours are colour sets in the asset catalogue with light and dark variants — never `Color(hex:)` in a view.",
+      "Nothing in `Features/` imports another feature's internals; shared UI moves to `DesignSystem/Components`.",
+    ],
+  },
+  {
     id: "custom",
     name: "Custom",
     description: "Paste your own tree — used verbatim in the prompt.",

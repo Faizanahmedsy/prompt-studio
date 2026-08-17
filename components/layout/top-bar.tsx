@@ -3,14 +3,17 @@
 import {
   Code2,
   Command,
+  Globe,
+  Workflow,
   LayoutPanelTop,
   Moon,
   PanelLeft,
   PanelRight,
   Redo2,
+  Server,
+  Smartphone,
   Sun,
   Undo2,
-  Workflow,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
@@ -36,8 +39,25 @@ import {
   useProjectStore,
 } from "@/stores/use-project-store"
 import { cn } from "@/lib/utils"
+import {
+  countsBySurface,
+  surfaceMeta,
+} from "@/features/builder/utils/surfaces"
 import { type WorkMode, useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
+
+/**
+ * How many screens a surface holds. Shown on the tab so an empty Mobile or
+ * Backend reads as "nothing here yet" rather than "this is broken".
+ */
+function SurfaceCount({ count }: { count: number }) {
+  if (!count) return null
+  return (
+    <span className="ml-1 rounded-full bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
+      {count}
+    </span>
+  )
+}
 
 export function TopBar({ project }: { project: Project }) {
   const ui = useUiStore()
@@ -47,6 +67,7 @@ export function TopBar({ project }: { project: Project }) {
   const redo = useProjectStore((s) => s.redo)
   const canUndo = useCanUndo()
   const canRedo = useCanRedo()
+  const counts = countsBySurface(project)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-card px-2 sm:px-3">
@@ -67,13 +88,24 @@ export function TopBar({ project }: { project: Project }) {
         className="ml-auto sm:ml-2"
       >
         <TabsList>
-          <TabsTrigger value="flow">
-            <Workflow />
-            <span className="hidden sm:inline">Flow</span>
+          <TabsTrigger value="web" title={surfaceMeta.web.hint}>
+            <Globe />
+            <span className="hidden sm:inline">Web</span>
+            <SurfaceCount count={counts.web} />
+          </TabsTrigger>
+          <TabsTrigger value="mobile" title={surfaceMeta.mobile.hint}>
+            <Smartphone />
+            <span className="hidden sm:inline">Mobile</span>
+            <SurfaceCount count={counts.mobile} />
           </TabsTrigger>
           <TabsTrigger value="landing">
             <LayoutPanelTop />
             <span className="hidden sm:inline">Landing</span>
+          </TabsTrigger>
+          <TabsTrigger value="backend" title={surfaceMeta.backend.hint}>
+            <Server />
+            <span className="hidden sm:inline">Backend</span>
+            <SurfaceCount count={counts.backend} />
           </TabsTrigger>
           {advanced && (
             <TabsTrigger value="code">

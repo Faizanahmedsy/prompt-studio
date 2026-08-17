@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { FlowActions } from "@/features/flow-lang/components/flow-actions"
+import { describeMerge, mergeDoc } from "@/features/flow-lang/merge"
 import { parseFlow } from "@/features/flow-lang/parser"
 import { serializeFlow } from "@/features/flow-lang/serializer"
 import { builtInProfiles } from "@/features/stack/data/profiles"
@@ -110,28 +111,23 @@ export function PasteFlowDialog({
 
     if (mode === "replace") {
       replaceDoc(incoming)
-    } else {
-      update((doc) => {
-        doc.screens = [...doc.screens, ...incoming.screens]
-        doc.edges = [...doc.edges, ...incoming.edges]
-        doc.sections = [
-          ...doc.sections,
-          ...incoming.sections.map((section, index) => ({
-            ...section,
-            order: doc.sections.length + index,
-          })),
-        ]
-      })
-    }
-
-    toast.success(
-      mode === "replace" ? "Flow imported" : "Flow merged into this project",
-      {
+      toast.success("Flow imported", {
         description: `${incoming.screens.length} screens · ${incoming.edges.length} connections${
           parsed.warnings.length ? ` · ${parsed.warnings.length} warnings` : ""
         }`,
-      }
-    )
+      })
+    } else {
+      let summary = ""
+      update((doc) => {
+        summary = describeMerge(mergeDoc(doc, incoming))
+      })
+      toast.success("Flow merged into this project", {
+        description: `${summary}${
+          parsed.warnings.length ? ` · ${parsed.warnings.length} warnings` : ""
+        }`,
+      })
+    }
+
     setText("")
     onOpenChange(false)
   }
@@ -142,8 +138,10 @@ export function PasteFlowDialog({
         <DialogHeader>
           <DialogTitle>Paste Flow source</DialogTitle>
           <DialogDescription>
-            Paste what ChatGPT produced. It is parsed before anything is applied —
-            nothing changes until you choose replace or merge.
+            Paste a full Flow file or a fragment. It is parsed before anything is
+            applied — nothing changes until you choose replace or merge. Merge
+            matches screens by key, so a fragment lands on the screens you
+            already have instead of duplicating them.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,7 +161,11 @@ export function PasteFlowDialog({
               <strong className="font-medium">{parsed.doc.name}</strong>
               <span className="text-muted-foreground">
                 {parsed.doc.screens.length} screens · {parsed.doc.edges.length}{" "}
-                connections · {parsed.doc.sections.length} sections
+                connections
+                {parsed.doc.modules.length > 0 &&
+                  ` · ${parsed.doc.modules.length} modules`}
+                {parsed.doc.sections.length > 0 &&
+                  ` · ${parsed.doc.sections.length} sections`}
               </span>
             </div>
 

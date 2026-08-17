@@ -53,7 +53,7 @@ export const snippets: Snippet[] = [
     description: "useFetchData / usePostData / usePutData / usePatchData",
     category: "Data",
     lines: [
-      "Build the API layer as four generic hooks over TanStack Query and ONE shared axios instance. Components never call axios or fetch directly, and never hand-roll a useQuery/useMutation.",
+      "The API layer is REQUIRED to have this exact shape — it is not a suggestion and not one option among several. Four generic hooks (`useFetchData`, `usePostData`, `usePutData`, `usePatchData`) over TanStack Query and ONE shared axios instance. Components never call axios or fetch directly, and never hand-roll a `useQuery`/`useMutation`; a feature that does is a defect to be refactored, not left in place.",
       `Implement them with exactly these contracts:
 
 \`\`\`ts
@@ -122,6 +122,36 @@ export function usePagination(initial?: Partial<PaginationState>): {
       "Row actions live in an overflow menu; destructive actions require confirmation naming the record.",
       "Provide a CSV export of the current filtered view.",
       "Tables scroll horizontally inside their own container — the page body never scrolls sideways.",
+    ],
+  },
+  {
+    id: "data-table-shell",
+    name: "One global CRUD table shell",
+    description: "CustomDataTable — every list screen looks identical",
+    category: "Data",
+    lines: [
+      "There is exactly ONE table component in the codebase — `components/shared/table/custom-data-table.tsx` — and every CRUD list screen renders it. A feature that hand-rolls its own `<table>`, its own header card or its own pagination row is a defect, not a variation.",
+      `It takes the whole list page, not just the grid, so all list screens are identical by construction:
+
+\`\`\`tsx
+<CustomDataTable
+  title="Customers"                    // shell mode: renders header card + filters + table + pagination
+  count={totalCount} countLabel="customer" countSuffix="in directory"
+  action={{ label: "Add Customer", onClick: openCreate, icon: Plus,
+            permission: { module: "customers", action: "add" } }}
+  filters={filterConfig}               // shared FilterConfig[], one horizontal scrolling row
+  columns={columns} data={rows} totalCount={totalCount}
+  loading={isLoading}                  // renders a table-shaped skeleton, never a spinner
+  currentPage={pagination.page}
+  paginationCallbacks={{ onPaginationChange }}
+  enableColumnToggle                   // "Columns" dropdown; opt out per column with enableHiding: false
+  emptyState={<EmptyState … />}        // defaults to an illustrated empty state
+/>
+\`\`\``,
+      "Shell mode (a `title` is passed) renders one rounded card: header with title, sub-stat and primary action; a single-line filter row that scrolls horizontally on overflow; the table; the pagination. Bare mode (`bare`) renders only the grid, for nesting inside an existing card.",
+      "Built on TanStack Table with the core, sorted, filtered, faceted and pagination row models. Pagination is server-driven: pass `totalCount` and `paginationCallbacks`, never slice rows in the component.",
+      "The primary action is permission-gated by the table itself — pass `permission: { module, action }` and the button disappears for users who lack it, rather than rendering disabled with no explanation.",
+      "Loading renders a table-shaped skeleton of the same column widths; empty renders an illustration with one primary action; neither is ever a blank area or a bare spinner.",
     ],
   },
   {

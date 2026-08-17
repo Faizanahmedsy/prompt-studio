@@ -1,4 +1,5 @@
 import { allLayouts } from "@/features/library/data/layouts"
+import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { snippets } from "@/features/library/data/snippets"
 import { screenTemplates } from "@/features/library/data/templates"
@@ -61,7 +62,23 @@ decide what screens the product needs, and write the Flow file.
 6. Screen keys are lowercase snake_case and unique. Titles are human labels.
 7. Include a \`landing { ... }\` block only if the requirements mention a public
    marketing site.
-8. Put anything that does not fit the grammar into the \`requirements """..."""\`
+8. Add a \`views { … }\` block only when the requirements describe more than one
+   kind of user. Then tag a screen with \`in [admin]\` **only when it is
+   restricted** — an untagged screen belongs to every role, which is what most
+   screens are.
+9. Modules are **optional**. Add them to a screen that carries real behaviour —
+   a list screen with filters and a create dialog, a detail screen with tabs —
+   and leave them off a screen that is genuinely one thing. A modal opening is
+   an \`inner\` connection, never a \`flow\` one: \`flow\` means the route changed.
+10. **Mobile builds.** If the requirements describe a phone app, set
+    \`framework\` to \`expo-router\` / \`react-native\` (Android + iOS) or
+    \`swiftui\` / \`uikit\` (iOS only), and use the \`mobile-*\` layouts — a phone
+    screen is never \`dashboard-sidebar\`. Pick the native styling, list and
+    chart options too; the web ones do not exist there. Useful module kinds:
+    \`sheet\`, \`permission\`, \`camera\`, \`map\`. Tag those screens
+    \`surface mobile\` (and any service screens \`surface backend\`) so they land
+    on the right tab — a screen with no \`surface\` line is a web screen.
+11. Put anything that does not fit the grammar into the \`requirements """..."""\`
    block in plain English — business rules, roles, integrations, edge cases.
 
 # Grammar
@@ -73,14 +90,38 @@ app "Product name" {
   theme { design modern-soft; primary #2563eb; secondary #10b981; radius md; buttons filled; density comfortable }
 }
 
+# OPTIONAL — only if the product has more than one kind of user.
+# A screen with no "in [...]" line belongs to every one of them.
+views { admin "Admin"; rep "Sales Rep" }
+
 screen login "Sign In" {
   template auth               # what kind of screen it is
   layout   auth-split         # how it is laid out
   note     "email + OTP, Google SSO"   # anything specific to this screen
 }
 
-screen dashboard "Dashboard" { template dashboard; layout dashboard-sidebar }
+screen clients "Clients" {
+  template table
+  layout   table-advanced
 
+  # OPTIONAL — the pieces inside the screen. Add them where a screen carries
+  # real behaviour; leave them off for simple screens.
+  module filters   "Filter bar"   { kind filters; on "page load" }
+  module table     "Client table" { kind table }
+  module add_modal "Add client"   { kind modal; on "click Add Client" }
+
+  # movement *inside* the screen, with no route change
+  inner {
+    filters   -> table : "on filter change, refetch page 1"
+    table     -> add_modal : "click Add Client"
+    add_modal -> table : "on save, close and refetch"
+  }
+}
+
+screen dashboard "Dashboard" { template dashboard; layout dashboard-sidebar }
+screen team      "Team"      { template admin; layout table-basic; in [admin] }
+
+# movement *between* screens — a real route change
 flow {
   login      -> dashboard  : "on successful login"
   dashboard  -> clients    : "click Clients in the sidebar"
@@ -130,6 +171,9 @@ ${screenTemplates.map((t) => `- ${t.id} — ${t.description}`).join("\n")}
 
 ## screen layouts
 ${screenLayoutIds.map((l) => `- ${l}`).join("\n")}
+
+## module kinds
+${moduleKinds.map((k) => `- ${k.id} — ${k.description}`).join("\n")}
 
 ## section types
 ${sectionTypes.map((s) => `- ${s.id} — ${s.description}`).join("\n")}

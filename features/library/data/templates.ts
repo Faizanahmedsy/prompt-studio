@@ -47,6 +47,15 @@ export const screenTemplates: ScreenTemplate[] = [
     defaultLayout: "form-two-column",
   },
   {
+    id: "list",
+    name: "Card List",
+    icon: "clipboard",
+    description: "Cards or feed, not a grid",
+    promptDetails:
+      "a list screen rendered as cards or a feed rather than a data grid, with filters above it and its own loading, empty and error states",
+    defaultLayout: "search-results",
+  },
+  {
     id: "detail",
     name: "Detail",
     icon: "file",

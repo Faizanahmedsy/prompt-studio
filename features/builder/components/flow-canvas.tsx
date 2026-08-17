@@ -16,7 +16,13 @@ import {
   useReactFlow,
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { LayoutGrid, Plus, Workflow } from "lucide-react"
+import {
+  ChevronsDownUp,
+  ChevronsUpDown,
+  LayoutGrid,
+  Plus,
+  Workflow,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
@@ -26,26 +32,72 @@ import { analyseGraph } from "@/features/builder/utils/graph"
 import {
   addScreen,
   arrangeScreens,
+  connectModules,
   connectScreens,
   deleteEdge,
+  deleteModule,
+  deleteModuleEdge,
   deleteScreen,
   moveScreen,
 } from "@/features/builder/utils/actions"
+import {
+  CARD_HEIGHT_FALLBACK,
+  MODULE_HEIGHT,
+  NODE_WIDTH,
+  WELL_PAD,
+  expandedHeight,
+  moduleOffsetY,
+} from "@/features/builder/utils/node-geometry"
+import { surfaceMeta } from "@/features/builder/utils/surfaces"
+import { edgesInView, inView } from "@/features/builder/utils/views"
 import { AddMenu } from "@/features/library/components/add-menu"
 import { screenTemplates } from "@/features/library/data/templates"
 import { useUiStore } from "@/stores/use-ui-store"
-import type { Project } from "@/types/project"
+import type { Project, Surface } from "@/types/project"
 
 import { FlowEdge } from "./flow-edge"
+import { ViewSwitcher } from "./view-switcher"
+import { ModuleNode } from "./module-node"
 import { ScreenNode } from "./screen-node"
 
-const nodeTypes = { screen: ScreenNode }
+const nodeTypes = { screen: ScreenNode, module: ModuleNode }
 const edgeTypes = { flow: FlowEdge }
 
-function CanvasInner({ project }: { project: Project }) {
+function CanvasInner({
+  project,
+  surface,
+}: {
+  project: Project
+  surface: Surface
+}) {
   const select = useUiStore((s) => s.select)
   const selectedId = useUiStore((s) => s.selectedId)
   const advanced = useUiStore((s) => s.experience === "advanced")
+  const expandedScreenIds = useUiStore((s) => s.expandedScreenIds)
+  const setExpandedScreens = useUiStore((s) => s.setExpandedScreens)
+  const cardHeights = useUiStore((s) => s.cardHeights)
+  const activeViewId = useUiStore((s) => s.activeViewId)
+  const viewStrict = useUiStore((s) => s.viewStrict)
+
+  /**
+   * Filtering happens at render, not in the data: the project always holds the
+   * whole app, and a view is a lens over it. Positions therefore stay stable
+   * when you switch role, and nothing can be lost by looking at a subset.
+   */
+  const visibleScreens = useMemo(
+    () =>
+      project.screens.filter(
+        (screen) =>
+          screen.surface === surface && inView(screen, activeViewId, viewStrict)
+      ),
+    [project.screens, surface, activeViewId, viewStrict]
+  )
+  const visibleEdges = useMemo(() => {
+    const ids = new Set(visibleScreens.map((s) => s.id))
+    return edgesInView(project, activeViewId, viewStrict).filter(
+      (e) => ids.has(e.from) && ids.has(e.to)
+    )
+  }, [project, visibleScreens, activeViewId, viewStrict])
   const { screenToFlowPosition, fitView } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const hasFitted = useRef(false)
@@ -77,98 +129,358 @@ function CanvasInner({ project }: { project: Project }) {
   }, [nodesInitialized, project.screens.length, fitView])
 
   const entries = useMemo(
-    () => new Set(analyseGraph(project.screens, project.edges).entries.map((s) => s.id)),
-    [project.screens, project.edges]
+    () => new Set(analyseGraph(visibleScreens, visibleEdges).entries.map((s) => s.id)),
+    [visibleScreens, visibleEdges]
   )
 
-  const nodes: Node[] = useMemo(
+  const modulesByScreen = useMemo(() => {
+    const map = new Map<string, typeof project.modules>()
+    for (const module of [...project.modules].sort((a, b) => a.order - b.order)) {
+      const list = map.get(module.screenId)
+      if (list) list.push(module)
+      else map.set(module.screenId, [module])
+    }
+    return map
+  }, [project.modules])
+
+  const openScreens = useMemo(
+    () => new Set(expandedScreenIds.filter((id) => project.screens.some((s) => s.id === id))),
+    [expandedScreenIds, project.screens]
+  )
+
+  // Expand-all only concerns screens that have something to show.
+  const screensWithModules = useMemo(
     () =>
-      project.screens.map((screen) => ({
+      project.screens
+        .filter((s) => modulesByScreen.has(s.id))
+        .map((s) => s.id),
+    [project.screens, modulesByScreen]
+  )
+  const allExpanded =
+    screensWithModules.length > 0 &&
+    screensWithModules.every((id) => openScreens.has(id))
+
+  /** How tall each node is for a given set of expanded screens. */
+  const heightsFor = useCallback(
+    (open: Set<string>) => {
+      const heights: Record<string, number> = {}
+      for (const screen of project.screens) {
+        const card = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
+        const count = modulesByScreen.get(screen.id)?.length ?? 0
+        heights[screen.id] = open.has(screen.id)
+          ? expandedHeight(card, count)
+          : card
+      }
+      return heights
+    },
+    [project.screens, cardHeights, modulesByScreen]
+  )
+
+  const renderedHeights = useCallback(
+    () => heightsFor(openScreens),
+    [heightsFor, openScreens]
+  )
+
+  const toggleAll = useCallback(() => {
+    setExpandedScreens(allExpanded ? [] : screensWithModules)
+  }, [allExpanded, screensWithModules, setExpandedScreens])
+
+  /**
+   * Re-space the graph whenever the set of expanded screens changes, from
+   * wherever — the node chip, the well's Collapse button, the inspector, or
+   * Expand all.
+   *
+   * An expanded screen is several times taller than a collapsed one, and the
+   * stored positions were chosen for whatever it was before, so without this
+   * the cards land on top of each other. Doing it here rather than in each
+   * toggle means there is one place that can get it wrong.
+   */
+  const expandSignature = useMemo(
+    () => [...openScreens].sort().join("|"),
+    [openScreens]
+  )
+  const lastExpanded = useRef<{ signature: string; ids: Set<string> } | null>(null)
+
+  useEffect(() => {
+    const previous = lastExpanded.current
+    lastExpanded.current = { signature: expandSignature, ids: openScreens }
+
+    // First render: adopt the current state without moving anything, so simply
+    // opening the app never reflows a layout the user arranged by hand.
+    if (!previous || previous.signature === expandSignature) return
+    if (!project.screens.length) return
+
+    arrangeScreens(heightsFor(openScreens), { silent: true })
+
+    // One screen toggling is a local change and the user's viewport should stay
+    // put; a bulk expand changes the whole graph's size, so re-fit for that.
+    const changed = new Set([...previous.ids, ...openScreens])
+    for (const id of previous.ids) if (openScreens.has(id)) changed.delete(id)
+    if (changed.size > 1) {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.15, duration: 300 })
+        )
+      )
+    }
+  }, [expandSignature, openScreens, heightsFor, project.screens.length, fitView])
+
+  /**
+   * Switching role re-lays out and re-fits what that role can see.
+   *
+   * Filtering alone was not enough to notice: the stored positions were chosen
+   * for the whole app, so hiding 17 of 96 screens left the remaining 79 exactly
+   * where they were, with gaps — the canvas looked unchanged. Laying out the
+   * subset and fitting to it makes the switch read as "this is that role's
+   * flow" rather than "the same picture, slightly emptier".
+   */
+  const lastView = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    const previous = lastView.current
+    lastView.current = `${activeViewId ?? ""}:${viewStrict}`
+
+    // Undefined on the first render — adopt the current view without moving
+    // anything, so opening the app never reflows a hand-arranged layout.
+    const signature = `${activeViewId ?? ""}:${viewStrict}`
+    if (previous === undefined || previous === signature) return
+    if (!visibleScreens.length) return
+
+    arrangeScreens(heightsFor(openScreens), {
+      silent: true,
+      only: visibleScreens.map((s) => s.id),
+    })
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() =>
+        fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.1, duration: 350 })
+      )
+    )
+  }, [activeViewId, viewStrict, visibleScreens, heightsFor, openScreens, fitView])
+
+  const nodes: Node[] = useMemo(() => {
+    const out: Node[] = []
+    for (const screen of visibleScreens) {
+      const modules = modulesByScreen.get(screen.id) ?? []
+      const expanded = openScreens.has(screen.id)
+      const cardHeight = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
+
+      out.push({
         id: screen.id,
         type: "screen",
         position: { x: screen.x, y: screen.y },
         selected: screen.id === selectedId,
         // Declared up front so bounds maths works before measurement lands.
-        initialWidth: 224,
-        initialHeight: 168,
+        width: NODE_WIDTH,
+        // An expanded screen is a container, and `extent: "parent"` clamps its
+        // children into whatever height it declares — declare it too short and
+        // every module row piles up on the last pixel that fits. Collapsed
+        // screens take their natural height, as they always did.
+        ...(expanded
+          ? { height: expandedHeight(cardHeight, modules.length) }
+          : { initialHeight: CARD_HEIGHT_FALLBACK }),
         data: {
           screen,
           accent: project.theme.primaryColor,
           isEntry: entries.has(screen.id),
+          moduleCount: modules.length,
+          expanded,
         },
-      })),
-    [project.screens, project.theme.primaryColor, entries, selectedId]
-  )
+      })
 
-  const edges: Edge[] = useMemo(
-    () =>
-      project.edges.map((edge) => ({
+      if (!expanded) continue
+
+      // Children must follow their parent in the array — xyflow resolves
+      // `parentId` in one pass.
+      modules.forEach((module, index) => {
+        out.push({
+          id: module.id,
+          type: "module",
+          parentId: screen.id,
+          extent: "parent",
+          // Position is derived, not stored: modules are an ordered list, and
+          // letting them be dragged loose inside the well would make the order
+          // shown disagree with the order the prompt emits.
+          draggable: false,
+          position: { x: WELL_PAD, y: moduleOffsetY(cardHeight, index) },
+          width: NODE_WIDTH - WELL_PAD * 2,
+          height: MODULE_HEIGHT,
+          selected: module.id === selectedId,
+          data: { module },
+        })
+      })
+    }
+    return out
+  }, [
+    visibleScreens,
+    project.theme.primaryColor,
+    modulesByScreen,
+    openScreens,
+    cardHeights,
+    entries,
+    selectedId,
+  ])
+
+  const edges: Edge[] = useMemo(() => {
+    const out: Edge[] = visibleEdges.map((edge) => ({
+      id: edge.id,
+      source: edge.from,
+      target: edge.to,
+      label: edge.trigger || "",
+      type: "flow",
+      animated: false,
+      markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
+    }))
+
+    // Inner transitions only exist while both ends are on screen; drawing them
+    // to a collapsed screen would render an arrow from nowhere.
+    const visibleModules = new Set(
+      project.modules
+        .filter((m) => openScreens.has(m.screenId))
+        .map((m) => m.id)
+    )
+    for (const edge of project.moduleEdges) {
+      if (!visibleModules.has(edge.from) || !visibleModules.has(edge.to)) continue
+      out.push({
         id: edge.id,
         source: edge.from,
         target: edge.to,
         label: edge.trigger || "",
         type: "flow",
         animated: false,
-        markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-      })),
-    [project.edges]
+        data: { level: "module" },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+      })
+    }
+    return out
+  }, [visibleEdges, project.moduleEdges, project.modules, openScreens])
+
+  const isModule = useCallback(
+    (id: string) => project.modules.some((m) => m.id === id),
+    [project.modules]
   )
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    for (const change of changes) {
-      if (change.type === "position" && change.position) {
-        moveScreen(change.id, change.position.x, change.position.y)
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      for (const change of changes) {
+        if (change.type === "position" && change.position) {
+          // Module rows are not draggable, so any position change is a screen.
+          if (!isModule(change.id)) {
+            moveScreen(change.id, change.position.x, change.position.y)
+          }
+        }
+        if (change.type === "select" && change.selected) {
+          useUiStore.getState().select(change.id)
+        }
+        // `remove` is deliberately NOT handled here — see onNodesDelete.
       }
-      if (change.type === "select" && change.selected) {
-        useUiStore.getState().select(change.id)
+    },
+    []
+  )
+
+  /**
+   * Deletion is handled here rather than through the `remove` change, because
+   * xyflow also emits `remove` when it prunes elements that merely stopped
+   * being rendered. Collapsing a screen unmounts its module rows, which pruned
+   * their edges, which deleted them from the project — the graph quietly lost
+   * its connections every time a screen was collapsed. These two callbacks fire
+   * only for deletions the user actually asked for.
+   */
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      for (const node of deleted) {
+        if (isModule(node.id)) deleteModule(node.id)
+        else deleteScreen(node.id)
       }
-      if (change.type === "remove") deleteScreen(change.id)
-    }
-  }, [])
+    },
+    [isModule]
+  )
 
-  const onEdgesChange = useCallback((changes: EdgeChange[]) => {
-    for (const change of changes) {
-      if (change.type === "remove") deleteEdge(change.id)
-    }
-  }, [])
+  const onEdgesDelete = useCallback(
+    (deleted: Edge[]) => {
+      for (const edge of deleted) {
+        if (project.moduleEdges.some((e) => e.id === edge.id)) {
+          deleteModuleEdge(edge.id)
+        } else {
+          deleteEdge(edge.id)
+        }
+      }
+    },
+    [project.moduleEdges]
+  )
 
-  const onConnect = useCallback((connection: Connection) => {
-    if (!connection.source || !connection.target) return
-    if (connection.source === connection.target) {
-      toast.error("A screen cannot connect to itself.")
-      return
-    }
-    connectScreens(connection.source, connection.target)
-  }, [])
+  // Required for a controlled graph; selection is the only change it carries.
+  const onEdgesChange = useCallback((_changes: EdgeChange[]) => {}, [])
 
-  if (!project.screens.length) {
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      const { source, target } = connection
+      if (!source || !target) return
+      if (source === target) {
+        toast.error("A node cannot connect to itself.")
+        return
+      }
+
+      const fromModule = project.modules.find((m) => m.id === source)
+      const toModule = project.modules.find((m) => m.id === target)
+
+      if (fromModule && toModule) {
+        if (fromModule.screenId !== toModule.screenId) {
+          toast.error("Modules can only connect inside their own screen.", {
+            description:
+              "To move between screens, connect the screens themselves.",
+          })
+          return
+        }
+        connectModules(source, target)
+        return
+      }
+      if (fromModule || toModule) {
+        toast.error("Connect a module to another module in the same screen.", {
+          description: "Screen-to-screen navigation uses the screen ports.",
+        })
+        return
+      }
+
+      connectScreens(source, target)
+    },
+    [project.modules]
+  )
+
+  // An empty surface is the normal starting point for Mobile and Backend, so it
+  // gets an invitation rather than the "nothing here" of a broken filter.
+  if (!visibleScreens.length && !activeViewId) {
     return (
       <div className="canvas-grid relative h-full w-full">
         <EmptyState
           icon={<Workflow />}
-          title="No screens yet"
-          description={
-            advanced
-              ? "Add screens from the library on the left, paste a Flow file, or start from a template. Then drag from a screen's right edge to connect it to the next one."
-              : "Add a screen, or paste a Flow file from the header. Then drag from a screen's right edge to the next screen to connect them."
-          }
+          title={`No ${surfaceMeta[surface].label.toLowerCase()} screens yet`}
+          description={`${surfaceMeta[surface].hint}. Add a screen here, or paste a Flow file from the header — screens land on whichever tab you are on.`}
           action={
-            advanced ? (
-              <Button size="sm" onClick={() => addScreen("auth")}>
-                <Plus /> Add first screen
-              </Button>
-            ) : (
-              <AddMenu
-                label="Add first screen"
-                align="center"
-                items={screenTemplates}
-                onPick={(template) => {
-                  const id = addScreen(template)
-                  if (id) select(id)
-                }}
-              />
-            )
+            <AddMenu
+              label="Add first screen"
+              align="center"
+              items={screenTemplates}
+              onPick={(template) => {
+                const id = addScreen(template, undefined, surface)
+                if (id) select(id)
+              }}
+            />
           }
+        />
+      </div>
+    )
+  }
+
+  if (!visibleScreens.length && project.screens.length && activeViewId) {
+    return (
+      <div className="canvas-grid relative h-full w-full">
+        <div className="absolute right-3 top-3 z-10">
+          <ViewSwitcher project={project} />
+        </div>
+        <EmptyState
+          icon={<Workflow />}
+          title="No screens in this view"
+          description="Tag screens with this role in the inspector, or switch back to All views."
         />
       </div>
     )
@@ -182,6 +494,8 @@ function CanvasInner({ project }: { project: Project }) {
       edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
+      onNodesDelete={onNodesDelete}
+      onEdgesDelete={onEdgesDelete}
       onConnect={onConnect}
       onPaneClick={() => select(null)}
       onNodeClick={(_, node) => select(node.id)}
@@ -193,7 +507,7 @@ function CanvasInner({ project }: { project: Project }) {
           x: event.clientX,
           y: event.clientY,
         })
-        addScreen(template, position)
+        addScreen(template, position, surface)
       }}
       onDragOver={(event) => {
         event.preventDefault()
@@ -220,22 +534,39 @@ function CanvasInner({ project }: { project: Project }) {
             label="Add screen"
             items={screenTemplates}
             onPick={(template) => {
-              const id = addScreen(template)
+              const id = addScreen(template, undefined, surface)
               if (id) select(id)
             }}
           />
         </div>
       )}
-      <div className="absolute right-3 top-3 z-10 flex gap-1.5">
+      <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-1.5">
+        <ViewSwitcher project={project} />
+        {screensWithModules.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={toggleAll}
+            title={
+              allExpanded
+                ? "Hide the modules inside every screen"
+                : "Show the modules inside every screen"
+            }
+          >
+            {allExpanded ? <ChevronsDownUp /> : <ChevronsUpDown />}
+            {allExpanded ? "Collapse all" : "Expand all"}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
           onClick={() => {
-            arrangeScreens()
+            // Arrange for the sizes on screen right now, expanded ones included.
+            arrangeScreens(renderedHeights())
             // Re-fit after the new positions have rendered, otherwise a wider
             // graph spills past the pane edge.
             requestAnimationFrame(() =>
-              fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.4, duration: 250 })
+              fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.15, duration: 250 })
             )
           }}
         >
@@ -246,10 +577,18 @@ function CanvasInner({ project }: { project: Project }) {
   )
 }
 
-export function FlowCanvas({ project }: { project: Project }) {
+export function FlowCanvas({
+  project,
+  surface = "web",
+}: {
+  project: Project
+  surface?: Surface
+}) {
   return (
-    <ReactFlowProvider>
-      <CanvasInner project={project} />
+    // Keyed by surface so switching tabs remounts the canvas with its own
+    // viewport and fit state, rather than inheriting the previous build's.
+    <ReactFlowProvider key={surface}>
+      <CanvasInner project={project} surface={surface} />
     </ReactFlowProvider>
   )
 }

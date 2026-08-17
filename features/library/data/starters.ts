@@ -50,7 +50,7 @@ flow {
 
 structure feature-based
 conventions [kebab-files, barrel-exports, alias-@, states-required, a11y-baseline, tokens-only]
-snippets [a11y, states, tables, api-hooks, pagination]`,
+snippets [a11y, states, tables, data-table-shell, api-hooks, pagination]`,
   },
   {
     id: "auth-flow",
@@ -98,7 +98,26 @@ Never reveal whether an email address exists on the forgot-password screen.
 }
 
 screen login     "Sign In"      { template auth;      layout auth-center }
-screen users     "Users"        { template table;     layout table-master-detail }
+
+screen users "Users" {
+  template table
+  layout   table-master-detail
+
+  module filters   "Filter bar"    { kind filters; on "page load" }
+  module table     "User table"    { kind table;   note "server-driven paging, 25 per page" }
+  module row_menu  "Row actions"   { kind action;  on "click the row overflow menu" }
+  module bulk      "Bulk actions"  { kind action;  on "select one or more rows" }
+  module deactivate "Deactivate"   { kind modal;   on "choose Deactivate" }
+
+  inner {
+    filters  -> table      : "on filter change, refetch page 1"
+    table    -> row_menu   : "click the row overflow menu"
+    table    -> bulk       : "select one or more rows"
+    row_menu -> deactivate : "choose Deactivate"
+    deactivate -> table    : "on confirm, close and refetch"
+  }
+}
+
 screen user_new  "Invite User"  { template form;      layout form-single }
 screen roles     "Roles"        { template admin;     layout table-advanced }
 screen audit     "Audit Log"    { template table;     layout table-basic }
@@ -115,7 +134,7 @@ flow {
 
 structure feature-based
 conventions [kebab-files, barrel-exports, no-deep-imports, alias-@, states-required, a11y-baseline]
-snippets [a11y, states, tables, rbac, api-hooks, pagination]
+snippets [a11y, states, tables, data-table-shell, rbac, api-hooks, pagination]
 
 requirements """
 Every destructive action names the record in its confirmation and writes an audit entry.
@@ -192,30 +211,172 @@ Payment failures return to the payment step with the entered details preserved.
   },
   {
     id: "mobile-app",
-    name: "Mobile-first app",
-    description: "Phone-shaped screens with a tab bar.",
-    source: `app "Mobile App" {
+    name: "React Native app",
+    description: "Expo Router, tabs, offline-aware.",
+    source: `app "Field App" {
   target claude-code
-  creativity 7
-  theme { primary #0891b2; secondary #f97316; radius full; buttons rounded }
+  creativity 6
+  theme { design modern-soft; primary #0891b2; secondary #f97316; radius large; buttons rounded }
 }
 
-screen onboarding "Get Started" { template onboarding; layout mobile-first }
-screen signin     "Sign In"     { template auth;       layout auth-minimal }
-screen feed       "Home"        { template dashboard;  layout dashboard-cards }
-screen detail     "Item"        { template detail;     layout detail-hero }
-screen profile    "Profile"     { template profile;    layout profile-tabs }
+screen onboarding "Get Started" { template onboarding; layout mobile-onboarding; surface mobile }
+screen signin     "Sign In"     { template auth;       layout mobile-form; surface mobile }
+
+screen home "Today" {
+  template dashboard
+  layout   mobile-tabs
+  surface  mobile
+  module tabs   "Tab bar"      { kind nav }
+  module stats  "Today's jobs" { kind stats }
+  module list   "Job list"     { kind list; on "screen focus" }
+  module offline "Offline banner" { kind panel; on "network drops" }
+  inner {
+    list -> offline : "request fails while offline"
+  }
+}
+
+screen job "Job Detail" {
+  template detail
+  layout   mobile-detail
+  surface  mobile
+  module summary "Job summary"   { kind panel }
+  module actions "Sticky actions" { kind action }
+  module sheet   "Update status"  { kind sheet; on "tap Update status" }
+  module camera  "Photo proof"    { kind camera; on "tap Add photo" }
+  module perms   "Camera permission" { kind permission; on "first photo attempt" }
+  inner {
+    actions -> sheet  : "tap Update status"
+    sheet   -> camera : "choose Add photo"
+    camera  -> perms  : "camera permission not granted yet"
+    sheet   -> summary : "on save, close and refresh"
+  }
+}
+
+screen map "Route Map" {
+  template dashboard
+  layout   mobile-map
+  surface  mobile
+  module map_view "Map"          { kind map }
+  module sheet    "Stops sheet"  { kind sheet }
+  module perms    "Location permission" { kind permission; on "screen open" }
+  inner {
+    perms -> map_view : "permission granted"
+    map_view -> sheet : "tap a marker"
+  }
+}
+
+screen profile "Profile" { template profile; layout mobile-profile; surface mobile }
 
 flow {
   onboarding -> signin  : "tap Get started"
-  signin     -> feed    : "on successful login"
-  feed       -> detail  : "tap a card"
-  feed       -> profile : "tap the profile tab"
+  signin     -> home    : "on successful sign in"
+  home       -> job     : "tap a job"
+  home       -> map     : "tap the Map tab"
+  home       -> profile : "tap the Profile tab"
+  job        -> home    : "on job completed"
 }
 
-structure feature-based
-conventions [kebab-files, alias-@, a11y-baseline, tokens-only]
-snippets [responsive, a11y, states]`,
+stack {
+  framework expo-router
+  language  ts-strict
+  styling   nativewind
+  state     rn-query-zustand
+  forms     rhf-zod
+  http      axios-instance
+  icons     rn-vector-icons
+  tables    rn-flashlist
+  charts    victory-native
+  testing   rn-testing-library
+}
+
+structure expo-feature-based
+conventions [kebab-files, barrel-exports, alias-@, shared-first, reuse-components, states-required]
+snippets [states, api-hooks, forms]
+
+requirements """
+Field engineers use this on Android in poor signal. Job data is cached and the
+app opens with the last known list; status updates queue and sync when the
+network returns.
+Permissions: location (background while on a job), camera, notifications.
+"""`,
+  },
+  {
+    id: "swift-app",
+    name: "SwiftUI app",
+    description: "NavigationStack, sheets, Swift Charts.",
+    source: `app "Swift Client" {
+  target claude-code
+  creativity 5
+  theme { design minimal-mono; primary #0a84ff; secondary #30d158; radius large; buttons filled }
+}
+
+screen signin "Sign In" { template auth; layout mobile-form; surface mobile }
+
+screen home "Overview" {
+  template dashboard
+  layout   mobile-tabs
+  surface  mobile
+  module tabs  "Tab view"    { kind nav }
+  module cards "Summary"     { kind stats }
+  module chart "Trend chart" { kind chart }
+}
+
+screen clients "Clients" {
+  template list
+  layout   mobile-list
+  surface  mobile
+  module search "Searchable list" { kind filters }
+  module list   "Client list"     { kind list }
+  module add    "Add client"      { kind sheet; on "tap the plus button" }
+  inner {
+    search -> list : "on search text change"
+    list   -> add  : "tap the plus button"
+    add    -> list : "on save, dismiss and refresh"
+  }
+}
+
+screen client "Client Detail" {
+  template detail
+  layout   mobile-detail
+  surface  mobile
+  module header  "Header"      { kind panel }
+  module history "Visit history" { kind timeline }
+  module edit    "Edit sheet"  { kind sheet; on "tap Edit" }
+  inner {
+    header -> edit : "tap Edit"
+  }
+}
+
+screen settings "Settings" { template settings; layout mobile-profile; surface mobile }
+
+flow {
+  signin  -> home     : "on successful sign in"
+  home    -> clients  : "tap the Clients tab"
+  clients -> client   : "tap a client row"
+  home    -> settings : "tap the Settings tab"
+}
+
+stack {
+  framework swiftui
+  language  swift
+  styling   swiftui-modifiers
+  state     swift-observable
+  http      swift-urlsession
+  icons     sf-symbols
+  tables    swift-list
+  charts    swift-charts
+  testing   swift-testing
+  tooling   swiftlint
+}
+
+structure swift-features
+conventions [shared-first, reuse-components, typed-payloads, small-files, comments-why]
+
+requirements """
+Supports the two most recent major iOS versions.
+Dynamic Type up to the accessibility sizes; light and dark from the asset catalogue.
+Offline reads come from the local store; writes retry when connectivity returns.
+"""`,
   },
 ]
 

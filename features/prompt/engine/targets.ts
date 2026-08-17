@@ -2,6 +2,7 @@ export type BlockId =
   | "overview"
   | "screens"
   | "navigation"
+  | "views"
   | "sections"
   | "design"
   | "stack"
@@ -24,6 +25,12 @@ export type PromptTarget = {
   closing: string
   /** v0 ships its own stack, so the stack block is trimmed there */
   stackDetail: "full" | "condensed"
+  /**
+   * Builders that only produce web apps. Choosing one for a mobile or backend
+   * build is a mistake worth naming — their preambles literally promise a
+   * responsive web app.
+   */
+  webOnly?: boolean
   fileExtension: string
 }
 
@@ -40,6 +47,7 @@ export const promptTargets: PromptTarget[] = [
       "conventions",
       "screens",
       "navigation",
+      "views",
       "sections",
       "design",
       "requirements",
@@ -62,6 +70,7 @@ export const promptTargets: PromptTarget[] = [
       "overview",
       "screens",
       "navigation",
+      "views",
       "sections",
       "design",
       "requirements",
@@ -74,6 +83,7 @@ export const promptTargets: PromptTarget[] = [
     closing:
       "Keep navigation, spacing and typography consistent across every screen so the result reads as one product.",
     stackDetail: "condensed",
+    webOnly: true,
     fileExtension: "md",
   },
   {
@@ -88,6 +98,7 @@ export const promptTargets: PromptTarget[] = [
       "conventions",
       "screens",
       "navigation",
+      "views",
       "sections",
       "design",
       "requirements",
@@ -110,6 +121,7 @@ export const promptTargets: PromptTarget[] = [
       "overview",
       "screens",
       "navigation",
+      "views",
       "sections",
       "design",
       "stack",
@@ -122,6 +134,7 @@ export const promptTargets: PromptTarget[] = [
     closing:
       "Every screen listed must exist and be reachable through the navigation described.",
     stackDetail: "condensed",
+    webOnly: true,
     fileExtension: "md",
   },
   {
@@ -136,6 +149,7 @@ export const promptTargets: PromptTarget[] = [
       "conventions",
       "screens",
       "navigation",
+      "views",
       "sections",
       "design",
       "requirements",

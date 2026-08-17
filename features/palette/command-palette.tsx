@@ -37,6 +37,8 @@ import {
 } from "@/features/builder/utils/actions"
 import { PasteFlowDialog } from "@/features/flow-lang/components/flow-code-view"
 import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
+import { buildFragmentPrompt } from "@/features/flow-lang/fragment-prompt"
+import { buildReverseEnginePrompt } from "@/features/flow-lang/reverse-prompt"
 import { screenTemplates } from "@/features/library/data/templates"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { starters } from "@/features/library/data/starters"
@@ -44,6 +46,7 @@ import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { copyText, downloadFile } from "@/lib/download"
 import { encodeShare, shareUrl } from "@/lib/share-codec"
 import { useProjectStore } from "@/stores/use-project-store"
+import type { Surface } from "@/types/project"
 import { useUiStore } from "@/stores/use-ui-store"
 import { SCHEMA_VERSION, type Project } from "@/types/project"
 
@@ -51,6 +54,9 @@ export function CommandPalette({ project }: { project: Project }) {
   const open = useUiStore((s) => s.paletteOpen)
   const setPalette = useUiStore((s) => s.setPalette)
   const setMode = useUiStore((s) => s.setMode)
+  const mode = useUiStore((s) => s.mode)
+  const surface: Surface =
+    mode === "mobile" || mode === "backend" ? mode : "web"
   const select = useUiStore((s) => s.select)
   const store = useProjectStore()
   const { resolvedTheme, setTheme } = useTheme()
@@ -73,7 +79,7 @@ export function CommandPalette({ project }: { project: Project }) {
             <CommandItem
               onSelect={() =>
                 run(async () => {
-                  const { text } = buildPrompt(project)
+                  const { text } = buildPrompt(project, { surface })
                   await copyText(text)
                   store.saveVersion("Generated from palette")
                   toast.success("Prompt copied")
@@ -91,6 +97,32 @@ export function CommandPalette({ project }: { project: Project }) {
               }
             >
               <MessageSquareCode /> Copy prompt for diagram syntax
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  copyText(buildReverseEnginePrompt())
+                  toast.success("Reverse-engineer prompt copied", {
+                    description:
+                      "Run it with Claude Code inside the repository you want mapped.",
+                  })
+                })
+              }
+            >
+              <MessageSquareCode /> Copy prompt to map an existing codebase
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  copyText(buildFragmentPrompt(project))
+                  toast.success("Fragment prompt copied", {
+                    description:
+                      "Describe the feature to add, then paste the fragment back and choose Merge.",
+                  })
+                })
+              }
+            >
+              <MessageSquareCode /> Copy prompt for a fragment to merge in
             </CommandItem>
             <CommandItem onSelect={() => run(() => setPasteOpen(true))}>
               <FileInput /> Paste Flow source
@@ -124,7 +156,7 @@ export function CommandPalette({ project }: { project: Project }) {
                 run(() =>
                   downloadFile(
                     `${project.name.toLowerCase().replace(/\s+/g, "-")}-prompt.md`,
-                    buildPrompt(project).text,
+                    buildPrompt(project, { surface }).text,
                     "text/markdown;charset=utf-8"
                   )
                 )
@@ -142,8 +174,14 @@ export function CommandPalette({ project }: { project: Project }) {
           </CommandGroup>
 
           <CommandGroup heading="Go to">
-            <CommandItem onSelect={() => run(() => setMode("flow"))}>
-              <Workflow /> Flow canvas
+            <CommandItem onSelect={() => run(() => setMode("web"))}>
+              <Workflow /> Web app
+            </CommandItem>
+            <CommandItem onSelect={() => run(() => setMode("mobile"))}>
+              <Workflow /> Mobile app
+            </CommandItem>
+            <CommandItem onSelect={() => run(() => setMode("backend"))}>
+              <Workflow /> Backend services
             </CommandItem>
             <CommandItem onSelect={() => run(() => setMode("landing"))}>
               <LayoutPanelTop /> Landing sections
@@ -160,7 +198,7 @@ export function CommandPalette({ project }: { project: Project }) {
                 value={`add screen ${template.name} ${template.description}`}
                 onSelect={() =>
                   run(() => {
-                    setMode("flow")
+                    setMode("web")
                     const id = addScreen(template.id)
                     if (id) select(id)
                   })

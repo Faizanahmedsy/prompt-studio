@@ -104,9 +104,15 @@ export const conventions: Convention[] = [
   },
   {
     id: "git-permission",
-    label: "Never touch git without asking",
+    label: "Git belongs to the developer",
     group: "Process",
-    line: "Never run any git command that changes state — commit, push, branch, merge, reset, rebase, stash — without asking for permission first. Stage and describe the change; the human commits.",
+    line: "Git is owned entirely by the developer. Never run a git command that changes state — commit, push, branch, merge, reset, rebase, stash — not even when it seems obviously wanted. Describe what changed and let the developer commit. If the developer explicitly asks you to commit, the commit is authored by them alone: never add a `Co-Authored-By: Claude` trailer, never set yourself as author or committer, and never mention Claude, an AI or a tool anywhere in the message.",
+  },
+  {
+    id: "next-proxy",
+    label: "Next.js 16 proxy",
+    group: "Code",
+    line: "Next.js 16 renames Edge middleware to the **proxy**: use `proxy.ts` at the project root exporting a `proxy` function (the `middleware.ts` / `export function middleware` pair is deprecated). Keep it to fast request-level concerns — auth redirects, locale and header rewrites — matched by an explicit `config.matcher`, and never put data fetching or business logic there.",
   },
   {
     id: "story-docs",
@@ -155,6 +161,7 @@ export const defaultConventionIds = [
   "states-required",
   "a11y-baseline",
   "tokens-only",
+  "next-proxy",
   // Working agreements every build here is expected to honour.
   "git-permission",
   "story-docs",

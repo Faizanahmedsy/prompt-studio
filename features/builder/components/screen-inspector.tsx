@@ -3,20 +3,31 @@
 import { Copy, Trash2 } from "lucide-react"
 import { useState } from "react"
 
+import { Glyph } from "@/components/icons/glyph"
 import { SelectField, TextAreaField, TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
+import { AddMenu } from "@/features/library/components/add-menu"
 import { LayoutPicker } from "@/features/library/components/layout-picker"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import {
+  addModule,
   deleteScreen,
   duplicateScreen,
+  setScreenSurface,
+  toggleScreenView,
   updateScreen,
 } from "@/features/builder/utils/actions"
+import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { describeLayout, layoutsForTemplate } from "@/features/library/data/layouts"
+import {
+  describeModuleKind,
+  moduleKinds,
+} from "@/features/library/data/module-kinds"
 import { screenTemplates } from "@/features/library/data/templates"
+import { cn } from "@/lib/utils"
 import { useUiStore } from "@/stores/use-ui-store"
-import type { Project, Screen } from "@/types/project"
+import { type Project, type Screen, surfaceValues } from "@/types/project"
 
 import { ScreenConnections } from "./screen-connections"
 
@@ -97,6 +108,36 @@ export function ScreenInspector({
         onChange={(event) => updateScreen(screen.id, { note: event.target.value })}
       />
 
+      <div className="space-y-1.5">
+        <SectionLabel>Build</SectionLabel>
+        <div className="flex flex-wrap gap-1">
+          {surfaceValues.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScreenSurface(screen.id, value)}
+              title={surfaceMeta[value].hint}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                screen.surface === value
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              )}
+            >
+              {surfaceMeta[value].label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] leading-snug text-muted-foreground">
+          Moving a screen to another build drops its connections to screens that
+          stayed behind — those are integrations, not navigation.
+        </p>
+      </div>
+
+      <ScreenViews project={project} screen={screen} />
+
+      <ScreenModules project={project} screenId={screen.id} />
+
       <ScreenConnections project={project} screenId={screen.id} />
 
       <div className="flex gap-1.5 border-t border-border pt-3">
@@ -129,6 +170,157 @@ export function ScreenInspector({
         accent={project.theme.primaryColor}
         title={`Layout for “${screen.title}”`}
         onSelect={(layoutId) => updateScreen(screen.id, { layout: layoutId })}
+      />
+    </div>
+  )
+}
+
+/**
+ * Which roles reach this screen. Untagged means every role, which is both the
+ * common case and what keeps a single-audience project free of this decision —
+ * so the control only appears once a project has defined a view.
+ */
+function ScreenViews({
+  project,
+  screen,
+}: {
+  project: Project
+  screen: Screen
+}) {
+  if (!project.views.length) return null
+  const shared = screen.views.length === 0
+
+  return (
+    <div className="space-y-1.5">
+      <SectionLabel>Seen by</SectionLabel>
+      <div className="flex flex-wrap gap-1">
+        <button
+          type="button"
+          onClick={() => updateScreen(screen.id, { views: [] })}
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+            shared
+              ? "border-primary bg-primary-soft text-primary"
+              : "border-border text-muted-foreground hover:border-primary/50"
+          )}
+        >
+          Every role
+        </button>
+        {project.views.map((view) => {
+          const on = screen.views.includes(view.id)
+          return (
+            <button
+              key={view.id}
+              type="button"
+              onClick={() => toggleScreenView(screen.id, view.id)}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                on
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              )}
+            >
+              {view.name}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        {shared
+          ? "Shared — appears in every view."
+          : "Only the selected roles reach this screen."}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * The screen's modules, listed here as well as on the canvas — the canvas shows
+ * them only while the screen is expanded, and adding the first one should not
+ * require finding that toggle first.
+ */
+function ScreenModules({
+  project,
+  screenId,
+}: {
+  project: Project
+  screenId: string
+}) {
+  const select = useUiStore((s) => s.select)
+  const expanded = useUiStore((s) => s.expandedScreenIds.includes(screenId))
+  const toggle = useUiStore((s) => s.toggleScreenExpanded)
+
+  const modules = project.modules
+    .filter((m) => m.screenId === screenId)
+    .sort((a, b) => a.order - b.order)
+
+  const open = (id: string) => {
+    if (!expanded) toggle(screenId)
+    select(id)
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Inside this screen</SectionLabel>
+        {modules.length > 0 && (
+          <button
+            type="button"
+            onClick={() => toggle(screenId)}
+            className="text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            {expanded ? "Hide on canvas" : "Show on canvas"}
+          </button>
+        )}
+      </div>
+
+      {modules.length === 0 ? (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Optional. Add modules when a screen carries real behaviour — a table,
+          its filters, the dialogs it opens.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {modules.map((module) => {
+            const kind = describeModuleKind(module.kind)
+            return (
+              <li key={module.id}>
+                <button
+                  type="button"
+                  onClick={() => open(module.id)}
+                  className="flex w-full items-center gap-2 rounded-md border border-border bg-surface px-2 py-1.5 text-left transition-colors hover:border-primary/50"
+                >
+                  <Glyph
+                    name={kind.icon}
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[11px] font-medium leading-tight">
+                      {module.name}
+                    </span>
+                    <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+                      {module.trigger.trim() || kind.name}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <AddMenu
+        label="Add module"
+        items={moduleKinds.map((kind) => ({
+          id: kind.id,
+          name: kind.name,
+          icon: kind.icon,
+          description: kind.description,
+        }))}
+        onPick={(kind) => {
+          const id = addModule(screenId, kind)
+          if (id) open(id)
+        }}
       />
     </div>
   )

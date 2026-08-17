@@ -25,7 +25,7 @@ import { copyText, downloadFile } from "@/lib/download"
 import { countWords, estimateTokens } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
-import type { Project } from "@/types/project"
+import type { Project, Surface } from "@/types/project"
 import { cn } from "@/lib/utils"
 
 export function PromptPanel({ project }: { project: Project }) {
@@ -33,8 +33,16 @@ export function PromptPanel({ project }: { project: Project }) {
   const [copied, setCopied] = useState(false)
   const saveVersion = useProjectStore((s) => s.saveVersion)
   const advanced = useUiStore((s) => s.experience === "advanced")
+  const mode = useUiStore((s) => s.mode)
 
-  const built = useMemo(() => buildPrompt(project), [project])
+  // The prompt follows the tab: each surface is its own build, so generating
+  // while looking at Mobile must not hand over the web app's screens.
+  const surface: Surface =
+    mode === "mobile" || mode === "backend" ? mode : "web"
+  const built = useMemo(
+    () => buildPrompt(project, { surface }),
+    [project, surface]
+  )
   const target = getTarget(project.target)
 
   const diff = useMemo(

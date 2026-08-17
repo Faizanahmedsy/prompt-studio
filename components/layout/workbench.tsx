@@ -22,7 +22,7 @@ import { PromptPanel } from "@/features/prompt/components/prompt-panel"
 import { useShareImport } from "@/features/projects/use-share-import"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
-import type { Project } from "@/types/project"
+import type { Project, Surface } from "@/types/project"
 
 /** Below this width the three panes become sheets and the canvas becomes a list. */
 const DESKTOP = 1024
@@ -58,6 +58,11 @@ export function Workbench({ project }: { project: Project }) {
     if (!isDesktop && ui.selectedId) setInspectorOpen(true)
   }, [isDesktop, ui.selectedId])
 
+  // Web / Mobile / Backend are surfaces — the same canvas, filtered to one
+  // build. Landing and Code are their own surfaces of a different kind.
+  const surface: Surface =
+    ui.mode === "mobile" || ui.mode === "backend" ? ui.mode : "web"
+
   const canvas =
     ui.mode === "code" ? (
       <FlowCodeView project={project} />
@@ -66,10 +71,10 @@ export function Workbench({ project }: { project: Project }) {
         <LandingPreview project={project} />
       </div>
     ) : isDesktop ? (
-      <FlowCanvas project={project} />
+      <FlowCanvas project={project} surface={surface} />
     ) : (
       <div className="h-full overflow-y-auto">
-        <OutlineList project={project} />
+        <OutlineList project={project} surface={surface} />
       </div>
     )
 

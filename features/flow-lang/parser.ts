@@ -1,5 +1,6 @@
 import { autoLayout } from "@/features/builder/utils/graph"
 import { allLayouts } from "@/features/library/data/layouts"
+import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { snippets } from "@/features/library/data/snippets"
 import { screenTemplates } from "@/features/library/data/templates"
@@ -10,10 +11,14 @@ import { designLanguages } from "@/features/theme/data/design-languages"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
   type FlowEdge,
+  type FlowView,
+  type ModuleEdge,
   type ProjectDoc,
   type Screen,
+  type ScreenModule,
   type Section,
   projectDocSchema,
+  surfaceValues,
 } from "@/types/project"
 
 import { promptTargets } from "@/features/prompt/engine/targets"
@@ -42,6 +47,7 @@ const conventionIds = conventions.map((c) => c.id)
 const snippetIds = snippets.map((s) => s.id)
 const structureIds = structurePresets.map((s) => s.id)
 const targetIds = promptTargets.map((t) => t.id)
+const moduleKindIds = moduleKinds.map((k) => k.id)
 
 const radiusAliases: Record<string, string> = {
   none: "none",
@@ -86,7 +92,10 @@ type Ctx =
   | { kind: "app" }
   | { kind: "theme" }
   | { kind: "screen"; id: string }
+  | { kind: "module"; id: string; screenId: string }
+  | { kind: "inner"; screenId: string }
   | { kind: "flow" }
+  | { kind: "views" }
   | { kind: "landing" }
   | { kind: "stack" }
   | { kind: "unknown" }
@@ -106,7 +115,10 @@ export function parseFlow(source: string): ParseResult {
   const doc: ProjectDoc = projectDocSchema.parse({})
   const screens: Screen[] = []
   const edges: FlowEdge[] = []
+  const modules: ScreenModule[] = []
+  const moduleEdges: ModuleEdge[] = []
   const sections: Section[] = []
+  const views: FlowView[] = []
   const byKey = new Map<string, Screen>()
   let profile: string | undefined
 
@@ -128,12 +140,77 @@ export function parseFlow(source: string): ParseResult {
       template: "",
       layout: "",
       note: "",
+      surface: "web",
+      views: [],
       x: 0,
       y: 0,
     }
     screens.push(screen)
     byKey.set(screen.key, screen)
     return screen
+  }
+
+  /**
+   * Module keys are unique per screen, not per project — two screens may each
+   * own a plain `table`. Referencing a module that was never declared creates
+   * it, the same tolerance `flow` blocks get for screens.
+   */
+  const ensureModule = (screenId: string, rawKey: string, name?: string) => {
+    const key = slugify(rawKey)
+    const siblings = modules.filter((m) => m.screenId === screenId)
+    const existing = siblings.find((m) => m.key === key)
+    if (existing) {
+      if (name) existing.name = name
+      return existing
+    }
+    const module: ScreenModule = {
+      id: uid("mod"),
+      screenId,
+      key: uniqueKey(
+        key,
+        siblings.map((m) => m.key)
+      ),
+      name: name || titleFromKey(key),
+      kind: "panel",
+      trigger: "",
+      note: "",
+      order: siblings.length,
+    }
+    modules.push(module)
+    return module
+  }
+
+  /**
+   * Views are declared in a `views { … }` block, but a screen may also name one
+   * that was never declared — creating it is the same tolerance screens get
+   * inside a `flow` block, and losing a role tag silently would be worse.
+   */
+  const ensureView = (rawKey: string, name?: string) => {
+    const key = slugify(rawKey)
+    if (!key) return null
+    const existing = views.find((v) => v.key === key)
+    if (existing) {
+      if (name) existing.name = name
+      return existing
+    }
+    const view: FlowView = {
+      id: uid("vw"),
+      key,
+      name: name || titleFromKey(key),
+      note: "",
+    }
+    views.push(view)
+    return view
+  }
+
+  /** `@super_admin @admin` anywhere on a line — the view tags for a transition. */
+  const readViewTags = (text: string) => {
+    const ids: string[] = []
+    for (const match of text.matchAll(/@([a-z0-9_-]+)/gi)) {
+      const view = ensureView(match[1])
+      if (view && !ids.includes(view.id)) ids.push(view.id)
+    }
+    return ids
   }
 
   const matchId = (
@@ -185,10 +262,91 @@ export function parseFlow(source: string): ParseResult {
     const keyword = (words[0] ?? "").toLowerCase()
     const current = ctx()
 
+    // ------------------------------------------------- inner (module) flow
+    // Checked before the screen-level flow block, otherwise the arrow test
+    // below would claim these lines and wire module keys into screens.
+    if (current.kind === "inner") {
+      const trigger = quoted[0] ?? ""
+      const chain = rest
+        .split(/->|=>|→/)
+        .map((part) => part.replace(/:.*$/, "").trim())
+        .filter(Boolean)
+      if (chain.length === 1) {
+        ensureModule(current.screenId, chain[0])
+        continue
+      }
+      if (chain.length < 2) {
+        errors.push({ line, message: `Could not read inner connection: "${raw}".` })
+        continue
+      }
+      for (let i = 0; i < chain.length - 1; i += 1) {
+        const from = ensureModule(current.screenId, chain[i])
+        const to = ensureModule(current.screenId, chain[i + 1])
+        if (from.id === to.id) {
+          warnings.push({ line, message: `"${from.name}" cannot connect to itself.` })
+          continue
+        }
+        if (moduleEdges.some((e) => e.from === from.id && e.to === to.id)) {
+          warnings.push({
+            line,
+            message: `Duplicate inner connection ${from.key} → ${to.key} ignored.`,
+          })
+          continue
+        }
+        moduleEdges.push({
+          id: uid("med"),
+          from: from.id,
+          to: to.id,
+          trigger: i === 0 ? trigger : "",
+        })
+      }
+      continue
+    }
+
+    // ---------------------------------------------------------- module block
+    if (current.kind === "module") {
+      const module = modules.find((m) => m.id === current.id)
+      if (!module) continue
+      const value = words.slice(1).join(" ").trim()
+      switch (keyword) {
+        case "kind":
+        case "type":
+          module.kind = matchId(
+            value || quoted[0] || "",
+            moduleKindIds,
+            "module kind",
+            line
+          )
+          break
+        case "on":
+        case "trigger":
+        case "when":
+          module.trigger = quoted[0] ?? value
+          break
+        case "name":
+        case "title":
+          module.name = quoted[0] || value
+          break
+        case "note":
+        case "notes":
+        case "description":
+          module.note = resolveHeredoc(quoted[0] ?? value, heredocs)
+          break
+        default:
+          warnings.push({
+            line,
+            message: `Unknown module property "${keyword}" — ignored.`,
+          })
+      }
+      continue
+    }
+
     // ------------------------------------------------------------ flow block
     if (current.kind === "flow" || /(->|=>|→)/.test(raw)) {
       const trigger = quoted[0] ?? ""
+      const edgeViews = readViewTags(rest)
       const chain = rest
+        .replace(/@[a-z0-9_-]+/gi, " ")
         .split(/->|=>|→/)
         .map((part) => part.replace(/:.*$/, "").trim())
         .filter(Boolean)
@@ -213,6 +371,7 @@ export function parseFlow(source: string): ParseResult {
             to: to.id,
             // A chain shares one label only between its first pair.
             trigger: i === 0 ? trigger : "",
+            views: edgeViews,
           })
         }
         continue
@@ -225,6 +384,18 @@ export function parseFlow(source: string): ParseResult {
         errors.push({ line, message: `Could not read connection: "${raw}".` })
         continue
       }
+    }
+
+    // ------------------------------------------------------------ views block
+    if (current.kind === "views") {
+      // `super_admin "Super Admin"` — or just a bare key.
+      const view = ensureView(words[0] ?? slugify(quoted[0] ?? ""), quoted[0])
+      if (!view) {
+        errors.push({ line, message: `Could not read view: "${raw}".` })
+      } else if (quoted[1]) {
+        view.note = quoted[1]
+      }
+      continue
     }
 
     // ----------------------------------------------------------- theme block
@@ -295,6 +466,59 @@ export function parseFlow(source: string): ParseResult {
       if (!screen) continue
       const value = words.slice(1).join(" ").trim()
       switch (keyword) {
+        case "module":
+        case "part":
+        case "component": {
+          const module = ensureModule(
+            screen.id,
+            words[1] ?? slugify(quoted[0] ?? "module"),
+            quoted[0]
+          )
+          // `module table "Client table" kind table on "click row"` — the
+          // compact one-line form, where a `{ … }` body never opens.
+          const kindWord = words.indexOf("kind")
+          if (kindWord !== -1 && words[kindWord + 1]) {
+            module.kind = matchId(
+              words[kindWord + 1],
+              moduleKindIds,
+              "module kind",
+              line
+            )
+          }
+          if (quoted[1]) module.trigger = quoted[1]
+          pending = { kind: "module", id: module.id, screenId: screen.id }
+          continue
+        }
+        case "surface":
+        case "build":
+        case "platform": {
+          const value = (words[1] ?? quoted[0] ?? "").toLowerCase()
+          const match = surfaceValues.find((v) => v === value)
+          if (match) {
+            screen.surface = match
+          } else {
+            warnings.push({
+              line,
+              message: `Unknown surface "${value}" — kept on web. Use one of ${surfaceValues.join(", ")}.`,
+            })
+          }
+          continue
+        }
+        case "in":
+        case "views":
+        case "roles": {
+          const items = bracketList(rest).concat(quoted)
+          screen.views = items
+            .map((item) => ensureView(item)?.id)
+            .filter((id): id is string => Boolean(id))
+          continue
+        }
+        case "inner":
+        case "internal":
+        case "module_flow": {
+          pending = { kind: "inner", screenId: screen.id }
+          continue
+        }
         case "template":
         case "type":
           screen.template = matchId(value || quoted[0] || "", templateIds, "screen type", line)
@@ -341,6 +565,12 @@ export function parseFlow(source: string): ParseResult {
       case "flow":
       case "navigation": {
         pending = { kind: "flow" }
+        continue
+      }
+      case "views":
+      case "roles":
+      case "personas": {
+        pending = { kind: "views" }
         continue
       }
       case "landing":
@@ -446,9 +676,25 @@ export function parseFlow(source: string): ParseResult {
     }
   }
 
+  doc.views = views
+  const viewIds = new Set(views.map((v) => v.id))
+  for (const screen of screens) {
+    screen.views = screen.views.filter((id) => viewIds.has(id))
+  }
+  for (const edge of edges) {
+    edge.views = edge.views.filter((id) => viewIds.has(id))
+  }
+
   doc.screens = autoLayout(screens, edges)
   doc.edges = edges
   doc.sections = sections
+  // Modules of a deleted-or-never-declared screen would be unreachable data.
+  const screenIds = new Set(screens.map((s) => s.id))
+  doc.modules = modules.filter((m) => screenIds.has(m.screenId))
+  const moduleIds = new Set(doc.modules.map((m) => m.id))
+  doc.moduleEdges = moduleEdges.filter(
+    (e) => moduleIds.has(e.from) && moduleIds.has(e.to)
+  )
 
   if (!screens.length && !sections.length) {
     errors.push({
