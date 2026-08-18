@@ -27,7 +27,20 @@ const alignClass: Record<WireAlign, string> = {
   between: "justify-between items-center",
 }
 
-function renderWire(node: Wire, unit: number, key: number | string): JSX.Element {
+/**
+ * `dir` is the direction of the stack this node sits in.
+ *
+ * A `bar`/`pill` width is a percentage, which only means anything down a
+ * column. Laid across a row, four 70% bars are 280% wide and — being
+ * `shrink-0` — burst out of the frame instead of sharing it. In a row the
+ * width is therefore read as a flex proportion.
+ */
+function renderWire(
+  node: Wire,
+  unit: number,
+  key: number | string,
+  dir: "row" | "col" = "col"
+): JSX.Element {
   switch (node.k) {
     case "frame": {
       const variant = node.variant ?? "plain"
@@ -111,7 +124,9 @@ function renderWire(node: Wire, unit: number, key: number | string): JSX.Element
                 : "items-stretch"
           )}
         >
-          {node.children.map((child, i) => renderWire(child, unit, i))}
+          {node.children.map((child, i) =>
+            renderWire(child, unit, i, node.dir === "row" ? "row" : "col")
+          )}
         </div>
       )
     }
@@ -120,8 +135,16 @@ function renderWire(node: Wire, unit: number, key: number | string): JSX.Element
       return (
         <span
           key={key}
-          className={cn("block shrink-0 rounded-full", toneClass[node.tone ?? "line"])}
-          style={{ width: `${node.w}%`, height: (node.h ?? 1) * unit }}
+          className={cn(
+            "block min-w-0 rounded-full",
+            dir === "row" ? "" : "shrink-0",
+            toneClass[node.tone ?? "line"]
+          )}
+          style={
+            dir === "row"
+              ? { flex: `${node.w} 1 0%`, height: (node.h ?? 1) * unit }
+              : { width: `${node.w}%`, height: (node.h ?? 1) * unit }
+          }
         />
       )
 
@@ -130,12 +153,17 @@ function renderWire(node: Wire, unit: number, key: number | string): JSX.Element
         <span
           key={key}
           className={cn(
-            "block shrink-0 rounded-full",
+            "block min-w-0 rounded-full",
+            dir === "row" ? "" : "shrink-0",
             node.outline
               ? "wire-border-accent border bg-transparent"
               : toneClass[node.tone ?? "accent"]
           )}
-          style={{ width: `${node.w}%`, height: unit * 2.2 }}
+          style={
+            dir === "row"
+              ? { flex: `${node.w} 1 0%`, height: unit * 2.2 }
+              : { width: `${node.w}%`, height: unit * 2.2 }
+          }
         />
       )
 
@@ -270,8 +298,12 @@ function renderWire(node: Wire, unit: number, key: number | string): JSX.Element
       return (
         <div
           key={key}
-          className="flex shrink-0 flex-col"
-          style={{ gap: unit * 0.6, width: `${node.w ?? 100}%` }}
+          className={cn("flex min-w-0 flex-col", dir === "row" ? "" : "shrink-0")}
+          style={
+            dir === "row"
+              ? { gap: unit * 0.6, flex: `${node.w ?? 100} 1 0%` }
+              : { gap: unit * 0.6, width: `${node.w ?? 100}%` }
+          }
         >
           {node.label !== false && (
             <span
@@ -332,6 +364,8 @@ export type LayoutThumbProps = {
   /** Renders the interactive affordances (hover lift, selected ring). */
   interactive?: boolean
   selected?: boolean
+  /** Aspect of the frame — a phone build should not be drawn in a 16:10 box. */
+  shape?: "wide" | "phone"
 }
 
 export function LayoutThumb({
@@ -342,13 +376,19 @@ export function LayoutThumb({
   className,
   interactive = false,
   selected = false,
+  shape = "wide",
 }: LayoutThumbProps) {
   const unit = UNIT[size]
   return (
     <div
       aria-hidden="true"
       className={cn(
-        "wire-thumb relative aspect-[16/10] w-full overflow-hidden rounded-lg border bg-card",
+        "wire-thumb relative flex w-full flex-col overflow-hidden border bg-card",
+        // A phone screen drawn in a 16:10 box reads as a browser window. The
+        // shape is the first thing that says which build you are looking at.
+        // 9:16 is the real device ratio — taller than that and the content has
+        // to stretch to fill a screen no phone actually has.
+        shape === "phone" ? "aspect-[9/16] rounded-[12px]" : "aspect-[16/10] rounded-lg",
         interactive &&
           "transition-[transform,box-shadow,border-color] duration-200 group-hover:-translate-y-[2px] group-hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none",
         selected ? "border-[var(--thumb-accent)] shadow-sm" : "border-border",
@@ -362,7 +402,17 @@ export function LayoutThumb({
         } as CSSProperties
       }
     >
-      <div className="h-full w-full">{renderWire(wire, unit, "root")}</div>
+      {/* The speaker slot — small, but it is what makes the frame read as a
+          device rather than a narrow browser window. */}
+      {shape === "phone" && (
+        <div className="mb-1 flex justify-center">
+          <span
+            className="wire-line rounded-full"
+            style={{ width: "26%", height: Math.max(2, unit * 0.8) }}
+          />
+        </div>
+      )}
+      <div className="min-h-0 flex-1">{renderWire(wire, unit, "root")}</div>
     </div>
   )
 }

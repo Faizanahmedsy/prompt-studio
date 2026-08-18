@@ -43,8 +43,8 @@ import {
 import {
   CARD_HEIGHT_FALLBACK,
   MODULE_HEIGHT,
-  NODE_WIDTH,
   WELL_PAD,
+  nodeWidthFor,
   expandedHeight,
   moduleOffsetY,
 } from "@/features/builder/utils/node-geometry"
@@ -263,6 +263,7 @@ function CanvasInner({
       const modules = modulesByScreen.get(screen.id) ?? []
       const expanded = openScreens.has(screen.id)
       const cardHeight = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
+      const nodeWidth = nodeWidthFor(surface)
 
       out.push({
         id: screen.id,
@@ -270,7 +271,7 @@ function CanvasInner({
         position: { x: screen.x, y: screen.y },
         selected: screen.id === selectedId,
         // Declared up front so bounds maths works before measurement lands.
-        width: NODE_WIDTH,
+        width: nodeWidth,
         // An expanded screen is a container, and `extent: "parent"` clamps its
         // children into whatever height it declares — declare it too short and
         // every module row piles up on the last pixel that fits. Collapsed
@@ -302,7 +303,7 @@ function CanvasInner({
           // shown disagree with the order the prompt emits.
           draggable: false,
           position: { x: WELL_PAD, y: moduleOffsetY(cardHeight, index) },
-          width: NODE_WIDTH - WELL_PAD * 2,
+          width: nodeWidth - WELL_PAD * 2,
           height: MODULE_HEIGHT,
           selected: module.id === selectedId,
           data: { module },

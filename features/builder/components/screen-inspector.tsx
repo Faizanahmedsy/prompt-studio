@@ -19,7 +19,11 @@ import {
   updateScreen,
 } from "@/features/builder/utils/actions"
 import { surfaceMeta } from "@/features/builder/utils/surfaces"
-import { describeLayout, layoutsForTemplate } from "@/features/library/data/layouts"
+import {
+  describeLayout,
+  defaultLayoutFor,
+  layoutsForSurface,
+} from "@/features/library/data/layouts"
 import {
   describeModuleKind,
   moduleKinds,
@@ -68,7 +72,9 @@ export function ScreenInspector({
           const meta = screenTemplates.find((t) => t.id === template)
           updateScreen(screen.id, {
             template,
-            layout: screen.layout || (meta?.defaultLayout ?? ""),
+            layout:
+              screen.layout ||
+              defaultLayoutFor(meta?.defaultLayout ?? "", screen.surface),
           })
         }}
         options={screenTemplates.map((t) => ({ value: t.id, label: t.name }))}
@@ -86,6 +92,7 @@ export function ScreenInspector({
               wire={layout.wire}
               size="md"
               accent={project.theme.primaryColor}
+              shape={screen.surface === "mobile" ? "phone" : "wide"}
               interactive
             />
           ) : (
@@ -165,7 +172,7 @@ export function ScreenInspector({
       <LayoutPicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        layouts={layoutsForTemplate(screen.template)}
+        layouts={layoutsForSurface(screen.template, screen.surface)}
         selected={screen.layout}
         accent={project.theme.primaryColor}
         title={`Layout for “${screen.title}”`}

@@ -4,6 +4,7 @@ import {
   Code2,
   Command,
   Globe,
+  Heart,
   Workflow,
   LayoutPanelTop,
   Moon,
@@ -59,6 +60,30 @@ function SurfaceCount({ count }: { count: number }) {
   )
 }
 
+/**
+ * The byline. Sits next to the product name rather than in a footer — this app
+ * is a full-height workbench with no footer to put it in, and the header is
+ * where a reader already looks to find out what they are using.
+ */
+function Credit() {
+  return (
+    <span className="hidden items-center gap-1 whitespace-nowrap pl-1 text-[11px] text-muted-foreground lg:flex">
+      Developed with
+      <Heart className="size-3 fill-destructive text-destructive" aria-hidden="true" />
+      <span className="sr-only">love</span>
+      by
+      <a
+        href="https://faizansaiyed.vercel.app/"
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
+      >
+        Faizan
+      </a>
+    </span>
+  )
+}
+
 export function TopBar({ project }: { project: Project }) {
   const ui = useUiStore()
   const advanced = ui.experience === "advanced"
@@ -79,6 +104,8 @@ export function TopBar({ project }: { project: Project }) {
           Prompt Studio
         </span>
       </span>
+
+      <Credit />
 
       <ProjectMenu project={project} />
 

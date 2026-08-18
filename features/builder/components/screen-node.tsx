@@ -42,6 +42,8 @@ export const ScreenNode = memo(function ScreenNode({
   const { screen, accent, isEntry, moduleCount, expanded } = data
   const template = screenTemplateMap[screen.template]
   const layout = screen.layout ? describeLayout(screen.layout) : null
+  // A mobile build should look like one at a glance, before reading a word.
+  const phone = screen.surface === "mobile"
   const toggle = useUiStore((s) => s.toggleScreenExpanded)
   const reportCardHeight = useUiStore((s) => s.reportCardHeight)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -105,9 +107,19 @@ export const ScreenNode = memo(function ScreenNode({
 
         <div className="p-2">
           {layout ? (
-            <LayoutThumb wire={layout.wire} size="sm" accent={accent} />
+            <LayoutThumb
+              wire={layout.wire}
+              size="sm"
+              accent={accent}
+              shape={phone ? "phone" : "wide"}
+            />
           ) : (
-            <div className="flex aspect-[16/10] items-center justify-center rounded-lg border border-dashed border-border text-[10px] text-muted-foreground">
+            <div
+              className={cn(
+                "flex items-center justify-center border border-dashed border-border text-[10px] text-muted-foreground",
+                phone ? "aspect-[9/16] rounded-[12px]" : "aspect-[16/10] rounded-lg"
+              )}
+            >
               <AlertCircle className="mr-1 size-3" /> No layout
             </div>
           )}

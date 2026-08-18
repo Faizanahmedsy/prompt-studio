@@ -20,7 +20,7 @@ export function buildFragmentPrompt(doc: ProjectDoc): string {
           const modules = doc.modules
             .filter((m) => m.screenId === screen.id)
             .sort((a, b) => a.order - b.order)
-          const line = `- \`${screen.key}\` — ${screen.title}${screen.template ? ` (${screen.template})` : ""}`
+          const line = `- \`${screen.key}\` — ${screen.title}${screen.template ? ` (${screen.template})` : ""} · ${screen.surface}`
           if (!modules.length) return line
           return `${line}\n  modules: ${modules.map((m) => `\`${m.key}\` (${m.kind})`).join(", ")}`
         })
@@ -72,6 +72,11 @@ ${inventory}
 6. Label every connection with what causes it.
 7. New screen keys are lowercase snake_case and must not collide with the list
    above unless you mean to attach to that screen.
+8. **Say which build each new screen belongs to.** \`surface mobile\` for a phone
+   screen (and then a \`mobile-*\` layout), \`surface backend\` for a service; no
+   \`surface\` line means the web app. The list above shows each existing screen's
+   build, so match it when you extend one. Never connect a screen on one build
+   to a screen on another.
 
 # Grammar
 

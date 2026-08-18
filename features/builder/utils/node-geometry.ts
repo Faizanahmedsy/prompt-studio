@@ -8,6 +8,17 @@
  * real number.
  */
 export const NODE_WIDTH = 224
+/**
+ * A mobile card is narrower so the whole node reads as a phone, not just its
+ * thumbnail. Anything that measures or positions a node has to ask for the
+ * width by surface rather than assuming the web one.
+ */
+export const MOBILE_NODE_WIDTH = 168
+
+export function nodeWidthFor(surface: "web" | "mobile" | "backend") {
+  return surface === "mobile" ? MOBILE_NODE_WIDTH : NODE_WIDTH
+}
+
 export const CARD_HEIGHT_FALLBACK = 216
 export const MODULE_HEIGHT = 44
 /** Room for an arrow and its label chip between two stacked modules. */

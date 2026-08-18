@@ -47,19 +47,21 @@ Then: edit on the canvas → **Generate prompt** → paste into Claude Code.
 
 ## 3. Domain model — `types/project.ts`
 
-`SCHEMA_VERSION = 3`. Every field has a `.default()`, which is what makes an
+`SCHEMA_VERSION = 4`. Every field has a `.default()`, which is what makes an
 older saved project load instead of failing.
 
 ```
 ProjectDoc
   name, target, creativity
   views[]        { id, key, name, note }            // role perspectives
-  screens[]      { id, key, title, template, layout, note, views[], x, y }
+  screens[]      { id, key, title, template, layout, note, surface, views[], x, y }
   edges[]        { id, from, to, trigger, views[] } // screen → screen
   modules[]      { id, screenId, key, name, kind, trigger, note, order }
   moduleEdges[]  { id, from, to, trigger }          // module → module, one screen
   sections[]     { id, type, name, layout, note, order }   // landing page
-  theme, stack, structure, conventions, requirements, snippetIds
+  theme, conventions, requirements, snippetIds
+  stack, structure                                 // the WEB surface's
+  surfaces { mobile: {stack,structure}, backend: {…} }
 ```
 
 **Modules are the "inside of a screen"** — a table, its filter bar, the modal it
@@ -77,6 +79,19 @@ five roles would go stale the moment a sixth appears — so tagging is how you s
 "only these roles". The canvas filters at render; the project always holds the
 whole app, so switching role can never lose anything and positions stay put.
 
+**Surfaces are separate builds of one product** — web, mobile, backend. The
+tabs switch between them; each has its own stack, folder structure and generated
+prompt, and they share the theme, brief and role views. `stack`/`structure` stay
+at the top level as the web surface's so older projects still mean what they
+said. A `flow` arrow never crosses a surface — that is an integration, and it
+belongs in a note. Mobile and backend arrive pre-seeded (Expo + NativeWind,
+`src-layered` with the UI choices blank) because a Next.js default on the Mobile
+tab is six dropdowns to correct before the tab is usable.
+
+`addScreen` reads the active surface from the UI store rather than taking it
+from each caller — six call sites add screens, and one forgetting would drop a
+screen onto Web where the user cannot see it.
+
 ---
 
 ## 4. Layout of the code
@@ -92,6 +107,7 @@ features/
     utils/actions.ts     EVERY project mutation lives here
     utils/graph.ts       analyseGraph (order, entries, cycles) + autoLayout
     utils/views.ts       inView / screensInView / edgesInView
+    utils/surfaces.ts    stackFor / structureFor / countsBySurface
     utils/node-geometry.ts  card + well measurements
     components/          flow-canvas, screen-node, module-node, flow-edge,
                          view-switcher, screen-inspector, module-inspector,
@@ -215,7 +231,7 @@ A fragment is the same grammar with the `app`/`stack`/`theme` blocks left out.
 
 ## 7. Tests
 
-`pnpm vitest run` — 91 tests, 5 files:
+`pnpm vitest run` — 103 tests, 5 files:
 
 - `flow-lang.test.ts` — round-trip per starter, parser tolerance, modules,
   per-screen key scoping, inner-vs-flow separation, views and `@role` tags.

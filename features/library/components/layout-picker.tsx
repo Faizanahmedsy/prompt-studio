@@ -17,7 +17,7 @@ import { EmptyState } from "@/components/shared/feedback"
 import { cn } from "@/lib/utils"
 
 import type { LayoutOption } from "../data/layout-types"
-import { layoutCategories } from "../data/layouts"
+import { isMobileLayout, layoutCategories } from "../data/layouts"
 import { LayoutThumb } from "./layout-thumb"
 
 export function LayoutPicker({
@@ -134,6 +134,7 @@ export function LayoutPicker({
                     className="group flex flex-col gap-2 rounded-lg p-1 text-left outline-none"
                   >
                     <LayoutThumb
+                      shape={isMobileLayout(layout.id) ? "phone" : "wide"}
                       wire={layout.wire}
                       accent={accent}
                       interactive
@@ -161,7 +162,12 @@ export function LayoutPicker({
           {/* Detail */}
           {detail && (
             <aside className="hidden w-72 shrink-0 flex-col gap-3 rounded-lg border border-border bg-surface p-3 xl:flex">
-              <LayoutThumb wire={detail.wire} size="lg" accent={accent} />
+              <LayoutThumb
+                shape={isMobileLayout(detail.id) ? "phone" : "wide"}
+                wire={detail.wire}
+                size="lg"
+                accent={accent}
+              />
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold">{detail.name}</h3>

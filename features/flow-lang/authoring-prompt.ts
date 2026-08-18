@@ -70,15 +70,35 @@ decide what screens the product needs, and write the Flow file.
    a list screen with filters and a create dialog, a detail screen with tabs —
    and leave them off a screen that is genuinely one thing. A modal opening is
    an \`inner\` connection, never a \`flow\` one: \`flow\` means the route changed.
-10. **Mobile builds.** If the requirements describe a phone app, set
-    \`framework\` to \`expo-router\` / \`react-native\` (Android + iOS) or
-    \`swiftui\` / \`uikit\` (iOS only), and use the \`mobile-*\` layouts — a phone
-    screen is never \`dashboard-sidebar\`. Pick the native styling, list and
-    chart options too; the web ones do not exist there. Useful module kinds:
-    \`sheet\`, \`permission\`, \`camera\`, \`map\`. Tag those screens
-    \`surface mobile\` (and any service screens \`surface backend\`) so they land
-    on the right tab — a screen with no \`surface\` line is a web screen.
-11. Put anything that does not fit the grammar into the \`requirements """..."""\`
+10. **Decide which builds the product needs, and say so.** A product ships as
+    some combination of a **web** app, a **mobile** app, a public **landing**
+    page and a **backend**. Read the requirements and pick:
+    - "internal admin tool", "dashboard", "portal" → web
+    - "app", "on their phone", "iOS/Android", "offline in the field",
+      "push notifications", "camera", "scan", "GPS" → mobile
+    - "marketing site", "public page", "sign-ups from the website" → landing
+    - "API", "service", "webhook", "scheduled job", "integration" → backend
+
+    Most real products need **more than one**. A field-service product is a
+    mobile app for the engineer *and* a web console for the dispatcher — write
+    both, in one file. Tag every screen with the build it belongs to:
+    \`surface mobile\`, \`surface backend\`; a screen with no \`surface\` line is a
+    web screen. Give each build its own \`stack\` block (see Grammar).
+
+    Never draw a \`flow\` arrow from one build to another — a phone screen
+    calling an endpoint is an integration, and belongs in a note or in
+    \`requirements\`, not as a transition.
+
+11. **Mobile screens are not web screens.** Use the \`mobile-*\` layouts — a
+    phone screen is never \`dashboard-sidebar\` or \`table-advanced\`. Reach for
+    \`mobile-auth\`, \`mobile-onboarding\`, \`mobile-tabs\` (or
+    \`mobile-floating-tabs\` / \`mobile-tabs-fab\`), \`mobile-list\`,
+    \`mobile-detail\`, \`mobile-form\`, \`mobile-sheet\`, \`mobile-profile\`.
+    Useful module kinds there: \`sheet\`, \`permission\`, \`camera\`, \`map\`. In the
+    mobile \`stack\`, pick the native options (\`expo-router\`/\`swiftui\`,
+    \`nativewind\`, \`rn-flashlist\`, \`victory-native\`) — the web ones do not
+    exist on a phone.
+12. Put anything that does not fit the grammar into the \`requirements """..."""\`
    block in plain English — business rules, roles, integrations, edge cases.
 
 # Grammar
@@ -120,6 +140,10 @@ screen clients "Clients" {
 
 screen dashboard "Dashboard" { template dashboard; layout dashboard-sidebar }
 screen team      "Team"      { template admin; layout table-basic; in [admin] }
+
+# A phone screen. No "surface" line means web; the "landing" block is the
+# public marketing page; "surface backend" is a service rather than a UI.
+screen app_home "Today" { template dashboard; layout mobile-tabs; surface mobile }
 
 # movement *between* screens — a real route change
 flow {
@@ -192,6 +216,59 @@ ${conventions.map((c) => `- ${c.id} — ${c.label}`).join("\n")}
 
 ## requirement snippets
 ${snippets.map((s) => `- ${s.id} — ${s.description}`).join("\n")}
+
+# Worked example — one product, two builds
+
+\`\`\`
+app "FieldOps" {
+  target claude-code
+  creativity 5
+  theme { design modern-soft; primary #0891b2; secondary #f97316; radius large }
+}
+
+views { dispatcher "Dispatcher"; engineer "Field Engineer" }
+
+# ---- web console (no surface line = web) ----
+screen login     "Sign In"    { template auth;      layout auth-split }
+screen board     "Dispatch"   { template dashboard; layout dashboard-sidebar; in [dispatcher] }
+screen jobs      "All Jobs"   { template table;     layout table-advanced;    in [dispatcher] }
+
+# ---- phone app ----
+screen app_signin "Sign In"  { template auth;      layout mobile-auth;   surface mobile }
+screen app_today  "Today"    { template dashboard; layout mobile-tabs;   surface mobile; in [engineer] }
+screen app_job    "Job"      {
+  template detail
+  layout   mobile-detail
+  surface  mobile
+  in [engineer]
+  module actions "Sticky actions" { kind action }
+  module sheet   "Update status"  { kind sheet;      on "tap Update status" }
+  module camera  "Photo proof"    { kind camera;     on "tap Add photo" }
+  module perms   "Camera access"  { kind permission; on "first photo attempt" }
+  inner {
+    actions -> sheet  : "tap Update status"
+    sheet   -> camera : "choose Add photo"
+    camera  -> perms  : "permission not granted yet"
+  }
+}
+
+flow {
+  login      -> board    : "on successful sign in" @dispatcher
+  board      -> jobs     : "click All jobs"
+  app_signin -> app_today : "on successful sign in" @engineer
+  app_today  -> app_job   : "tap a job"
+}
+
+stack { framework next-16; styling tailwind4-shadcn; state tanstack-zustand }
+structure feature-based
+
+requirements """
+Two builds, one product. Engineers use the phone app offline in poor signal;
+dispatchers use the web console. The phone app's mobile stack is Expo Router +
+NativeWind (set it on the Mobile tab in Prompt Studio after importing).
+Job status updates queue on the device and sync when the network returns.
+"""
+\`\`\`
 
 # Worked example — internal admin app
 

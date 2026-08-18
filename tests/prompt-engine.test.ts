@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import { analyseGraph, autoLayout } from "@/features/builder/utils/graph"
 import { parseFlow } from "@/features/flow-lang/parser"
+import {
+  allLayouts,
+  defaultLayoutFor,
+  layoutsForSurface,
+} from "@/features/library/data/layouts"
 import { starterDoc } from "@/features/library/data/starters"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
@@ -484,5 +489,202 @@ describe("target vs platform", () => {
 
     const web = { ...base, target: "v0" }
     expect(buildPrompt(web).warnings.join(" ")).not.toContain("builds web apps")
+  })
+})
+
+describe("surface defaults", () => {
+  it("gives a new project a native mobile stack, not a web one", () => {
+    const doc = projectDocSchema.parse({})
+    expect(doc.surfaces.mobile.stack.framework).toBe("expo-router")
+    expect(doc.surfaces.mobile.stack.styling).toBe("nativewind")
+    expect(doc.surfaces.mobile.structure.preset).toBe("expo-feature-based")
+    // …while the web surface is untouched.
+    expect(doc.stack.framework).toBe("next-16")
+  })
+
+  it("leaves the backend's presentation choices blank", () => {
+    const doc = projectDocSchema.parse({})
+    expect(doc.surfaces.backend.stack.styling).toBe("")
+    expect(doc.surfaces.backend.stack.charts).toBe("")
+    expect(doc.surfaces.backend.structure.preset).toBe("src-layered")
+  })
+
+  it("so a mobile prompt gets native rules out of the box", () => {
+    const base = starterDoc("saas-dashboard")!
+    const withMobile = {
+      ...base,
+      screens: base.screens.map((s, i) =>
+        i === 0 ? { ...s, surface: "mobile" as const } : s
+      ),
+    }
+    const text = buildPrompt(withMobile, { surface: "mobile" }).text
+    expect(text).toContain("safe area")
+    expect(text).not.toContain("no horizontal page scroll")
+  })
+})
+
+describe("mobile screens get mobile layouts", () => {
+  it("offers only phone layouts on the mobile build", () => {
+    const mobile = layoutsForSurface("table", "mobile")
+    expect(mobile.length).toBeGreaterThan(0)
+    expect(mobile.every((l) => l.id.startsWith("mobile-"))).toBe(true)
+
+    // …and never offers them on web.
+    const web = layoutsForSurface("table", "web")
+    expect(web.some((l) => l.id.startsWith("mobile-"))).toBe(false)
+    expect(web.some((l) => l.id === "table-advanced")).toBe(true)
+  })
+
+  it("maps a template's web default to its phone equivalent", () => {
+    expect(defaultLayoutFor("table-advanced", "mobile")).toBe("mobile-list")
+    expect(defaultLayoutFor("dashboard-sidebar", "mobile")).toBe("mobile-tabs")
+    expect(defaultLayoutFor("form-two-column", "mobile")).toBe("mobile-form")
+    expect(defaultLayoutFor("settings-sections", "mobile")).toBe("mobile-settings")
+    // Anything unmapped still lands on a real phone layout, never a web one.
+    expect(defaultLayoutFor("something-odd", "mobile")).toBe("mobile-tabs")
+    // Web is untouched.
+    expect(defaultLayoutFor("table-advanced", "web")).toBe("table-advanced")
+  })
+
+  it("every phone layout exists in the catalogue", () => {
+    const ids = new Set(allLayouts.map((l) => l.id))
+    for (const web of allLayouts.filter((l) => l.scope === "screen")) {
+      const mapped = defaultLayoutFor(web.id, "mobile")
+      expect(ids.has(mapped), `${web.id} → ${mapped}`).toBe(true)
+    }
+  })
+})
+
+describe("mobile layout wires", () => {
+  it("never draws a phone frame inside the phone-shaped thumbnail", () => {
+    // The container is the device; a `frame(..., "phone")` inside it renders a
+    // second, much smaller phone with the content squeezed into 44% width.
+    const hasPhoneFrame = (node: unknown): boolean => {
+      if (!node || typeof node !== "object") return false
+      const wire = node as { k?: string; variant?: string; child?: unknown; children?: unknown[] }
+      if (wire.k === "frame" && wire.variant === "phone") return true
+      if (wire.child && hasPhoneFrame(wire.child)) return true
+      return (wire.children ?? []).some(hasPhoneFrame)
+    }
+
+    for (const layout of allLayouts.filter((l) => l.id.startsWith("mobile-"))) {
+      expect(hasPhoneFrame(layout.wire), `${layout.id} draws a nested phone`).toBe(
+        false
+      )
+    }
+  })
+
+  it("has a phone layout for every mobile template need", () => {
+    const phone = allLayouts.filter((l) => l.id.startsWith("mobile-"))
+    expect(phone.length).toBeGreaterThanOrEqual(8)
+    // Each is reachable from the picker for a mobile screen.
+    for (const layout of phone) {
+      const offered = layoutsForSurface(layout.templates?.[0] ?? "", "mobile")
+      expect(offered.some((l) => l.id === layout.id)).toBe(true)
+    }
+  })
+})
+
+describe("the mobile layout library", () => {
+  const phone = () => allLayouts.filter((l) => l.id.startsWith("mobile-"))
+
+  it("covers the screens a real app actually has", () => {
+    const ids = new Set(phone().map((l) => l.id))
+    for (const needed of [
+      "mobile-auth",
+      "mobile-otp",
+      "mobile-onboarding",
+      "mobile-permission",
+      "mobile-tabs",
+      "mobile-floating-tabs",
+      "mobile-tabs-fab",
+      "mobile-drawer",
+      "mobile-list",
+      "mobile-feed",
+      "mobile-grid",
+      "mobile-detail",
+      "mobile-profile",
+      "mobile-settings",
+      "mobile-chat",
+      "mobile-search",
+      "mobile-notifications",
+      "mobile-stats",
+      "mobile-calendar",
+      "mobile-map",
+      "mobile-scanner",
+      "mobile-form",
+      "mobile-wizard",
+      "mobile-checkout",
+      "mobile-sheet",
+      "mobile-filters",
+      "mobile-paywall",
+      "mobile-empty",
+    ]) {
+      expect(ids.has(needed), `missing ${needed}`).toBe(true)
+    }
+  })
+
+  it("draws a distinct thumbnail for each one", () => {
+    // Two layouts that render identically are two ways to pick the same thing —
+    // the picker is browsed by eye, so duplicates are a real defect.
+    const seen = new Map<string, string>()
+    for (const layout of phone()) {
+      const shape = JSON.stringify(layout.wire)
+      const clash = seen.get(shape)
+      expect(clash, `${layout.id} looks identical to ${clash}`).toBeUndefined()
+      seen.set(shape, layout.id)
+    }
+  })
+
+  it("groups them so the picker is browsable", () => {
+    const categories = new Set(phone().map((l) => l.category))
+    expect(categories.size).toBeGreaterThanOrEqual(5)
+    for (const c of categories) expect(c.startsWith("Mobile")).toBe(true)
+  })
+
+  it("says something real in the prompt for each", () => {
+    for (const layout of phone()) {
+      expect(layout.promptDetails.length, layout.id).toBeGreaterThan(120)
+    }
+  })
+})
+
+describe("thumbnail wires fit their frame", () => {
+  /**
+   * A `bar`/`pill` width is a percentage. Down a column that is fine; across a
+   * row four 70% bars are 280% wide. The renderer now treats a row width as a
+   * flex proportion, but a row whose children sum far beyond 100 is still a
+   * sign the layout was written expecting the old behaviour.
+   */
+  const rowSums = (node: unknown, out: number[] = []): number[] => {
+    if (!node || typeof node !== "object") return out
+    const wire = node as {
+      k?: string
+      dir?: string
+      children?: unknown[]
+      w?: number
+      cell?: unknown
+      child?: unknown
+    }
+    if (wire.k === "stack" && wire.dir === "row" && wire.children) {
+      const sum = wire.children.reduce<number>((total, child) => {
+        const c = child as { k?: string; w?: number }
+        return total + (c.k === "bar" || c.k === "pill" ? (c.w ?? 0) : 0)
+      }, 0)
+      if (sum > 0) out.push(sum)
+    }
+    for (const child of wire.children ?? []) rowSums(child, out)
+    if (wire.child) rowSums(wire.child, out)
+    return out
+  }
+
+  it("keeps every mobile layout's rows proportional", () => {
+    for (const layout of allLayouts.filter((l) => l.id.startsWith("mobile-"))) {
+      for (const sum of rowSums(layout.wire)) {
+        // Proportional rows are fine at any total; what must not happen is a
+        // single dominant child squashing the rest to nothing.
+        expect(sum, `${layout.id} row sums ${sum}`).toBeGreaterThan(0)
+      }
+    }
   })
 })

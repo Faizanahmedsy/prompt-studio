@@ -1,7 +1,12 @@
+import {
+  defaultLayoutFor,
+  isMobileLayout,
+} from "@/features/library/data/layouts"
 import { moduleKindMap } from "@/features/library/data/module-kinds"
 import { screenTemplateMap } from "@/features/library/data/templates"
 import { sectionTypeMap } from "@/features/library/data/section-types"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useUiStore } from "@/stores/use-ui-store"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import type {
   FlowView,
@@ -19,10 +24,21 @@ const update = (
   options?: { coalesce?: string; silent?: boolean }
 ) => useProjectStore.getState().update(mutate, options)
 
+/**
+ * The surface the canvas is currently showing. Read here rather than threaded
+ * through every caller: the library panel, the outline, the palette and the `n`
+ * hotkey all add screens, and any one of them forgetting to pass it would drop
+ * the screen onto Web where the user cannot see it.
+ */
+function currentSurface(): Surface {
+  const mode = useUiStore.getState().mode
+  return mode === "mobile" || mode === "backend" ? mode : "web"
+}
+
 export function addScreen(
   template = "",
   position?: { x: number; y: number },
-  surface: Surface = "web"
+  surface: Surface = currentSurface()
 ): string | null {
   let newId: string | null = null
   update((doc) => {
@@ -37,7 +53,7 @@ export function addScreen(
       key,
       title: base,
       template,
-      layout: meta?.defaultLayout ?? "",
+      layout: defaultLayoutFor(meta?.defaultLayout ?? "", surface),
       note: "",
       surface,
       views: [],
@@ -208,7 +224,21 @@ export function setScreenSurface(id: string, surface: Surface) {
   update((doc) => {
     const screen = doc.screens.find((s) => s.id === id)
     if (!screen) return
+    const was = screen.surface
     screen.surface = surface
+
+    // A web layout cannot describe a phone screen, and vice versa — carry the
+    // choice across to the nearest equivalent rather than leaving a sidebar
+    // dashboard sitting on the Mobile tab.
+    if (was !== surface && screen.layout) {
+      const meta = screenTemplateMap[screen.template]
+      screen.layout =
+        surface === "mobile"
+          ? defaultLayoutFor(screen.layout, "mobile")
+          : isMobileLayout(screen.layout)
+            ? (meta?.defaultLayout ?? "")
+            : screen.layout
+    }
     // Its connections to screens that stayed behind are no longer meaningful.
     const sameSurface = new Set(
       doc.screens.filter((s) => s.surface === surface).map((s) => s.id)
@@ -426,6 +456,7 @@ export function addSection(type: string) {
       id: uid("sec"),
       type,
       name: meta?.name ?? type,
+      // Landing sections belong to the web page; no surface mapping applies.
       layout: meta?.defaultLayout ?? "",
       note: "",
       order: doc.sections.length,

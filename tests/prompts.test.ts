@@ -123,3 +123,38 @@ describe("the fragment prompt", () => {
     expect(prompt).toContain("Fragment only")
   })
 })
+
+describe("choosing which builds to produce", () => {
+  it("tells the authoring prompt to pick surfaces from the requirements", () => {
+    const prompt = buildAuthoringPrompt()
+    expect(prompt).toContain("Decide which builds the product needs")
+    // The signals that should map to a phone app.
+    for (const cue of ["on their phone", "iOS/Android", "camera", "GPS"]) {
+      expect(prompt).toContain(cue)
+    }
+    expect(prompt).toContain("Most real products need **more than one**")
+    // And the rule that keeps builds apart.
+    expect(prompt).toContain("Never draw a `flow` arrow from one build to another")
+  })
+
+  it("shows a worked example with two builds in one file", () => {
+    const prompt = buildAuthoringPrompt()
+    expect(prompt).toContain("one product, two builds")
+    expect(prompt).toContain("surface mobile")
+    expect(prompt).toMatch(/layout\s+mobile-detail/)
+  })
+
+  it("names the mobile layouts rather than leaving them to be guessed", () => {
+    const prompt = buildAuthoringPrompt()
+    for (const id of ["mobile-auth", "mobile-tabs", "mobile-list", "mobile-sheet"]) {
+      expect(prompt).toContain(id)
+    }
+  })
+
+  it("tells the fragment prompt which build each screen is on", () => {
+    const doc = starterDoc("mobile-app")!
+    const prompt = buildFragmentPrompt(doc)
+    expect(prompt).toContain("· mobile")
+    expect(prompt).toContain("Say which build each new screen belongs to")
+  })
+})

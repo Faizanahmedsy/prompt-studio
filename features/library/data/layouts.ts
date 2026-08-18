@@ -33,12 +33,72 @@ export function layoutsForSection(sectionType: string) {
   return sectionLayouts.filter((l) => l.sectionType === sectionType)
 }
 
+/** A phone layout — the `mobile-*` family, which draws in a phone frame. */
+export function isMobileLayout(id: string) {
+  return id.startsWith("mobile-")
+}
+
 /** Screen layouts, best matches for the template first. */
 export function layoutsForTemplate(template: string) {
   if (!template) return screenLayouts
   const matches = screenLayouts.filter((l) => l.templates?.includes(template))
   const rest = screenLayouts.filter((l) => !l.templates?.includes(template))
   return [...matches, ...rest]
+}
+
+/**
+ * The layouts worth offering for a build. A phone screen is never a sidebar
+ * dashboard and a web page is never a bottom sheet, so showing the other
+ * platform's options is just a longer list to scroll past — and an easy way to
+ * pick something that cannot exist.
+ */
+export function layoutsForSurface(template: string, surface: "web" | "mobile" | "backend") {
+  const ordered = layoutsForTemplate(template)
+  if (surface === "mobile") {
+    const phone = ordered.filter((l) => isMobileLayout(l.id))
+    // Fall back to everything if a template has no phone layout at all, rather
+    // than showing an empty picker.
+    return phone.length ? phone : ordered
+  }
+  return ordered.filter((l) => !isMobileLayout(l.id))
+}
+
+/** The layout a new screen starts with on this build. */
+export function defaultLayoutFor(templateDefault: string, surface: "web" | "mobile" | "backend") {
+  if (surface !== "mobile") return templateDefault
+  return mobileEquivalent[templateDefault] ?? "mobile-tabs"
+}
+
+/** Nearest phone layout for a template's web default. */
+const mobileEquivalent: Record<string, string> = {
+  "auth-center": "mobile-auth",
+  "auth-split": "mobile-auth",
+  "auth-minimal": "mobile-auth",
+  "auth-otp": "mobile-otp",
+  "dashboard-sidebar": "mobile-tabs",
+  "dashboard-topnav": "mobile-tabs",
+  "dashboard-cards": "mobile-stats",
+  "dashboard-analytics": "mobile-stats",
+  "table-basic": "mobile-list",
+  "table-advanced": "mobile-list",
+  "table-master-detail": "mobile-list",
+  "search-results": "mobile-search",
+  "detail-hero": "mobile-detail",
+  "detail-two-column": "mobile-detail",
+  "product-gallery": "mobile-detail",
+  "form-single": "mobile-form",
+  "form-two-column": "mobile-form",
+  "form-wizard": "mobile-wizard",
+  "form-sidebar-summary": "mobile-form",
+  "checkout-steps": "mobile-checkout",
+  "profile-sidebar": "mobile-profile",
+  "profile-tabs": "mobile-profile",
+  "settings-sections": "mobile-settings",
+  "onboarding-checklist": "mobile-onboarding",
+  "calendar-month": "mobile-calendar",
+  "chat-split": "mobile-chat",
+  "board-kanban": "mobile-grid",
+  "empty-first-run": "mobile-empty",
 }
 
 export function layoutCategories(layouts: LayoutOption[]) {

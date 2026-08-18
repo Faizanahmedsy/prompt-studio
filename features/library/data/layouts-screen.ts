@@ -1,5 +1,28 @@
 import type { LayoutOption } from "./layout-types"
 import {
+  appBar,
+  bubbles,
+  chipRow,
+  codeBoxes,
+  composer,
+  floatingTabBar,
+  homeIndicator,
+  keyboard,
+  largeTitle,
+  listRow,
+  media,
+  searchBar,
+  segmented,
+  settingRow,
+  sheet,
+  socialButtons,
+  statTiles,
+  statusBar,
+  stickyAction,
+  tabBar,
+  tabBarWithFab,
+} from "./wire-mobile"
+import {
   avatarRow,
   bar,
   card,
@@ -670,20 +693,6 @@ export const screenLayouts: LayoutOption[] = [
     ),
   },
   {
-    id: "mobile-first",
-    name: "Mobile First Screen",
-    description: "Designed for a phone viewport.",
-    category: "Onboarding",
-    scope: "screen",
-    templates: ["mobile", "onboarding", "auth"],
-    promptDetails:
-      "A mobile-first screen: single column, sticky bottom action bar, thumb-reachable primary control, large tap targets (min 44px) and a bottom tab bar for navigation. Scales up gracefully to a centred column on desktop.",
-    wire: frame(
-      col([heading(70), sub(50), card(), card(), spacer(1), pill(100)], { gap: 1 }),
-      "phone"
-    ),
-  },
-  {
     id: "empty-first-run",
     name: "Empty / First Run",
     description: "Illustration, explanation, one action.",
@@ -698,144 +707,790 @@ export const screenLayouts: LayoutOption[] = [
     }),
   },
   // ------------------------------------------------------------------ mobile
-  // Native screens are a different shape from web ones: one column, a fixed
-  // chrome top and bottom, and everything reachable by thumb. Reusing
-  // `dashboard-sidebar` for a phone screen would describe a layout that cannot
-  // exist, so these are separate rather than a responsive note on the web ones.
+  // These render inside a phone-shaped frame (LayoutThumb `shape="phone"`),
+  // so each wire is just the screen content — the chrome helpers in
+  // `wire-mobile.ts` supply the status bar, app bar and tab bar that make a
+  // 160px picture read as a phone.
+  {
+    id: "mobile-auth",
+    name: "Sign In",
+    description: "Logo, fields, social buttons.",
+    category: "Mobile · Auth",
+    scope: "screen",
+    templates: ["mobile", "auth"],
+    promptDetails:
+      "A phone sign-in screen: brand mark and a short welcome above the fold, email and password fields with the keyboard never covering the focused one, a full-width primary button, an inline error region above the fields rather than a toast, a Forgot password link, and third-party sign-in buttons below a divider. Submitting disables the button and shows progress in place.",
+    wire: col(
+      [
+        statusBar(),
+        spacer(1),
+        circle("lg", "accentSoft"),
+        largeTitle(58),
+        sub(76),
+        field(),
+        field(),
+        row([spacer(1), bar(30, "accentLine")], { align: "end" }),
+        pill(100, "accent"),
+        row([bar(38, "line")], { align: "center" }),
+        socialButtons(2),
+        spacer(1),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-auth-social",
+    name: "Social Sign In",
+    description: "Provider-first, email second.",
+    category: "Mobile · Auth",
+    scope: "screen",
+    templates: ["mobile", "auth"],
+    promptDetails:
+      "A provider-first sign-in: full-bleed brand imagery in the top half, then Apple/Google/email buttons stacked full width with 44pt minimum height, and a legal line linking terms and privacy. Email/password is a secondary route, not the default. Apple sign-in is present on iOS whenever any other social provider is.",
+    wire: col(
+      [
+        statusBar(),
+        media(4),
+        spacer(1),
+        largeTitle(70),
+        sub(84),
+        pill(100, "accent"),
+        socialButtons(2),
+        pill(100, "surface", true),
+        row([bar(56, "line")], { align: "center" }),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-otp",
+    name: "OTP / Verification",
+    description: "Code boxes and keypad.",
+    category: "Mobile · Auth",
+    scope: "screen",
+    templates: ["mobile", "auth"],
+    promptDetails:
+      "A verification screen: one code box per digit with auto-advance, paste-the-whole-code support and OS autofill from SMS, the destination address shown so the user can check it, a resend control with a visible countdown, and automatic submission once the last digit lands.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, title: 30 }),
+        spacer(1),
+        largeTitle(64),
+        sub(88),
+        codeBoxes(4),
+        row([bar(44, "accentLine")], { align: "center" }),
+        spacer(1),
+        keyboard(),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-splash",
+    name: "Splash / Launch",
+    description: "Logo centred, then route.",
+    category: "Mobile · Auth",
+    scope: "screen",
+    templates: ["mobile", "empty", "onboarding"],
+    promptDetails:
+      "A launch screen matching the native splash exactly so there is no flash between them: centred brand mark, no spinner unless the wait exceeds a second, and a decision made off-screen about where to send the user — onboarding, sign-in or home.",
+    wire: col([statusBar(), spacer(1), circle("lg", "accent"), bar(40, "strong", 2), spacer(1), homeIndicator()], {
+      gap: 1,
+      align: "center",
+    }),
+  },
+  {
+    id: "mobile-onboarding",
+    name: "Onboarding Slides",
+    description: "Paged intro, dots, skip.",
+    category: "Mobile · Onboarding",
+    scope: "screen",
+    templates: ["mobile", "onboarding"],
+    promptDetails:
+      "A paged onboarding flow: one illustration, one heading and one line of copy per page, page dots showing position, a Skip control top-right that is always reachable, and a primary button that becomes Get Started on the final page. Swipe and button both advance.",
+    wire: col(
+      [
+        statusBar(),
+        row([spacer(1), bar(18, "line")], { align: "end" }),
+        spacer(1),
+        circle("lg", "accentSoft"),
+        largeTitle(72),
+        sub(88),
+        sub(64),
+        row([circle("sm", "accent"), circle("sm", "line"), circle("sm", "line")], {
+          gap: 1,
+          align: "center",
+        }),
+        spacer(1),
+        pill(100, "accent"),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-onboarding-hero",
+    name: "Welcome Hero",
+    description: "Full-bleed image, CTA pair.",
+    category: "Mobile · Onboarding",
+    scope: "screen",
+    templates: ["mobile", "onboarding", "landing"],
+    promptDetails:
+      "A welcome screen with edge-to-edge imagery behind the status bar, a gradient scrim so the copy stays legible, a headline and one supporting line low on the screen, a primary Get started button and a quieter I already have an account link beneath it.",
+    wire: col(
+      [
+        media(6),
+        spacer(1),
+        largeTitle(80),
+        sub(90),
+        pill(100, "accent"),
+        pill(100, "surface", true),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-permission",
+    name: "Permission Ask",
+    description: "Explain, then request.",
+    category: "Mobile · Onboarding",
+    scope: "screen",
+    templates: ["mobile", "empty", "onboarding"],
+    promptDetails:
+      "A pre-permission screen shown *before* the system dialog: an icon, a plain sentence saying what the app will do with the access and what the user gets for it, an Allow button that triggers the real prompt, and a Not now that leaves the app usable. The denied path routes to Settings rather than dead-ending.",
+    wire: col(
+      [
+        statusBar(),
+        spacer(1),
+        circle("lg", "accentSoft"),
+        largeTitle(66),
+        sub(90),
+        sub(70),
+        spacer(1),
+        pill(100, "accent"),
+        pill(100, "surface", true),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
   {
     id: "mobile-tabs",
-    name: "Tab Bar Home",
-    description: "Bottom tabs, scrolling content.",
-    category: "Mobile",
+    name: "Bottom Tab Bar",
+    description: "Standard tabs, scrolling body.",
+    category: "Mobile · Navigation",
     scope: "screen",
     templates: ["mobile", "dashboard", "list"],
     promptDetails:
-      "A phone screen inside a bottom tab bar: a large title header that collapses on scroll, a single scrolling column of content, and 3–5 bottom tabs with icon plus label. The tab bar respects the home-indicator safe area and the active tab is visually obvious.",
-    wire: frame(
-      col(
-        [
-          heading(55),
-          card(),
-          card(),
-          spacer(1),
-          row([pill(20), pill(20), pill(20), pill(20)], { gap: 1, align: "between" }),
-        ],
-        { gap: 1 }
-      ),
-      "phone"
+      "The app shell: 3–5 bottom tabs with icon plus label, the active one clearly marked, each tab keeping its own navigation stack so switching away and back returns to where you were. The bar sits above the home indicator and hides for full-screen media only.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        largeTitle(58),
+        card(),
+        card(),
+        spacer(1),
+        tabBar(4, 0),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-floating-tabs",
+    name: "Floating Nav Bar",
+    description: "Detached pill navigation.",
+    category: "Mobile · Navigation",
+    scope: "screen",
+    templates: ["mobile", "dashboard", "list"],
+    promptDetails:
+      "A floating pill navigation detached from the screen edge, with the content scrolling beneath it and bottom padding so the last row is never trapped under the bar. Icon-only with the active item tinted; use it when the content is visual and the chrome should recede.",
+    wire: col(
+      [
+        statusBar(),
+        largeTitle(56),
+        card(),
+        card(),
+        card(),
+        spacer(1),
+        floatingTabBar(4, 0),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-tabs-fab",
+    name: "Tabs with Centre Action",
+    description: "Raised primary action.",
+    category: "Mobile · Navigation",
+    scope: "screen",
+    templates: ["mobile", "dashboard", "form"],
+    promptDetails:
+      "A bottom tab bar with a raised centre button for the app's one dominant create action. The button is not a tab — it opens a sheet or a full-screen flow and returns you where you were. Two tabs sit either side of it.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        largeTitle(52),
+        card(),
+        card(),
+        spacer(1),
+        tabBarWithFab(),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-drawer",
+    name: "Drawer Navigation",
+    description: "Hamburger, slide-over menu.",
+    category: "Mobile · Navigation",
+    scope: "screen",
+    templates: ["mobile", "dashboard", "settings"],
+    promptDetails:
+      "A drawer shell: hamburger in the app bar opens a slide-over holding the account block and every destination that does not earn a tab. The drawer closes on selection and on backdrop tap, and the hardware back button closes it rather than leaving the screen.",
+    wire: row(
+      [
+        col([circle("sm", "accentSoft"), bar(80, "strong"), listRow({ trailing: false }), listRow({ trailing: false }), listRow({ trailing: false }), spacer(1)], {
+          gap: 1,
+          pad: 1,
+          w: 62,
+          tone: "surface",
+          border: true,
+        }),
+        col([statusBar(), appBar({ back: true }), card(), card(), spacer(1)], { gap: 1, grow: 1 }),
+      ],
+      { gap: 1 }
     ),
   },
   {
     id: "mobile-list",
     name: "Scrolling List",
     description: "Search, pull to refresh, rows.",
-    category: "Mobile",
+    category: "Mobile · Content",
     scope: "screen",
     templates: ["mobile", "table", "list", "search"],
     promptDetails:
-      "A phone list screen: a search field pinned under the header, a virtualised scrolling list of rows (never a table), pull-to-refresh, infinite scroll with a footer spinner, swipe actions on a row where they apply, and an illustrated empty state.",
-    wire: frame(
-      col([heading(50), pill(100, "surface"), card(), card(), card(), card()], { gap: 1 }),
-      "phone"
+      "A phone list: a search field under the header, a virtualised scrolling list of rows (never a data table), pull-to-refresh, infinite scroll with a footer spinner, swipe actions where they apply, and an illustrated empty state with one action.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        searchBar(),
+        listRow(),
+        listRow(),
+        listRow(),
+        listRow(),
+        listRow(),
+        spacer(1),
+        tabBar(4, 1),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-feed",
+    name: "Card Feed",
+    description: "Scrolling media cards.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "dashboard", "list"],
+    promptDetails:
+      "A vertically scrolling feed of media cards: image, title, one line of meta, and an action row. Cards are full-bleed to the screen edges with generous vertical rhythm, images have explicit dimensions so nothing shifts as they load, and the feed paginates as the user scrolls.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        col([media(2), bar(70, "strong"), bar(46, "line"), row([circle("sm", "line"), circle("sm", "line"), spacer(1)], { gap: 1 })], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        col([media(2), bar(64, "strong"), bar(40, "line")], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        spacer(1),
+        tabBar(4, 0),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-grid",
+    name: "Two Column Grid",
+    description: "Tiles, filter chips.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "product", "search", "list"],
+    promptDetails:
+      "A two-column tile grid for browsing visual items: filter chips that scroll horizontally above it, square-ish tiles with an image, a name and a price or meta line, and skeleton tiles of the same shape while loading.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        chipRow(4, 0),
+        grid(2, () => col([media(2), bar(80, "strong"), bar(50, "line")], {
+          gap: 0,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }), { gap: 1, rows: 2 }),
+        spacer(1),
+        tabBar(4, 1),
+      ],
+      { gap: 1 }
     ),
   },
   {
     id: "mobile-detail",
     name: "Detail with Hero",
-    description: "Image header, content, sticky action.",
-    category: "Mobile",
+    description: "Image header, sticky action.",
+    category: "Mobile · Content",
     scope: "screen",
     templates: ["mobile", "detail", "product"],
     promptDetails:
-      "A phone detail screen: a hero image or coloured header that parallaxes away on scroll, a back control overlaid top-left, the record's fields in a single scrolling column, and a sticky bottom action bar holding the primary action above the safe area.",
-    wire: frame(
-      col([bar(100, "accentSoft", 3), heading(60), sub(80), sub(70), spacer(1), pill(100)], {
-        gap: 1,
-      }),
-      "phone"
+      "A detail screen: hero image or coloured header that collapses on scroll, a back control overlaid on it, title and metadata, the body in a single column, and a sticky bottom bar holding the primary action above the safe area so it is always reachable by thumb.",
+    wire: col(
+      [
+        media(4),
+        largeTitle(78),
+        sub(52),
+        segmented(3, 0),
+        bar(92, "line"),
+        bar(84, "line"),
+        bar(70, "line"),
+        spacer(1),
+        stickyAction(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-profile",
+    name: "Profile",
+    description: "Avatar header, stats, rows.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "profile"],
+    promptDetails:
+      "A profile screen: avatar, name and role centred at the top, a row of stat counts beneath, then grouped rows of actions. The edit action sits in the app bar rather than competing with the content.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true }),
+        circle("lg", "accentSoft"),
+        bar(50, "strong", 2),
+        bar(34, "line"),
+        statTiles(3),
+        col([settingRow(), settingRow(), settingRow()], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        spacer(1),
+        tabBar(4, 3),
+      ],
+      { gap: 1, align: "center" }
+    ),
+  },
+  {
+    id: "mobile-settings",
+    name: "Settings List",
+    description: "Grouped rows and switches.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "settings"],
+    promptDetails:
+      "A settings screen built from grouped rows with section headings: each row is a label with a value, a chevron or a switch, switches apply immediately with no Save button, and destructive actions sit in their own group at the bottom behind a confirmation.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, title: 34 }),
+        bar(26, "line"),
+        col([settingRow(true), settingRow(true), settingRow()], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        bar(22, "line"),
+        col([settingRow(), settingRow(true)], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        spacer(1),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-chat",
+    name: "Chat",
+    description: "Bubbles and composer.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "chat"],
+    promptDetails:
+      "A conversation screen: alternating message bubbles, sender avatar on incoming messages, day separators, the newest message visible on open, and a composer pinned above the keyboard that grows to a few lines before it scrolls. Sending is optimistic with a failed state that can be retried.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, action: true, title: 36 }),
+        bubbles(5),
+        spacer(1),
+        composer(),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-search",
+    name: "Search",
+    description: "Field, chips, results.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "search"],
+    promptDetails:
+      "A search screen: the field focused on entry with the keyboard already up, recent searches before a query is typed, filter chips under the field, and results appearing as the user types with a debounce. An empty result shows what was searched and how to widen it.",
+    wire: col(
+      [
+        statusBar(),
+        row([searchBar(), bar(14, "accentLine")], { gap: 1, align: "between" }),
+        chipRow(4, 1),
+        listRow(),
+        listRow(),
+        listRow(),
+        spacer(1),
+        keyboard(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-notifications",
+    name: "Notifications",
+    description: "Unread dots, grouped.",
+    category: "Mobile · Content",
+    scope: "screen",
+    templates: ["mobile", "list"],
+    promptDetails:
+      "A notification list grouped by day, unread entries marked with a dot and a tinted background, swipe to dismiss, a mark-all-read action in the app bar, and each entry navigating to the thing it is about rather than a generic screen.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ action: true, title: 46 }),
+        bar(24, "line"),
+        row([circle("sm", "accent"), col([bar(80, "strong"), bar(56, "line")], { gap: 0, grow: 1 })], { gap: 1 }),
+        row([circle("sm", "accent"), col([bar(72, "strong"), bar(48, "line")], { gap: 0, grow: 1 })], { gap: 1 }),
+        bar(20, "line"),
+        listRow({ trailing: false }),
+        listRow({ trailing: false }),
+        spacer(1),
+        tabBar(4, 2),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-stats",
+    name: "Stats Dashboard",
+    description: "KPI tiles and a chart.",
+    category: "Mobile · Data",
+    scope: "screen",
+    templates: ["mobile", "dashboard"],
+    promptDetails:
+      "A phone dashboard: a greeting, a row of KPI tiles sized for two per row, one chart with an accessible text summary, and a recent-activity list below. Every tile has a skeleton of its own shape while loading; nothing is a spinner over the whole screen.",
+    wire: col(
+      [
+        statusBar(),
+        largeTitle(56),
+        sub(40),
+        statTiles(2),
+        col([bar(50, "strong"), chart("line", { h: 40 })], {
+          gap: 1,
+          pad: 1,
+          tone: "surface",
+          border: true,
+          rounded: true,
+        }),
+        listRow(),
+        listRow(),
+        spacer(1),
+        tabBar(4, 0),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-calendar",
+    name: "Calendar",
+    description: "Month grid, agenda below.",
+    category: "Mobile · Data",
+    scope: "screen",
+    templates: ["mobile", "calendar"],
+    promptDetails:
+      "A calendar screen: a month grid with dots marking days that have events, the selected day highlighted, and that day's agenda listed beneath it. Swiping moves between months, and today is always one tap away.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, action: true, title: 40 }),
+        grid(7, () => bar(100, "line"), { gap: 1, rows: 5 }),
+        bar(30, "line"),
+        listRow({ avatar: false }),
+        listRow({ avatar: false }),
+        spacer(1),
+        tabBar(4, 1),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-map",
+    name: "Map",
+    description: "Full-bleed map, sheet over it.",
+    category: "Mobile · Data",
+    scope: "screen",
+    templates: ["mobile", "dashboard"],
+    promptDetails:
+      "A full-bleed map with markers and a floating recentre control, and a bottom sheet listing what is on the map that drags to full height. Location permission denied and location unavailable are visible states with a way forward, not silence.",
+    wire: col(
+      [
+        media(7),
+        spacer(1),
+        sheet([bar(52, "strong", 2), listRow(), listRow()]),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-scanner",
+    name: "Camera / Scanner",
+    description: "Viewfinder and capture.",
+    category: "Mobile · Data",
+    scope: "screen",
+    templates: ["mobile", "empty"],
+    promptDetails:
+      "A camera surface: full-screen viewfinder with a framing guide, a large capture control at the bottom, torch and flip actions, and handled states for permission denied and no camera available. Captured media is confirmed before it is used.",
+    wire: col(
+      [
+        media(7),
+        spacer(1),
+        row([circle("sm", "line"), circle("lg", "accent"), circle("sm", "line")], {
+          gap: 1,
+          align: "between",
+        }),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
     ),
   },
   {
     id: "mobile-form",
-    name: "Form Screen",
+    name: "Form",
     description: "Stacked fields, keyboard aware.",
-    category: "Mobile",
+    category: "Mobile · Flows",
     scope: "screen",
     templates: ["mobile", "form"],
     promptDetails:
-      "A phone form: full-width stacked fields with labels above them, the keyboard never covering the focused field (keyboard-avoiding scroll), Next/Done keyboard actions moving between fields, inline validation under each field, and a submit button pinned above the keyboard.",
-    wire: frame(
-      col([heading(45), field(), field(), field(), spacer(1), pill(100)], { gap: 1 }),
-      "phone"
+      "A phone form: full-width stacked fields with labels above them, a keyboard-avoiding scroll so the focused field is never covered, Next/Done return keys moving between fields, inline validation beneath each field, and the submit button pinned above the keyboard.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, title: 38 }),
+        field(),
+        field(),
+        field(),
+        spacer(1),
+        pill(100, "accent"),
+        keyboard(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-wizard",
+    name: "Multi-Step Flow",
+    description: "Progress bar, one step per screen.",
+    category: "Mobile · Flows",
+    scope: "screen",
+    templates: ["mobile", "form", "onboarding", "checkout"],
+    promptDetails:
+      "A multi-step flow: a progress indicator showing step n of m, exactly one decision per screen, Back always available without losing entered data, and the final step summarising everything before the commit action.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, title: 30 }),
+        row([bar(100, "accent"), bar(100, "surface"), bar(100, "surface")], { gap: 1 }),
+        largeTitle(66),
+        sub(84),
+        field(),
+        field(),
+        spacer(1),
+        row([pill(100, "surface", true), pill(100, "accent")], { gap: 1 }),
+        homeIndicator(),
+      ],
+      { gap: 1 }
+    ),
+  },
+  {
+    id: "mobile-checkout",
+    name: "Checkout",
+    description: "Summary, method, pay.",
+    category: "Mobile · Flows",
+    scope: "screen",
+    templates: ["mobile", "checkout"],
+    promptDetails:
+      "A phone checkout: order summary at the top, delivery and payment method as tappable rows that open sheets, the total pinned with the pay button above the safe area, and native payment (Apple Pay / Google Pay) offered first where available. The pay button shows progress and cannot be double-tapped.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ back: true, title: 36 }),
+        col([listRow(), listRow()], { gap: 1, pad: 1, tone: "surface", border: true, rounded: true }),
+        settingRow(),
+        settingRow(),
+        spacer(1),
+        row([bar(30, "line"), spacer(1), bar(24, "strong", 2)], { align: "between" }),
+        pill(100, "accent"),
+        homeIndicator(),
+      ],
+      { gap: 1 }
     ),
   },
   {
     id: "mobile-sheet",
     name: "Bottom Sheet",
     description: "Modal sheet over a screen.",
-    category: "Mobile",
+    category: "Mobile · Flows",
     scope: "screen",
     templates: ["mobile", "form", "detail"],
     promptDetails:
-      "Content presented as a bottom sheet over the screen beneath: a drag handle, detents (half and full height), dismissal by swipe-down and by backdrop tap, and the underlying screen dimmed but still visible. Never used for content the user must not lose.",
-    wire: frame(
-      col([spacer(1), card([bar(18, "line", 1), heading(55), sub(70), pill(100)])], { gap: 1 }),
-      "phone"
+      "Content presented as a bottom sheet over the screen beneath: a drag handle, half and full detents, dismissal by swipe-down and backdrop tap, and the screen behind dimmed but visible. Never used for something the user must not lose.",
+    wire: col(
+      [
+        statusBar(),
+        bar(60, "line"),
+        bar(46, "line"),
+        spacer(1),
+        sheet([largeTitle(62), sub(84), field(), pill(100, "accent")]),
+        homeIndicator(),
+      ],
+      { gap: 1 }
     ),
   },
   {
-    id: "mobile-onboarding",
-    name: "Onboarding Slides",
-    description: "Paged intro, dots, skip.",
-    category: "Mobile",
+    id: "mobile-filters",
+    name: "Filter Sheet",
+    description: "Chips, ranges, apply.",
+    category: "Mobile · Flows",
     scope: "screen",
-    templates: ["mobile", "onboarding"],
+    templates: ["mobile", "search", "list"],
     promptDetails:
-      "A paged onboarding flow: full-bleed illustration per page, a heading and one line of copy, page dots showing position, a Skip control top-right, and a primary button that becomes Get Started on the final page.",
-    wire: frame(
-      col(
-        [
-          spacer(1),
-          circle("lg", "accentSoft"),
-          heading(60),
-          sub(75),
-          row([circle("sm"), circle("sm"), circle("sm")], { gap: 1, align: "center" }),
-          pill(100),
-        ],
-        { gap: 1, align: "center" }
-      ),
-      "phone"
+      "A filter sheet raised over the results: chip groups per facet, a reset that clears everything, a live count on the Apply button so the effect is known before committing, and the sheet closing back to the list with the filters visible as chips.",
+    wire: col(
+      [
+        statusBar(),
+        listRow(),
+        listRow(),
+        spacer(1),
+        sheet([
+          row([bar(30, "strong", 2), spacer(1), bar(18, "accentLine")], { align: "between" }),
+          bar(24, "line"),
+          chipRow(4, 1),
+          bar(22, "line"),
+          chipRow(3, 0),
+          pill(100, "accent"),
+        ]),
+      ],
+      { gap: 1 }
     ),
   },
   {
-    id: "mobile-map",
-    name: "Map Screen",
-    description: "Full-bleed map, sheet over it.",
-    category: "Mobile",
+    id: "mobile-paywall",
+    name: "Paywall / Plans",
+    description: "Plan cards, restore.",
+    category: "Mobile · Flows",
     scope: "screen",
-    templates: ["mobile", "dashboard"],
+    templates: ["mobile", "checkout", "product"],
     promptDetails:
-      "A full-bleed map filling the screen with markers, a floating recentre control, and a bottom sheet listing what is on the map that expands to full height. Handles location permission denied and location unavailable as visible states, not silence.",
-    wire: frame(
-      col([bar(100, "accentSoft", 3), spacer(1), card([heading(50), sub(70)])], { gap: 1 }),
-      "phone"
+      "A subscription screen: the value stated in three short lines, plan cards with one marked as recommended and the per-period price spelled out, a single subscribe action, and Restore purchases plus terms links — both required by the app stores.",
+    wire: col(
+      [
+        statusBar(),
+        row([spacer(1), circle("sm", "line")], { align: "end" }),
+        circle("lg", "accentSoft"),
+        largeTitle(70),
+        sub(86),
+        sub(70),
+        row([
+          col([bar(60, "strong"), bar(40, "line")], { gap: 0, pad: 1, tone: "surface", border: true, rounded: true, grow: 1 }),
+          col([bar(60, "strong"), bar(40, "line")], { gap: 0, pad: 1, tone: "accentSoft", border: true, rounded: true, grow: 1 }),
+        ], { gap: 1 }),
+        pill(100, "accent"),
+        row([bar(52, "line")], { align: "center" }),
+        homeIndicator(),
+      ],
+      { gap: 1, align: "center" }
     ),
   },
   {
-    id: "mobile-profile",
-    name: "Profile / Settings List",
-    description: "Avatar header, grouped rows.",
-    category: "Mobile",
+    id: "mobile-empty",
+    name: "Empty / First Run",
+    description: "Illustration and one action.",
+    category: "Mobile · Flows",
     scope: "screen",
-    templates: ["mobile", "profile", "settings"],
+    templates: ["mobile", "empty"],
     promptDetails:
-      "A phone profile or settings screen: an avatar and name header, then grouped rows with section headings, each row a label with a chevron, a value or a switch. Destructive actions sit in their own group at the bottom and confirm before running.",
-    wire: frame(
-      col([circle("md", "accentSoft"), heading(40), card(), card(), card()], {
-        gap: 1,
-        align: "center",
-      }),
-      "phone"
+      "An empty state: a centred illustration, a heading naming what belongs here, one sentence of guidance and a single primary action. Used for a first run and for a filtered list that matched nothing — in which case it says what was filtered.",
+    wire: col(
+      [
+        statusBar(),
+        appBar({ title: 32 }),
+        spacer(1),
+        circle("lg", "accentSoft"),
+        largeTitle(64),
+        sub(84),
+        pill(70, "accent"),
+        spacer(1),
+        tabBar(4, 0),
+      ],
+      { gap: 1, align: "center" }
     ),
+  },
+  {
+    id: "mobile-first",
+    name: "Mobile First Screen",
+    description: "Single column, sticky action.",
+    category: "Mobile · Flows",
+    scope: "screen",
+    templates: ["mobile", "onboarding", "auth"],
+    promptDetails:
+      "A mobile-first screen: a single scrolling column, a sticky bottom action bar holding the primary control within thumb reach, tap targets of at least 44pt, and content that stays legible at the largest system font size.",
+    wire: col([statusBar(), largeTitle(70), sub(50), card(), card(), spacer(1), stickyAction()], {
+      gap: 1,
+    }),
   },
 ]

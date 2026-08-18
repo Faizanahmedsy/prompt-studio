@@ -164,6 +164,39 @@ export const surfaceConfigSchema = z.object({
   structure: structureSchema.default({}),
 })
 
+/**
+ * A surface arrives pre-configured. Switching to Mobile and finding Next.js 16
+ * and shadcn selected would mean correcting six dropdowns before the tab is
+ * usable, and anyone who skipped that would generate a React Native prompt full
+ * of web libraries.
+ */
+const mobileSurfaceDefaults = {
+  stack: {
+    framework: "expo-router",
+    styling: "nativewind",
+    state: "rn-query-zustand",
+    icons: "rn-vector-icons",
+    tables: "rn-flashlist",
+    charts: "victory-native",
+    testing: "rn-testing-library",
+  },
+  structure: { preset: "expo-feature-based" },
+}
+
+const backendSurfaceDefaults = {
+  stack: {
+    // A service has no UI, so the presentation choices are deliberately blank
+    // rather than a web default nobody meant to pick.
+    framework: "",
+    styling: "",
+    forms: "",
+    icons: "",
+    tables: "",
+    charts: "",
+  },
+  structure: { preset: "src-layered" },
+}
+
 export const projectDocSchema = z.object({
   name: z.string().default("Untitled project"),
   target: z.string().default("claude-code"),
@@ -184,8 +217,12 @@ export const projectDocSchema = z.object({
   structure: structureSchema.default({}),
   surfaces: z
     .object({
-      mobile: surfaceConfigSchema.default({}),
-      backend: surfaceConfigSchema.default({}),
+      mobile: surfaceConfigSchema.default(() =>
+        surfaceConfigSchema.parse(mobileSurfaceDefaults)
+      ),
+      backend: surfaceConfigSchema.default(() =>
+        surfaceConfigSchema.parse(backendSurfaceDefaults)
+      ),
     })
     .default({}),
   conventions: conventionsSchema.default({}),
