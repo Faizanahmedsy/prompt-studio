@@ -4,15 +4,19 @@ import { Workflow } from "lucide-react"
 import { useEffect } from "react"
 
 import { Workbench } from "@/components/layout/workbench"
+import { AuthGate } from "@/features/auth/components/auth-gate"
 import { useActiveProject, useProjectStore } from "@/stores/use-project-store"
 
-export default function StudioPage() {
+function Studio() {
   const hydrated = useProjectStore((s) => s.hydrated)
   const projects = useProjectStore((s) => s.projects)
   const activeId = useProjectStore((s) => s.activeId)
   const project = useActiveProject()
 
-  // First run — or a store whose active project was deleted elsewhere.
+  // First run — or a store whose active project was deleted elsewhere. The
+  // dependency is `projects.length`, not `projects`: this only cares whether
+  // any exist, and depending on the array would re-run it on every edit.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
     if (!hydrated) return
     const store = useProjectStore.getState()
@@ -37,4 +41,12 @@ export default function StudioPage() {
   }
 
   return <Workbench project={project} />
+}
+
+export default function StudioPage() {
+  return (
+    <AuthGate>
+      <Studio />
+    </AuthGate>
+  )
 }

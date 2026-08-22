@@ -4,7 +4,9 @@ import { ThemeProvider } from "next-themes"
 import { useEffect } from "react"
 
 import { Toaster } from "@/components/ui/sonner"
+import { useAuthStore } from "@/stores/use-auth-store"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useSyncStore } from "@/stores/use-sync-store"
 import { useUiStore } from "@/stores/use-ui-store"
 
 /**
@@ -16,6 +18,15 @@ function StoreHydration() {
   useEffect(() => {
     useProjectStore.persist.rehydrate()
     useUiStore.persist.rehydrate()
+    // Without this the link between a local project and its server row never
+    // loads, `hydrated` stays false, and the sync hook waits forever for a
+    // signal that is not coming.
+    useSyncStore.persist.rehydrate()
+    // Turns a stored token back into a user, or settles on "anon". Runs on
+    // every page including the signed-out ones, so a visitor who is already
+    // signed in and lands on /login can be sent onwards rather than asked to
+    // sign in again.
+    void useAuthStore.getState().bootstrap()
   }, [])
   return null
 }

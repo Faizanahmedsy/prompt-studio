@@ -6,14 +6,15 @@ import { persist } from "zustand/middleware"
 import { starterDoc } from "@/features/library/data/starters"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import { uid } from "@/lib/utils"
+import { useSyncStore } from "@/stores/use-sync-store"
 import {
   type Project,
   type ProjectDoc,
+  projectDocSchema,
+  projectSchema,
   SCHEMA_VERSION,
   type Snapshot,
   type StackProfile,
-  projectDocSchema,
-  projectSchema,
 } from "@/types/project"
 
 const HISTORY_LIMIT = 50
@@ -49,6 +50,11 @@ type ProjectState = {
   deleteProject: (id: string) => void
 
   update: (
+    // `void`, not `undefined`: a mutator with a statement body that falls off
+    // the end is typed `void`, and callers write exactly that. The union is
+    // what lets one callback either return a new document or edit the draft in
+    // place; the call site is `mutate(draft) ?? draft`.
+    // biome-ignore lint/suspicious/noConfusingVoidType: see above
     mutate: (doc: ProjectDoc) => ProjectDoc | void,
     options?: UpdateOptions
   ) => void
@@ -154,7 +160,10 @@ export const useProjectStore = create<ProjectState>()(
         return copy.id
       },
 
-      deleteProject: (id) =>
+      deleteProject: (id) => {
+        // Drop the link to the server row as well, or the next pull sees a
+        // project it believes is already here and never brings it back.
+        useSyncStore.getState().unlink(id)
         set((state) => {
           const projects = state.projects.filter((p) => p.id !== id)
           const { [id]: _past, ...past } = state.past
@@ -166,7 +175,8 @@ export const useProjectStore = create<ProjectState>()(
             activeId:
               state.activeId === id ? (projects[0]?.id ?? null) : state.activeId,
           }
-        }),
+        })
+      },
 
       update: (mutate, options) => {
         const state = get()
