@@ -7,9 +7,6 @@ import { Glyph } from "@/components/icons/glyph"
 import { SelectField, TextAreaField, TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
-import { AddMenu } from "@/features/library/components/add-menu"
-import { LayoutPicker } from "@/features/library/components/layout-picker"
-import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import {
   addModule,
   deleteScreen,
@@ -19,9 +16,12 @@ import {
   updateScreen,
 } from "@/features/builder/utils/actions"
 import { surfaceMeta } from "@/features/builder/utils/surfaces"
+import { AddMenu } from "@/features/library/components/add-menu"
+import { LayoutPicker } from "@/features/library/components/layout-picker"
+import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import {
-  describeLayout,
   defaultLayoutFor,
+  describeLayout,
   layoutsForSurface,
 } from "@/features/library/data/layouts"
 import {

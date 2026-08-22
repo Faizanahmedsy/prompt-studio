@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { starterDoc } from "@/features/library/data/starters"
 import { decodeShare, encodeShare } from "@/lib/share-codec"
-import { SCHEMA_VERSION, projectFileSchema, projectSchema } from "@/types/project"
+import { projectFileSchema, projectSchema, SCHEMA_VERSION } from "@/types/project"
 
 const file = () => ({
   kind: "prompt-studio/project" as const,

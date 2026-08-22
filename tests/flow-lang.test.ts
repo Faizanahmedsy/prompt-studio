@@ -21,6 +21,7 @@ function normalise(doc: ProjectDoc) {
       views: views.map((v) => viewKeyOf.get(v)),
     })),
     edges: doc.edges
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: `id` is destructured to drop it — these assertions compare on keys, not generated ids
       .map(({ id, from, to, trigger, views }) => ({
         from: keyOf.get(from),
         to: keyOf.get(to),
@@ -37,6 +38,7 @@ function normalise(doc: ProjectDoc) {
         `${a.screen}${a.order}`.localeCompare(`${b.screen}${b.order}`)
       ),
     moduleEdges: doc.moduleEdges
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: as above — `id` is destructured only to omit it
       .map(({ id, from, to, trigger }) => ({
         from: moduleKeyOf.get(from),
         to: moduleKeyOf.get(to),

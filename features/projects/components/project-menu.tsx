@@ -40,9 +40,9 @@ import { encodeShare, shareUrl } from "@/lib/share-codec"
 import { relativeTime } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import {
-  SCHEMA_VERSION,
   type Project,
   projectFileSchema,
+  SCHEMA_VERSION,
 } from "@/types/project"
 
 import { VersionsDialog } from "./versions-dialog"

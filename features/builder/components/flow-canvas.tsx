@@ -20,7 +20,6 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   LayoutGrid,
-  Plus,
   Workflow,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef } from "react"
@@ -28,7 +27,6 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/shared/feedback"
 import { Button } from "@/components/ui/button"
-import { analyseGraph } from "@/features/builder/utils/graph"
 import {
   addScreen,
   arrangeScreens,
@@ -40,13 +38,14 @@ import {
   deleteScreen,
   moveScreen,
 } from "@/features/builder/utils/actions"
+import { analyseGraph } from "@/features/builder/utils/graph"
 import {
   CARD_HEIGHT_FALLBACK,
-  MODULE_HEIGHT,
-  WELL_PAD,
-  nodeWidthFor,
   expandedHeight,
+  MODULE_HEIGHT,
   moduleOffsetY,
+  nodeWidthFor,
+  WELL_PAD,
 } from "@/features/builder/utils/node-geometry"
 import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { edgesInView, inView } from "@/features/builder/utils/views"
@@ -56,9 +55,9 @@ import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
 
 import { FlowEdge } from "./flow-edge"
-import { ViewSwitcher } from "./view-switcher"
 import { ModuleNode } from "./module-node"
 import { ScreenNode } from "./screen-node"
+import { ViewSwitcher } from "./view-switcher"
 
 const nodeTypes = { screen: ScreenNode, module: ModuleNode }
 const edgeTypes = { flow: FlowEdge }
@@ -108,6 +107,7 @@ function CanvasInner({
    * to minZoom and parks the graph off-screen. Wait until the nodes report
    * their real size, then fit once.
    */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one-shot, guarded by `hasFitted` — depending on the screens array would re-run it on every drag
   useEffect(() => {
     if (hasFitted.current || !nodesInitialized || !project.screens.length) return
     hasFitted.current = true
@@ -319,6 +319,7 @@ function CanvasInner({
     cardHeights,
     entries,
     selectedId,
+    surface,
   ])
 
   const edges: Edge[] = useMemo(() => {
@@ -375,7 +376,9 @@ function CanvasInner({
         // `remove` is deliberately NOT handled here — see onNodesDelete.
       }
     },
-    []
+    // `isModule` closes over `project.modules`; pinned to `[]` this held a
+    // stale copy and misclassified any module added since the last render.
+    [isModule]
   )
 
   /**

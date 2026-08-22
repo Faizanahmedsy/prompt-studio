@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest"
-
-import { mergeDoc } from "@/features/flow-lang/merge"
 import { autoLayout } from "@/features/builder/utils/graph"
 import { edgesInView, screensInView } from "@/features/builder/utils/views"
+import { mergeDoc } from "@/features/flow-lang/merge"
 import { parseFlow } from "@/features/flow-lang/parser"
 import type { ProjectDoc } from "@/types/project"
 

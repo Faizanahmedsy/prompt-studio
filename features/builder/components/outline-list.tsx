@@ -6,10 +6,8 @@ import { useState } from "react"
 import { Glyph } from "@/components/icons/glyph"
 import { EmptyState } from "@/components/shared/feedback"
 import { TextField } from "@/components/shared/form"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { LayoutPicker } from "@/features/library/components/layout-picker"
-import { LayoutThumb } from "@/features/library/components/layout-thumb"
+import { Button } from "@/components/ui/button"
 import {
   addScreen,
   deleteScreen,
@@ -17,6 +15,8 @@ import {
 } from "@/features/builder/utils/actions"
 import { analyseGraph } from "@/features/builder/utils/graph"
 import { AddMenu } from "@/features/library/components/add-menu"
+import { LayoutPicker } from "@/features/library/components/layout-picker"
+import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout, layoutsForTemplate } from "@/features/library/data/layouts"
 import {
   screenTemplateMap,
@@ -24,8 +24,7 @@ import {
 } from "@/features/library/data/templates"
 import { cn } from "@/lib/utils"
 import { useUiStore } from "@/stores/use-ui-store"
-import type { Surface } from "@/types/project"
-import type { Project } from "@/types/project"
+import type { Project, Surface } from "@/types/project"
 
 import { ScreenConnections } from "./screen-connections"
 

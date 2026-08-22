@@ -9,8 +9,8 @@ import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout } from "@/features/library/data/layouts"
 import { sectionTypeMap, sectionTypes } from "@/features/library/data/section-types"
 import { cn } from "@/lib/utils"
-import type { Project } from "@/types/project"
 import { useUiStore } from "@/stores/use-ui-store"
+import type { Project } from "@/types/project"
 
 /** The page as it will be assembled — every section stacked in order. */
 export function LandingPreview({ project }: { project: Project }) {

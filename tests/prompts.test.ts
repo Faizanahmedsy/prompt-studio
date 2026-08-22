@@ -158,3 +158,44 @@ describe("choosing which builds to produce", () => {
     expect(prompt).toContain("Say which build each new screen belongs to")
   })
 })
+
+describe("the shell snippets the reverse prompt hands to ripgrep", () => {
+  /**
+   * These are regexes written inside a template literal, so `\.` and `\(` in
+   * the source are dropped before the string ever exists — the escape has to be
+   * `\\.` and `\\(` to survive. Three of them were not, which turned `\(` into
+   * an unterminated group: `rg` answers with a syntax error and the model reads
+   * an empty result as "this project has none of those".
+   *
+   * The assertions run against the GENERATED prompt for exactly that reason.
+   * Checking the source would pass while the output stayed broken.
+   */
+  const prompt = prompts.reverse
+
+  function shellPatterns(source: string): { line: string; pattern: string }[] {
+    return (source.match(/```bash\n[\s\S]*?```/g) ?? [])
+      .flatMap((block) => block.split("\n"))
+      .filter((line) => /^\s*(rg|grep|find)\b/.test(line))
+      .map((line) => ({ line, pattern: line.match(/'([^']*)'/)?.[1] ?? "" }))
+      .filter((entry) => entry.pattern !== "")
+  }
+
+  it("emits patterns ripgrep can actually parse", () => {
+    const patterns = shellPatterns(prompt)
+    expect(patterns.length).toBeGreaterThan(10)
+
+    for (const { line, pattern } of patterns) {
+      const opens = (pattern.match(/(?<!\\)\(/g) ?? []).length
+      const closes = (pattern.match(/(?<!\\)\)/g) ?? []).length
+      expect(opens, `unbalanced brackets — rg would refuse this: ${line}`).toBe(closes)
+    }
+  })
+
+  it("keeps the escapes that make a dot mean a dot", () => {
+    // `navigation.` matches navigationRef, navigationState and every other
+    // near-miss; `navigation\.` is what was meant.
+    expect(prompt).toContain("navigation\\.(navigate")
+    expect(prompt).toContain("\\.sheet\\(")
+    expect(prompt).toContain("present\\(")
+  })
+})

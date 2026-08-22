@@ -15,10 +15,9 @@ import {
 } from "@/components/ui/dialog"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
-import { formatDate, formatTime, relativeTime } from "@/lib/utils"
+import { cn, formatDate, formatTime, relativeTime } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import type { Project } from "@/types/project"
-import { cn } from "@/lib/utils"
 
 export function VersionsDialog({
   open,

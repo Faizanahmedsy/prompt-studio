@@ -3,11 +3,11 @@ import {
   isMobileLayout,
 } from "@/features/library/data/layouts"
 import { moduleKindMap } from "@/features/library/data/module-kinds"
-import { screenTemplateMap } from "@/features/library/data/templates"
 import { sectionTypeMap } from "@/features/library/data/section-types"
+import { screenTemplateMap } from "@/features/library/data/templates"
+import { slugify, uid, uniqueKey } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
-import { slugify, uid, uniqueKey } from "@/lib/utils"
 import type {
   FlowView,
   ProjectDoc,

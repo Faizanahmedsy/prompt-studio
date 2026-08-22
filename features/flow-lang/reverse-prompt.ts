@@ -136,7 +136,7 @@ There is no file tree to read; the navigators are the source of truth.
 \`\`\`bash
 rg -n 'createNativeStackNavigator|createBottomTabNavigator|createDrawerNavigator'
 rg -n '<Stack.Screen|<Tab.Screen|<Drawer.Screen'   # every screen + its name
-rg -n 'navigation\.(navigate|push|replace|goBack|popTo)'
+rg -n 'navigation\\.(navigate|push|replace|goBack|popTo)'
 \`\`\`
 
 Every \`<Stack.Screen name="...">\` is one screen; the \`component\` prop points at
@@ -146,7 +146,7 @@ the file to read.
 
 \`\`\`bash
 rg -n 'NavigationStack|NavigationSplitView|TabView|navigationDestination'
-rg -n '\.sheet\(|\.fullScreenCover\(|\.popover\(|\.alert\(|\.confirmationDialog\('
+rg -n '\\.sheet\\(|\\.fullScreenCover\\(|\\.popover\\(|\\.alert\\(|\\.confirmationDialog\\('
 rg --files -g '**/*View.swift'
 \`\`\`
 
@@ -164,7 +164,7 @@ rg --files -g '**/*View.swift'
 
 \`\`\`bash
 rg -n ': UIViewController|: UITableViewController|: UICollectionViewController'
-rg -n 'pushViewController|present\(|performSegue|instantiateViewController'
+rg -n 'pushViewController|present\\(|performSegue|instantiateViewController'
 rg --files -g '**/*.storyboard'
 \`\`\`
 

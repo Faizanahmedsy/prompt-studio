@@ -4,6 +4,7 @@ import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { snippets } from "@/features/library/data/snippets"
 import { screenTemplates } from "@/features/library/data/templates"
+import { promptTargets } from "@/features/prompt/engine/targets"
 import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
@@ -14,14 +15,12 @@ import {
   type FlowView,
   type ModuleEdge,
   type ProjectDoc,
+  projectDocSchema,
   type Screen,
   type ScreenModule,
   type Section,
-  projectDocSchema,
   surfaceValues,
 } from "@/types/project"
-
-import { promptTargets } from "@/features/prompt/engine/targets"
 
 import {
   closestMatch,
@@ -126,7 +125,7 @@ export function parseFlow(source: string): ParseResult {
   let pending: Ctx | null = null
   const ctx = () => stack[stack.length - 1]
 
-  const ensureScreen = (rawKey: string, line: number, title?: string) => {
+  const ensureScreen = (rawKey: string, _line: number, title?: string) => {
     const key = slugify(rawKey)
     const existing = byKey.get(key)
     if (existing) {

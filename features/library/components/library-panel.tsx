@@ -92,6 +92,12 @@ export function LibraryPanel({ project }: { project: Project }) {
                   "title" in item ? item.title : (item as { name: string }).name
                 return (
                   <li key={item.id}>
+                    {/* A drag source with no click role. Dragging is one of
+                        two ways to add from the library — the canvas has its
+                        own "Add screen" picker — so this is not the only path,
+                        but making the panel keyboard-operable is real work that
+                        belongs in its own change rather than here. */}
+                    {/* biome-ignore lint/a11y/noStaticElementInteractions: see above */}
                     <div
                       draggable
                       onDragStart={(event) => {
