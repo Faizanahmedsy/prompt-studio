@@ -12,17 +12,17 @@ import { snippetMap } from "@/features/library/data/snippets"
 import { screenTemplateMap } from "@/features/library/data/templates"
 import { conventionMap } from "@/features/stack/data/conventions"
 import {
-  findStackOption,
-  stackGroups,
-  stackWarnings,
-} from "@/features/stack/data/stack-catalogue"
-import {
   conventionOverrides,
   platformDelivery,
   platformOf,
   platformRequirements,
   webOnlyConventionIds,
 } from "@/features/stack/data/platforms"
+import {
+  findStackOption,
+  stackGroups,
+  stackWarnings,
+} from "@/features/stack/data/stack-catalogue"
 import { structureMap } from "@/features/stack/data/structures"
 import { describeDesignLanguage } from "@/features/theme/data/design-languages"
 import type { ProjectDoc, Surface } from "@/types/project"
@@ -71,7 +71,17 @@ function creativityLine(level: number) {
 }
 
 function list(lines: string[]) {
-  return lines.map((line) => `- ${line}`).join("\n")
+  return lines
+    .map((line) => {
+      // A snippet may be a fenced code block rather than a sentence. Prefixing
+      // one with "- " produces `- ```ts`, which is not a list item containing
+      // code — it is broken Markdown that every renderer reads differently, and
+      // ours ended up with an unterminated fence swallowing the rest of the
+      // section. A block stands on its own line instead.
+      if (line.trimStart().startsWith("```")) return `\n${line}\n`
+      return `- ${line}`
+    })
+    .join("\n")
 }
 
 /**

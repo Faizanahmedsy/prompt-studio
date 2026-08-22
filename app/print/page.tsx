@@ -1,12 +1,13 @@
 "use client"
 
-import { Printer } from "lucide-react"
+import { FileText, Printer, Type } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { getTarget } from "@/features/prompt/engine/targets"
+import { Markdown } from "@/features/prompt/markdown/markdown"
 import { formatDate } from "@/lib/utils"
 import { useActiveProject, useProjectStore } from "@/stores/use-project-store"
 
@@ -14,6 +15,9 @@ import { useActiveProject, useProjectStore } from "@/stores/use-project-store"
 export default function PrintPage() {
   const hydrated = useProjectStore((s) => s.hydrated)
   const project = useActiveProject()
+  // Rendered by default — this page exists to be *read*. The raw view is one
+  // click away for anyone who came here to copy the source instead.
+  const [rendered, setRendered] = useState(true)
 
   useEffect(() => {
     useProjectStore.persist.rehydrate()
@@ -33,9 +37,15 @@ export default function PrintPage() {
         <Button variant="outline" size="sm" asChild>
           <Link href="/">Back to the studio</Link>
         </Button>
-        <Button size="sm" onClick={() => window.print()}>
-          <Printer /> Print
-        </Button>
+        <span className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setRendered((on) => !on)}>
+            {rendered ? <Type /> : <FileText />}
+            {rendered ? "Raw markdown" : "Rendered"}
+          </Button>
+          <Button size="sm" onClick={() => window.print()}>
+            <Printer /> Print
+          </Button>
+        </span>
       </div>
 
       <header className="mb-6 border-b border-border pb-4">
@@ -52,9 +62,13 @@ export default function PrintPage() {
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             {block.title}
           </h2>
-          <pre className="code-surface whitespace-pre-wrap break-words text-[12px] leading-relaxed">
-            {block.body}
-          </pre>
+          {rendered ? (
+            <Markdown source={block.body} />
+          ) : (
+            <pre className="code-surface whitespace-pre-wrap break-words text-[12px] leading-relaxed">
+              {block.body}
+            </pre>
+          )}
         </section>
       ))}
     </main>
