@@ -111,6 +111,23 @@ export function useLiveProject(project: Project | null): Live {
     },
   })
 
+  // While this socket is open it is the only writer for this project. The HTTP
+  // push stands down for it — otherwise the two of them race on the same
+  // document and refuse each other's saves as stale, which reads to the person
+  // dragging a node as "someone else had saved a newer version" when nobody
+  // else is there.
+  useEffect(() => {
+    const live = collaboration.status === "open" ? remoteId : null
+    useSyncStore.getState().setLiveRemoteId(live)
+    return () => {
+      // Only relinquish if we still hold it: another project may have taken
+      // over between this effect being scheduled and being cleaned up.
+      if (useSyncStore.getState().liveRemoteId === remoteId) {
+        useSyncStore.getState().setLiveRemoteId(null)
+      }
+    }
+  }, [remoteId, collaboration.status])
+
   // The socket and the HTTP fallback each track `doc_version`, and only the
   // socket was being told when it moved. During a socket-only outage the HTTP
   // path — by then the only writer — sent a stale `base_version` and 409'd on

@@ -16,15 +16,6 @@ const alice = `alice.${tag}@example.com`
 const bob = `bob.${tag}@example.com`
 const PASSWORD = "Password123"
 
-const typeInto = (selector, value) => `
-  const el = document.querySelector(${JSON.stringify(selector)});
-  if (!el) throw new Error("no element " + ${JSON.stringify(selector)});
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-  setter.call(el, ${JSON.stringify(value)});
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  return true;
-`
-
 const clickText = (text) => `
   const target = [...document.querySelectorAll("button, a")]
     .find((node) => node.textContent.trim().toLowerCase().includes(${JSON.stringify(text.toLowerCase())}));
@@ -36,9 +27,9 @@ const clickText = (text) => `
 async function signUp(page, email, name) {
   await page.goto(`${APP}/register`)
   await page.waitFor(`document.querySelector('input[type=email]')`, { label: "the register form" })
-  await page.evaluate(typeInto('input[autocomplete="name"]', name))
-  await page.evaluate(typeInto('input[type="email"]', email))
-  await page.evaluate(typeInto('input[type="password"]', PASSWORD))
+  await page.fill('input[autocomplete="name"]', name)
+  await page.fill('input[type="email"]', email)
+  await page.fill('input[type="password"]', PASSWORD)
   // React needs a tick to see the controlled values before the button enables.
   await new Promise((r) => setTimeout(r, 400))
   const enabled = await page.evaluate(

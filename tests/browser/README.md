@@ -5,6 +5,11 @@ Two things only a real browser can answer:
 - **`signup-and-share.mjs`** — the app is behind the login, signing up opens the
   studio, the project reaches the database, and an address that has no account
   can be invited and finds the project waiting when it registers.
+- **`solo-editing.mjs`** — one person, alone, editing fast, and never told that
+  somebody else saved. Two writers existed for one document — the socket and the
+  debounced HTTP push — and they raced each other, so the person dragging a node
+  was shown "someone else had saved a newer version" every few seconds. The
+  someone else was their own other code path.
 - **`collaboration.mjs`** — two browsers, two accounts, one project. One adds a
   screen; the other sees it; the database agrees.
 - **`sign-out.mjs`** — signing out leaves nothing of that account on the
@@ -40,6 +45,7 @@ pnpm dev -p 3002
 
 # terminal 3
 node tests/browser/signup-and-share.mjs
+node tests/browser/solo-editing.mjs
 node tests/browser/collaboration.mjs
 node tests/browser/sign-out.mjs
 node tests/browser/print-view.mjs
@@ -59,6 +65,15 @@ Override with `APP=http://localhost:3000 API=http://127.0.0.1:8010`.
 - **`waitFor` takes an expression, not statements.** It wraps the argument in
   `Boolean(...)`. Anything with a `const` or a `return` needs `evaluate` in a
   poll loop — `waitForCount` in `collaboration.mjs` is the pattern.
+- **Use `page.fill()`, never `el.value = …` plus a synthetic event.** React
+  keeps its own value tracker, and a synthetic `input` sets the DOM without the
+  component's state hearing about it — the form looks filled and the submit
+  button stays disabled. `fill` goes through the browser's real input pipeline
+  and re-checks afterwards, because the element existing is not the same as
+  React being attached to it.
+- **Run them against `next start`, not `next dev`.** Turbopack's dev server
+  restarts under memory pressure and the reload lands mid-test as a
+  `ChunkLoadError`. That is what CI does too.
 - **Radix opens on `pointerdown`, not `click`.** A bare `.click()` on a
   dropdown trigger does nothing; dispatch the pointer sequence.
 - **Radix popovers are not menus.** The template picker is plain buttons inside

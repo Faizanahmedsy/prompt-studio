@@ -109,10 +109,15 @@ async function createRemote(project: Project): Promise<void> {
   useSyncStore.getState().link(project.id, created.id, created.doc_version)
 }
 
-async function pushDoc(localId: string, project: Project): Promise<void> {
+/** Returns whether the document actually went to the server. */
+async function pushDoc(localId: string, project: Project): Promise<boolean> {
   const sync = useSyncStore.getState()
   const remoteId = sync.remoteIdOf(localId)
-  if (!remoteId) return
+  if (!remoteId) return false
+  // Checked here rather than when the save was queued: a socket can open or
+  // close inside the debounce window, and the question that matters is who owns
+  // the document *now*.
+  if (sync.liveRemoteId === remoteId) return false
 
   sync.setState(localId, "pushing")
   try {
@@ -135,6 +140,7 @@ async function pushDoc(localId: string, project: Project): Promise<void> {
     })
     useSyncStore.getState().setVersion(remoteId, saved.doc_version)
     useSyncStore.getState().setState(localId, "linked")
+    return true
   } catch (failure) {
     const stale = staleDocumentDetail(failure)
     if (stale) {
@@ -142,11 +148,12 @@ async function pushDoc(localId: string, project: Project): Promise<void> {
       // discarding it would throw away work nobody agreed to lose — and the
       // badge offers a reload.
       useSyncStore.getState().setState(localId, "conflict", "Someone else saved a newer version")
-      return
+      return false
     }
     useSyncStore
       .getState()
       .setState(localId, "error", isApiError(failure) ? failure.message : "Could not save")
+    return false
   }
 }
 
@@ -206,8 +213,10 @@ export function useProjectSync(): void {
 
     const flush = (project: Project) => {
       const fingerprint = JSON.stringify(docOf(project))
+      // Compared, not recorded. Recording here marked the content as sent
+      // before `pushDoc` had decided whether to send it — so anything edited
+      // while the socket owned the project was skipped forever afterwards.
       if (lastPushed.current.get(project.id) === fingerprint) return
-      lastPushed.current.set(project.id, fingerprint)
 
       const existing = timers.current.get(project.id)
       if (existing) clearTimeout(existing)
@@ -215,7 +224,9 @@ export function useProjectSync(): void {
         project.id,
         setTimeout(() => {
           timers.current.delete(project.id)
-          void pushDoc(project.id, project)
+          void pushDoc(project.id, project).then((sent) => {
+            if (sent) lastPushed.current.set(project.id, fingerprint)
+          })
         }, PUSH_DEBOUNCE_MS)
       )
     }

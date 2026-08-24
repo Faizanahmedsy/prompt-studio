@@ -19,14 +19,6 @@ const check = (label, ok, extra = "") => {
   if (!ok) fails.push(label)
 }
 
-const typeInto = (selector, value) => `
-  const el = document.querySelector(${JSON.stringify(selector)});
-  if (!el) throw new Error("missing " + ${JSON.stringify(selector)});
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-  setter.call(el, ${JSON.stringify(value)});
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  return true;`
-
 const clickLabelled = (label) => `
   const node = [...document.querySelectorAll("button")]
     .find((b) => (b.getAttribute("aria-label") || b.textContent || "").trim() === ${JSON.stringify(label)});
@@ -68,9 +60,9 @@ async function main() {
     console.log("\n== sign in while the API is up ==")
     await page.goto(`${APP}/register`)
     await page.waitFor(`document.querySelector('input[type=email]')`, { label: "register form" })
-    await page.evaluate(typeInto('input[autocomplete="name"]', "Offline Olive"))
-    await page.evaluate(typeInto('input[type="email"]', `offline.${tag}@example.com`))
-    await page.evaluate(typeInto('input[type="password"]', "Password123"))
+    await page.fill('input[autocomplete="name"]', "Offline Olive")
+    await page.fill('input[type="email"]', `offline.${tag}@example.com`)
+    await page.fill('input[type="password"]', "Password123")
     await new Promise((r) => setTimeout(r, 400))
     await page.evaluate(clickLabelled("Create account"))
     await page.waitFor(`location.pathname === "/"`, { label: "the studio", timeout: 25000 })

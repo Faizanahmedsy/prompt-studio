@@ -29,10 +29,25 @@ type SyncStore = {
   errors: Record<string, string>
   /** false while the API is unreachable — the editor keeps working regardless */
   online: boolean
+  /**
+   * The server project whose websocket is currently open, if any.
+   *
+   * There are two writers for one document — the socket, and the debounced
+   * HTTP push — and they must never both be live for the same project. They
+   * raced: the socket saved, the server moved to N+1, the HTTP push went out
+   * still claiming N, and whichever lost was told "someone else had saved a
+   * newer version". The someone else was you, in the same tab.
+   *
+   * So while a socket is open it owns the document, and the HTTP path stands
+   * down for that project alone. It stays the writer for every other project,
+   * and takes over again the moment the socket closes.
+   */
+  liveRemoteId: string | null
   hydrated: boolean
 
   markHydrated: () => void
   setOnline: (online: boolean) => void
+  setLiveRemoteId: (remoteId: string | null) => void
   link: (localId: string, remoteId: string, version: number) => void
   unlink: (localId: string) => void
   setVersion: (remoteId: string, version: number) => void
@@ -49,11 +64,14 @@ export const useSyncStore = create<SyncStore>()(
       state: {},
       errors: {},
       online: true,
+      liveRemoteId: null,
       hydrated: false,
 
       markHydrated: () => set({ hydrated: true }),
 
       setOnline: (online) => set({ online }),
+
+      setLiveRemoteId: (liveRemoteId) => set({ liveRemoteId }),
 
       link: (localId, remoteId, version) =>
         set((store) => ({

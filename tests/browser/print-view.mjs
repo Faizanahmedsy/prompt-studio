@@ -15,22 +15,15 @@ const check = (label, ok, extra = "") => {
   if (!ok) fails.push(label)
 }
 
-const typeInto = (selector, value) => `
-  const el = document.querySelector(${JSON.stringify(selector)});
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-  setter.call(el, ${JSON.stringify(value)});
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  return true;`
-
 async function main() {
   const tag = Math.random().toString(36).slice(2, 10)
   const page = await launch({ port: 9360 })
   try {
     await page.goto(`${APP}/register`)
     await page.waitFor(`document.querySelector('input[type=email]')`, { label: "register form" })
-    await page.evaluate(typeInto('input[autocomplete="name"]', "Printer"))
-    await page.evaluate(typeInto('input[type="email"]', `print.${tag}@example.com`))
-    await page.evaluate(typeInto('input[type="password"]', "Password123"))
+    await page.fill('input[autocomplete="name"]', "Printer")
+    await page.fill('input[type="email"]', `print.${tag}@example.com`)
+    await page.fill('input[type="password"]', "Password123")
     await new Promise((r) => setTimeout(r, 400))
     await page.evaluate(
       `[...document.querySelectorAll("button")].find((b) => b.textContent.includes("Create account")).click(); return true`

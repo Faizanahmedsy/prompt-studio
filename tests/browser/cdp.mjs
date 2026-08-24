@@ -141,11 +141,50 @@ export async function launch({ port = 9333 } = {}) {
     throw new Error(`timed out waiting for: ${label}`)
   }
 
+  /**
+   * Type into a field the way a person does.
+   *
+   * Not via `el.value = …` plus a synthetic `input` event: React keeps its own
+   * value tracker, and in a development build that trick sets the DOM without
+   * the component's state ever hearing about it — so the form looks filled and
+   * the submit button stays disabled. `Input.insertText` goes through the
+   * browser's real input pipeline, which React cannot tell from a keyboard.
+   */
+  const fill = async (selector, text, { timeout = 10000 } = {}) => {
+    const deadline = Date.now() + timeout
+    let last = null
+    while (Date.now() < deadline) {
+      const focused = await evaluate(
+        `const el = document.querySelector(${JSON.stringify(selector)});
+         if (!el) return false;
+         el.focus();
+         // select() rather than setSelectionRange: an email or number input
+         // throws on the range API.
+         try { el.select && el.select() } catch (ignored) {}
+         return document.activeElement === el;`
+      )
+      if (focused) {
+        await send("Input.insertText", { text })
+        // Verified, then retried, because the element existing is not the same
+        // as React being attached to it. Insert before hydration and React
+        // renders its own empty state over the top a moment later — the field
+        // looks filled for an instant and the submit button never enables.
+        await new Promise((r) => setTimeout(r, 250))
+        last = await evaluate(
+          `return document.querySelector(${JSON.stringify(selector)})?.value ?? null`
+        )
+        if (last === text) return
+      }
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    throw new Error(`could not fill ${selector} — it reads ${JSON.stringify(last)}`)
+  }
+
   const close = async () => {
     try { socket.close() } catch {}
     chrome.kill()
     try { rmSync(profile, { recursive: true, force: true }) } catch {}
   }
 
-  return { send, evaluate, goto, waitFor, close, consoleErrors }
+  return { send, evaluate, goto, waitFor, fill, close, consoleErrors }
 }
