@@ -5,6 +5,7 @@ import { MousePointerSquareDashed } from "lucide-react"
 import { EmptyState } from "@/components/shared/feedback"
 import { PanelBody, PanelHeader } from "@/components/shared/layout"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { FlowInspector } from "@/features/builder/components/flow-inspector"
 import { ModuleInspector } from "@/features/builder/components/module-inspector"
 import { ScreenInspector } from "@/features/builder/components/screen-inspector"
 import { SectionInspector } from "@/features/landing/components/section-inspector"
@@ -27,9 +28,12 @@ export function Inspector({
   const screen = project.screens.find((s) => s.id === selectedId)
   const module = project.modules.find((m) => m.id === selectedId)
   const section = project.sections.find((s) => s.id === selectedId)
+  const flow = project.flows.find((f) => f.id === selectedId)
 
   const selection = screen ? (
     <ScreenInspector project={project} screen={screen} />
+  ) : flow ? (
+    <FlowInspector project={project} flow={flow} />
   ) : module ? (
     <ModuleInspector project={project} module={module} />
   ) : section ? (
@@ -45,7 +49,17 @@ export function Inspector({
   if (variant === "selection") {
     return (
       <div className="flex h-full flex-col">
-        <PanelHeader title={section ? "Section" : module ? "Module" : "Screen"} />
+        <PanelHeader
+          title={
+            section
+              ? "Section"
+              : flow
+                ? "Journey"
+                : module
+                  ? "Module"
+                  : "Screen"
+          }
+        />
         <PanelBody>{selection}</PanelBody>
       </div>
     )

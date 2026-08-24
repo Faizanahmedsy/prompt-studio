@@ -8,10 +8,12 @@ import { SelectField, TextAreaField, TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
 import {
+  addFlow,
   addModule,
   deleteScreen,
   duplicateScreen,
   setScreenSurface,
+  toggleScreenFlow,
   toggleScreenView,
   updateScreen,
 } from "@/features/builder/utils/actions"
@@ -34,6 +36,7 @@ import { useUiStore } from "@/stores/use-ui-store"
 import { type Project, type Screen, surfaceValues } from "@/types/project"
 
 import { ScreenConnections } from "./screen-connections"
+import { StoryEditor } from "./story-editor"
 
 export function ScreenInspector({
   project,
@@ -107,9 +110,17 @@ export function ScreenInspector({
         </button>
       </div>
 
+      <StoryEditor
+        ownerId={screen.id}
+        story={screen.story}
+        subject="this screen"
+      />
+
+      <ScreenFlows project={project} screen={screen} />
+
       <TextAreaField
-        label="Notes for this screen"
-        placeholder="Anything specific: fields, rules, edge cases…"
+        label="Notes"
+        placeholder="Anything the story does not cover: fields, rules, edge cases…"
         rows={3}
         value={screen.note}
         onChange={(event) => updateScreen(screen.id, { note: event.target.value })}
@@ -178,6 +189,66 @@ export function ScreenInspector({
         title={`Layout for “${screen.title}”`}
         onSelect={(layoutId) => updateScreen(screen.id, { layout: layoutId })}
       />
+    </div>
+  )
+}
+
+/**
+ * Which journeys this screen is part of — the second axis, independent of roles.
+ *
+ * A screen has one role set and belongs to several flows at once: Sign In
+ * starts authentication and is also the first step of onboarding. Untagged is
+ * shown as "Ungrouped" rather than treated as "all", which is the opposite of
+ * how `views` behaves, and deliberately: a screen in no journey is a screen
+ * nobody has said the purpose of, and that is worth seeing.
+ */
+function ScreenFlows({
+  project,
+  screen,
+}: {
+  project: Project
+  screen: Screen
+}) {
+  return (
+    <div className="space-y-1.5">
+      <SectionLabel>Journeys</SectionLabel>
+      <div className="flex flex-wrap gap-1">
+        {project.flows.map((flow) => {
+          const on = screen.flows.includes(flow.id)
+          return (
+            <button
+              key={flow.id}
+              type="button"
+              onClick={() => toggleScreenFlow(screen.id, flow.id)}
+              aria-pressed={on}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                on
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border text-muted-foreground hover:border-primary/50"
+              )}
+            >
+              {flow.name}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            const id = addFlow("New journey")
+            if (id) toggleScreenFlow(screen.id, id)
+          }}
+          className="rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary"
+        >
+          + New journey
+        </button>
+      </div>
+      {!screen.flows.length && (
+        <p className="text-[10px] leading-snug text-muted-foreground">
+          Not in any journey yet. Journeys normally arrive with a pasted Flow
+          file — this is where you correct one.
+        </p>
+      )}
     </div>
   )
 }

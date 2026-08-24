@@ -1,6 +1,13 @@
 "use client"
 
-import { ChevronDown, ChevronRight, Plus, Trash2, Workflow } from "lucide-react"
+import {
+  BookOpenCheck,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Workflow,
+} from "lucide-react"
 import { useState } from "react"
 
 import { Glyph } from "@/components/icons/glyph"
@@ -11,8 +18,10 @@ import { Button } from "@/components/ui/button"
 import {
   addScreen,
   deleteScreen,
+  hasStory,
   updateScreen,
 } from "@/features/builder/utils/actions"
+import { flowNames } from "@/features/builder/utils/flows"
 import { analyseGraph } from "@/features/builder/utils/graph"
 import { AddMenu } from "@/features/library/components/add-menu"
 import { LayoutPicker } from "@/features/library/components/layout-picker"
@@ -117,6 +126,12 @@ export function OutlineList({
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{screen.title}</span>
+                  {hasStory(screen.story) && (
+                    <BookOpenCheck
+                      className="size-3.5 shrink-0 text-primary"
+                      aria-label="has a user story"
+                    />
+                  )}
                   {entryIds.has(screen.id) && (
                     <Badge variant="success">Start</Badge>
                   )}
@@ -125,6 +140,11 @@ export function OutlineList({
                   {index + 1}. {layout.name}
                   {outgoing.length > 0 && ` · ${outgoing.length} connection${outgoing.length === 1 ? "" : "s"}`}
                 </span>
+                {screen.flows.length > 0 && (
+                  <span className="mt-0.5 block truncate text-[11px] text-primary/80">
+                    {flowNames(project, screen.flows).join(" · ")}
+                  </span>
+                )}
               </span>
               <span className="w-24 shrink-0">
                 <LayoutThumb

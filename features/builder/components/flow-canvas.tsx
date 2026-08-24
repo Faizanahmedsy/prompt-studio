@@ -38,6 +38,7 @@ import {
   deleteScreen,
   moveScreen,
 } from "@/features/builder/utils/actions"
+import { inFlow } from "@/features/builder/utils/flows"
 import { analyseGraph } from "@/features/builder/utils/graph"
 import {
   CARD_HEIGHT_FALLBACK,
@@ -55,6 +56,7 @@ import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
 
 import { FlowEdge } from "./flow-edge"
+import { FlowSwitcher } from "./flow-switcher"
 import { ModuleNode } from "./module-node"
 import { ScreenNode } from "./screen-node"
 import { ViewSwitcher } from "./view-switcher"
@@ -77,13 +79,15 @@ function CanvasInner({
   const cardHeights = useUiStore((s) => s.cardHeights)
   const activeViewId = useUiStore((s) => s.activeViewId)
   const viewStrict = useUiStore((s) => s.viewStrict)
+  const activeFlowId = useUiStore((s) => s.activeFlowId)
+  const flowFaded = useUiStore((s) => s.flowFaded)
 
   /**
    * Filtering happens at render, not in the data: the project always holds the
    * whole app, and a view is a lens over it. Positions therefore stay stable
    * when you switch role, and nothing can be lost by looking at a subset.
    */
-  const visibleScreens = useMemo(
+  const roleScreens = useMemo(
     () =>
       project.screens.filter(
         (screen) =>
@@ -91,6 +95,31 @@ function CanvasInner({
       ),
     [project.screens, surface, activeViewId, viewStrict]
   )
+
+  /**
+   * Journeys narrow what the role view already left. The two filters compose
+   * rather than replace: a screen is shown when this role can reach it **and**
+   * it belongs to the journey being looked at.
+   *
+   * With "show the rest, faded" on, nothing is removed — the screens outside
+   * the journey are still drawn, dimmed, which is what you want at the moment
+   * you need to see where the journey joins the rest of the app.
+   */
+  const visibleScreens = useMemo(
+    () =>
+      flowFaded
+        ? roleScreens
+        : roleScreens.filter((screen) => inFlow(screen, activeFlowId)),
+    [roleScreens, activeFlowId, flowFaded]
+  )
+
+  const dimmed = useMemo(() => {
+    if (!activeFlowId || !flowFaded) return new Set<string>()
+    return new Set(
+      roleScreens.filter((s) => !inFlow(s, activeFlowId)).map((s) => s.id)
+    )
+  }, [roleScreens, activeFlowId, flowFaded])
+
   const visibleEdges = useMemo(() => {
     const ids = new Set(visibleScreens.map((s) => s.id))
     return edgesInView(project, activeViewId, viewStrict).filter(
@@ -238,11 +267,11 @@ function CanvasInner({
 
   useEffect(() => {
     const previous = lastView.current
-    lastView.current = `${activeViewId ?? ""}:${viewStrict}`
+    const signature = `${activeViewId ?? ""}:${viewStrict}:${activeFlowId ?? ""}:${flowFaded}`
+    lastView.current = signature
 
     // Undefined on the first render — adopt the current view without moving
     // anything, so opening the app never reflows a hand-arranged layout.
-    const signature = `${activeViewId ?? ""}:${viewStrict}`
     if (previous === undefined || previous === signature) return
     if (!visibleScreens.length) return
 
@@ -255,7 +284,16 @@ function CanvasInner({
         fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.1, duration: 350 })
       )
     )
-  }, [activeViewId, viewStrict, visibleScreens, heightsFor, openScreens, fitView])
+  }, [
+    activeViewId,
+    viewStrict,
+    activeFlowId,
+    flowFaded,
+    visibleScreens,
+    heightsFor,
+    openScreens,
+    fitView,
+  ])
 
   const nodes: Node[] = useMemo(() => {
     const out: Node[] = []
@@ -285,6 +323,10 @@ function CanvasInner({
           isEntry: entries.has(screen.id),
           moduleCount: modules.length,
           expanded,
+          dimmed: dimmed.has(screen.id),
+          flowNames: project.flows
+            .filter((flow) => screen.flows.includes(flow.id))
+            .map((flow) => flow.name),
         },
       })
 
@@ -314,9 +356,11 @@ function CanvasInner({
   }, [
     visibleScreens,
     project.theme.primaryColor,
+    project.flows,
     modulesByScreen,
     openScreens,
     cardHeights,
+    dimmed,
     entries,
     selectedId,
     surface,
@@ -475,16 +519,27 @@ function CanvasInner({
     )
   }
 
-  if (!visibleScreens.length && project.screens.length && activeViewId) {
+  if (
+    !visibleScreens.length &&
+    project.screens.length &&
+    (activeViewId || activeFlowId)
+  ) {
     return (
       <div className="canvas-grid relative h-full w-full">
-        <div className="absolute right-3 top-3 z-10">
+        <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-1.5">
+          <FlowSwitcher project={project} screens={roleScreens} />
           <ViewSwitcher project={project} />
         </div>
         <EmptyState
           icon={<Workflow />}
-          title="No screens in this view"
-          description="Tag screens with this role in the inspector, or switch back to All views."
+          title={
+            activeFlowId ? "No screens in this journey" : "No screens in this view"
+          }
+          description={
+            activeFlowId
+              ? "Tag screens into this journey from the inspector, or switch back to Whole app."
+              : "Tag screens with this role in the inspector, or switch back to All views."
+          }
         />
       </div>
     )
@@ -545,6 +600,7 @@ function CanvasInner({
         </div>
       )}
       <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-1.5">
+        <FlowSwitcher project={project} screens={roleScreens} />
         <ViewSwitcher project={project} />
         {screensWithModules.length > 0 && (
           <Button
