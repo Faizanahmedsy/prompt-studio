@@ -35,17 +35,31 @@ Sign-in needs the API running — see [Accounts and collaboration](#accounts-and
 
 - **Flow canvas** — drag screens, drag port-to-port to connect them, label each
   transition ("on submit", "click Add Client"), auto-arrange. On phones the same
-  graph is an editable outline list.
+  graph is an editable outline list. Two ways to read it: the **whole app**, and
+  **one journey at a time**.
+- **User journeys** — screens are tagged into named journeys ("Authentication",
+  "Invite a user", "Checkout"). A second axis, independent of role views: a
+  screen has one role set and belongs to several journeys at once.
+- **User stories** — every screen and every journey carries *as a… / I want… /
+  so that…* plus acceptance criteria. Normally written by the model as it
+  generates the diagram, and corrected here; the generated build prompt carries
+  them and asks the agent to write one for anything still blank.
 - **Landing builder** — stack marketing sections in order with live preview.
 - **Layout library** — 60+ layouts, each with a wireframe thumbnail rendered from
   a small declarative DSL, tinted with the project's own primary colour.
+- **Design tab** — nine design languages including **Basic**, which tells the
+  agent not to design at all; typeface character, type scale, icon style,
+  elevation, motion and theme settings; and an **Import from Figma** prompt that
+  hands Claude Code your screenshots and gets back a finished stylesheet written
+  against this project's own token names.
 - **Stack profiles** — technology, folder structure and conventions saved
   together and reusable across projects. Ships a "House rules"
   profile.
 - **Prompt panel** — live preview, char/word/token meter, warnings, diff against
   the last generated version.
 - **Projects** — many projects, autosaved; JSON import/export; gzip share links;
-  version history with restore; six starter templates.
+  version history with restore; eight starter templates, each grouped into
+  journeys with stories.
 - **Keyboard** — ⌘K palette, undo/redo, single-key shortcuts, `?` for the list.
 - Dark mode, responsive to 360px, print view at `/print`.
 

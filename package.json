@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,css}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "node tests/browser/signup-and-share.mjs && node tests/browser/solo-editing.mjs && node tests/browser/collaboration.mjs && node tests/browser/sign-out.mjs && node tests/browser/print-view.mjs && node tests/browser/offline.mjs"
+    "test:browser": "node tests/browser/signup-and-share.mjs && node tests/browser/solo-editing.mjs && node tests/browser/journeys.mjs && node tests/browser/collaboration.mjs && node tests/browser/sign-out.mjs && node tests/browser/print-view.mjs && node tests/browser/offline.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",

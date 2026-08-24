@@ -7,8 +7,8 @@ is going away.
 | | Branch | Tag | Needs a backend? | Moves? |
 | --- | --- | --- | --- | --- |
 | **v1 — frontend only** | `archive/v1-frontend-only` | `v1.0.0` | No | **Never** |
-| **v2 — backend connected** | `v2-backend-connected` | `v2.0.0` | Yes | Fixes only |
-| **v3 — enhanced** | `v3-enhanced` | *(unreleased)* | Yes | Active |
+| **v2 — backend connected** | `v2-backend-connected` | `v2.0.0` | Yes | **Active** |
+| **v3 — enhanced** | `v3-enhanced` | *(unreleased)* | Yes | Reserved |
 
 ## `main` is not one of them
 
@@ -51,13 +51,30 @@ in `localStorage` exactly as v1 does, and syncing sits on top. With the API
 unreachable it degrades to what v1 is — `tests/browser/offline.mjs` asserts
 that, so it stays true.
 
-Fixes land here. Features go to v3.
+**This is where the work is happening.** It was going to be fixes only, with
+features going to v3; that was reversed deliberately — v2 is the line being
+used, and splitting new work off it would have meant maintaining two active
+lines to no purpose.
+
+Landed here since `v2.0.0`, unreleased:
+
+- **User journeys and user stories.** Screens are tagged into named journeys,
+  and every screen and journey carries a story with acceptance criteria. Both
+  are written by the model as it generates the `.flow` file — all three inbound
+  prompts ask for them — and corrected in the inspector. The canvas reads two
+  ways: whole app, or one journey at a time. Schema 4 → 5.
+- **The Design tab.** A **Basic** language that tells the agent not to design;
+  typeface character, type scale, icons, elevation, motion and theme settings;
+  and an **Import from Figma** prompt that hands Claude Code your screenshots
+  and gets back a stylesheet written against this project's own token names.
 
 ## v3 — enhanced
 
 `v3-enhanced`
 
-Where new work goes. Branched from v2, so everything above is already in it.
+Branched from v2 and currently level with it. Reserved for a change too large or
+too speculative to sit on the line in daily use — nothing qualifies yet, which
+is why it has not moved.
 
 Tag it when it ships:
 

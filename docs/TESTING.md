@@ -440,7 +440,71 @@ Put the limits back afterwards.
 
 ---
 
-# 15 · Running the automated suites
+# 15 · Journeys, stories and the Design tab
+
+Nothing here needs the backend. Open any project — the starters all ship
+grouped now — and work through it on the canvas.
+
+**The stories are already there.** Click a screen. The inspector opens on
+**User story**: *As a…*, *I want to…*, *so that…*, and the acceptance criteria
+beneath. Below it, **Journeys** — the chips this screen is tagged into — and
+then the free-text **Notes** box, which is the old field, unchanged.
+
+The little book icon in a card's header means that screen has a story. Screens
+without one are exactly as they were.
+
+**Two ways to read the diagram.** Top right of the canvas, beside the role-view
+switcher, is a second control: **Whole app**. Open it.
+
+- Pick a journey. The canvas filters to its screens and the transitions between
+  them, re-lays them out, and fits. The inspector switches to that journey —
+  its own story, its notes, and every screen with a toggle to add or remove it.
+- **Show the rest, faded** keeps the other screens on the canvas, dimmed, for
+  when you need to see where the journey joins the rest of the app.
+- **Ungrouped** is the bucket for screens in no journey. It only appears when
+  there are some — which is the point of showing it rather than hiding it.
+
+Roles and journeys are separate axes and they compose: pick "Admin" *and*
+"Checkout" and you get the checkout screens that role can reach. A screen has
+one role set and belongs to several journeys at once, which is why they are two
+controls and not one.
+
+**Where the stories come from.** Copy prompt → **New flow from requirements**,
+paste into ChatGPT with any set of requirements, and paste the file it writes
+back through **Paste Flow**. It arrives with the journeys, the tags and a story
+on every screen — none of that was typed here. The same is true of **From an
+existing codebase** and **Fragment to merge in**.
+
+Merging is additive: a fragment adds a flow tag to a screen without removing the
+ones it had, and never overwrites a story that is already there.
+
+**The prompt carries them.** Open the Prompt panel. There is a new
+**User Journeys & Stories** section before the screens, listing each journey
+with its story and its screens in order, then the standing instruction: build
+against the stories, write one where it is missing, and keep them all in
+`docs/user-stories.md`. Each screen block then shows its own story and which
+journeys it is part of.
+
+**The Design tab.** Right panel → **Design**.
+
+- **Basic** is the first language. Select it and the colour, corner, typography
+  and elevation controls disappear — because the prompt now tells the agent to
+  produce unstyled semantic HTML and nothing else, and leaving the controls
+  live would offer a choice the prompt ignores. Check the Prompt panel: no hex
+  values anywhere.
+- **Import from Figma** copies a prompt. Paste it into Claude Code with your
+  Figma screenshots. It writes a complete stylesheet at the path this
+  project's styling choice implies — `app/globals.css` for Tailwind, a
+  `createTheme` call for MUI — using the token names the build prompt already
+  told the agent to use, and it lists which values it guessed rather than read.
+  Nothing comes back into Prompt Studio; the file goes straight into your repo.
+- **Heading font**, **Body font**, **Type scale** and **Themes** are always
+  visible; **Icons**, **Elevation** and **Motion** appear in Advanced. Change
+  any of them and watch the Design System block in the Prompt panel.
+
+---
+
+# 16 · Running the automated suites
 
 Everything above is covered by tests, if you would rather watch than click.
 
@@ -448,11 +512,12 @@ Everything above is covered by tests, if you would rather watch than click.
 # API — 134 tests against a real throwaway Postgres
 cd ../prompt-studio-backend && uv run pytest -q
 
-# App — 133 unit tests
+# App — 171 unit tests
 cd ../prompt-studio && pnpm test
 
-# Five real-browser suites: sign-up and sharing, two browsers editing live,
-# sign-out, the print view, offline. Needs the API and the app running.
+# Real-browser suites: sign-up and sharing, two browsers editing live, solo
+# editing, journeys and stories, sign-out, the print view, offline. Needs the
+# API and the app running.
 APP=http://localhost:3000 pnpm test:browser
 ```
 
