@@ -10,7 +10,7 @@ import {
 import { starterDoc } from "@/features/library/data/starters"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
-import { projectDocSchema } from "@/types/project"
+import { type ProjectDoc, projectDocSchema } from "@/types/project"
 
 const doc = () => starterDoc("saas-dashboard")!
 
@@ -686,5 +686,124 @@ describe("thumbnail wires fit their frame", () => {
         expect(sum, `${layout.id} row sums ${sum}`).toBeGreaterThan(0)
       }
     }
+  })
+})
+
+describe("journeys and stories in the generated prompt", () => {
+  const storied = () =>
+    parseFlow(`
+app "Storied" { target claude-code }
+flows {
+  flow auth "Authentication" {
+    story {
+      as     "a returning user"
+      want   "get back in without support"
+      so     "I am not blocked for a day"
+      accept [ "a reset link expires in 30 minutes" ]
+    }
+  }
+  flow admin_work "Managing clients" {}
+}
+screen login "Sign In" {
+  template auth
+  flows [auth]
+  story { as "a signed-out user"; want "sign in"; so "I reach my work"
+    accept [ "the submit button is disabled until both fields are filled" ] }
+}
+screen clients "Clients" { template table; flows [admin_work] }
+screen orphan  "Orphan"  { template table }
+flow { login -> clients : "on successful login"
+       clients -> orphan : "click through" }
+`).doc
+
+  it("renders each journey with its story and its screens", () => {
+    const text = buildPrompt(storied()).text
+    expect(text).toContain("**Authentication**")
+    expect(text).toContain(
+      "as a returning user, I want to get back in without support, so that I am not blocked for a day"
+    )
+    expect(text).toContain("a reset link expires in 30 minutes")
+    expect(text).toContain("Sign In `login`")
+  })
+
+  it("renders a screen's own story, and which journeys it is in", () => {
+    const text = buildPrompt(storied()).text
+    expect(text).toContain(
+      "as a signed-out user, I want to sign in, so that I reach my work"
+    )
+    expect(text).toContain("the submit button is disabled until both fields are filled")
+    expect(text).toContain("Part of: Authentication.")
+  })
+
+  it("names the screens that are in no journey rather than passing over them", () => {
+    const text = buildPrompt(storied()).text
+    expect(text).toContain("Not assigned to a journey")
+    expect(text).toMatch(/Not assigned to a journey: `orphan`/)
+  })
+
+  it("asks the agent to write a story where one is missing, and to keep them", () => {
+    const text = buildPrompt(storied()).text
+    expect(text).toContain("Build against the stories, not the screen names")
+    expect(text).toContain("docs/user-stories.md")
+  })
+
+  it("gives that instruction even to a project with no stories at all", () => {
+    const plain = parseFlow(`screen a "A" { template auth }`).doc
+    const text = buildPrompt(plain).text
+    expect(text).toContain("Build against the stories, not the screen names")
+    // Nothing to list, so no journey headings are invented.
+    expect(text).not.toContain("The product is made of these journeys")
+  })
+
+  it("leaves a journey out of a build none of whose screens it touches", () => {
+    const doc = storied()
+    const mobile = buildPrompt(
+      { ...doc, screens: doc.screens.map((s) => ({ ...s, surface: "web" as const })) },
+      { surface: "mobile" }
+    ).text
+    expect(mobile).not.toContain("Authentication")
+  })
+})
+
+describe("the design block", () => {
+  const themed = (patch: Partial<ProjectDoc["theme"]>) => {
+    const base = starterDoc("saas-dashboard")!
+    return buildPrompt({ ...base, theme: { ...base.theme, ...patch } }).text
+  }
+
+  it("carries the typography and finish settings", () => {
+    const text = themed({
+      headingFont: "slab",
+      bodyFont: "humanist",
+      typeScale: "expressive",
+      iconStyle: "duotone",
+      elevation: "layered",
+      motion: "none",
+      colorScheme: "dark-first",
+    })
+    expect(text).toContain("a slab serif")
+    expect(text).toContain("a humanist sans")
+    expect(text).toContain("expressive type scale")
+    expect(text).toContain("duotone icons")
+    expect(text).toContain("elevation scale")
+    expect(text).toContain("no animation")
+    expect(text).toContain("dark first")
+  })
+
+  it("lets the body font follow the heading", () => {
+    expect(themed({ bodyFont: "pair" })).toContain("pairs with the heading")
+  })
+
+  it("Basic tells the agent not to design, and drops every colour decision", () => {
+    const text = themed({ designLanguage: "basic", primaryColor: "#ff0000" })
+    expect(text).toContain("Do not design this")
+    expect(text).not.toContain("#ff0000")
+    expect(text).not.toContain("Primary colour:")
+    expect(text).not.toContain("Type scale:")
+    expect(text).toContain("the browser's defaults")
+  })
+
+  it("still names the primary colour for every other language", () => {
+    expect(themed({ primaryColor: "#ff0000" })).toContain("#ff0000")
   })
 })

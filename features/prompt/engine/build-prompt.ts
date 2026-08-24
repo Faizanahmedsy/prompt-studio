@@ -25,7 +25,17 @@ import {
 } from "@/features/stack/data/stack-catalogue"
 import { structureMap } from "@/features/stack/data/structures"
 import { describeDesignLanguage } from "@/features/theme/data/design-languages"
-import type { ProjectDoc, Surface } from "@/types/project"
+import {
+  colorSchemes,
+  describeOption,
+  elevations,
+  fontCharacterMap,
+  fontCharacters,
+  iconStyles,
+  motions,
+  typeScales,
+} from "@/features/theme/data/typography"
+import type { ProjectDoc, Surface, UserStory } from "@/types/project"
 
 import { type BlockId, getTarget } from "./targets"
 
@@ -118,6 +128,92 @@ function overviewBlock(doc: ProjectDoc): string {
   return `Product: **${doc.name}**\n\nScope: ${scope}.\n\nThis brief is complete: implement every screen and every transition listed. Where something is unspecified, choose the option most consistent with the conventions below rather than inventing new patterns.`
 }
 
+/**
+ * A user story, rendered for a coding agent to build against.
+ *
+ * One sentence rather than three labelled fields, because that is how it reads
+ * as a specification; the acceptance criteria stay a list, because that is how
+ * they get checked off.
+ */
+function storyLines(story: UserStory, indent: string): string[] {
+  const role = story.role.trim()
+  const want = story.want.trim()
+  const soThat = story.soThat.trim()
+  const criteria = story.criteria.map((c) => c.trim()).filter(Boolean)
+  const lines: string[] = []
+
+  if (role || want || soThat) {
+    const parts: string[] = []
+    if (role) parts.push(`as ${role}`)
+    if (want) parts.push(`I want to ${want.replace(/^to\s+/i, "")}`)
+    if (soThat) parts.push(`so that ${soThat}`)
+    lines.push(`${indent}User story: ${sentence(parts.join(", "))}`)
+  }
+  if (criteria.length) {
+    lines.push(`${indent}Accepted when:`)
+    for (const criterion of criteria) lines.push(`${indent}- ${criterion}`)
+  }
+  return lines
+}
+
+/**
+ * The journeys, and the standing instruction about stories.
+ *
+ * The instruction is emitted even for a project with no stories in it at all —
+ * that is the case where it does the most work, because it turns "build a
+ * screen called Clients" into "decide what someone is trying to do on Clients,
+ * then build that".
+ */
+function flowsBlock(doc: ProjectDoc): string {
+  if (!doc.screens.length) return ""
+  const parts: string[] = []
+
+  if (doc.flows.length) {
+    const inFlow = (flowId: string) =>
+      doc.screens.filter((s) => s.flows.includes(flowId))
+
+    const listed = [...doc.flows]
+      .sort((a, b) => a.order - b.order)
+      .map((flow, index) => {
+        const members = inFlow(flow.id)
+        const lines = [`${index + 1}. **${flow.name}** \`${flow.key}\``]
+        if (members.length) {
+          lines.push(
+            `   Screens, in order: ${members.map((s) => `${s.title} \`${s.key}\``).join(" → ")}`
+          )
+        }
+        lines.push(...storyLines(flow.story, "   "))
+        if (flow.note.trim()) lines.push(`   Notes: ${flow.note.trim()}`)
+        return lines.join("\n")
+      })
+
+    parts.push(
+      "The product is made of these journeys. A screen may belong to several — the journey is what someone is trying to get done, not a section of the app."
+    )
+    parts.push(listed.join("\n\n"))
+
+    const ungrouped = doc.screens.filter((s) => !s.flows.length)
+    if (ungrouped.length) {
+      parts.push(
+        `Not assigned to a journey: ${ungrouped.map((s) => `\`${s.key}\``).join(", ")}. Work out what each is for before building it, and say so.`
+      )
+    }
+  }
+
+  parts.push(
+    [
+      "**Build against the stories, not the screen names.**",
+      "",
+      "- Where a screen or a journey states a user story, that story is the specification. Implement it, and satisfy every acceptance criterion listed. Use it as written — do not reword it, narrow it, or substitute your own reading of what the screen is for.",
+      "- Where a screen has **no** story, write one before you write its code: who the user is, what they are trying to do, why it matters, and 3–6 checkable acceptance criteria derived from the screen's layout, its modules and the transitions that reach it. State it, then build it.",
+      "- Keep them. Write every story — the ones given here and the ones you wrote — to `docs/user-stories.md`, grouped by journey, so the next person to open this repository has the same specification you did.",
+      "- A screen is not done because it renders. It is done when its acceptance criteria hold, including the failure cases.",
+    ].join("\n")
+  )
+
+  return parts.join("\n\n")
+}
+
 function screensBlock(doc: ProjectDoc): string {
   if (!doc.screens.length) return ""
   const { ordered } = analyseGraph(doc.screens, doc.edges)
@@ -130,6 +226,15 @@ function screensBlock(doc: ProjectDoc): string {
       ]
       if (template) lines.push(`   Purpose: ${template.promptDetails}.`)
       lines.push(`   Layout: ${layout.name} — ${layout.promptDetails}`)
+      lines.push(...storyLines(screen.story, "   "))
+      if (doc.flows.length) {
+        const journeys = doc.flows
+          .filter((flow) => screen.flows.includes(flow.id))
+          .map((flow) => flow.name)
+        if (journeys.length) {
+          lines.push(`   Part of: ${journeys.join(", ")}.`)
+        }
+      }
       if (screen.note.trim()) lines.push(`   Notes: ${screen.note.trim()}`)
       if (doc.views.length) {
         const names = viewNames(doc, screen.views)
@@ -307,6 +412,30 @@ function sectionsBlock(doc: ProjectDoc): string {
 function designBlock(doc: ProjectDoc): string {
   const t = doc.theme
   const language = describeDesignLanguage(t.designLanguage)
+
+  // "Basic" is the one language that instructs the agent *not* to design. Every
+  // line below it is a design decision, so emitting them would contradict the
+  // paragraph directly above — and an agent given both follows the longer list.
+  if (t.designLanguage === "basic") {
+    return [
+      `Design language — **${language.name}**: ${language.promptDetails}`,
+      "",
+      list([
+        "Ignore any colour, radius, elevation or font direction implied elsewhere in this brief — there is none for this build.",
+        "Use one typographic decision only: a readable body size and a sensible measure. Everything else is the browser's.",
+        "Leave class names and structure obvious and unstyled, so a stylesheet added later has something to hook onto.",
+      ]),
+      "",
+      `Creative latitude (${doc.creativity}/10): the design latitude does not apply here — the instruction above wins.`,
+    ].join("\n")
+  }
+
+  const heading = describeOption(fontCharacters, t.headingFont)
+  const bodyFont =
+    t.bodyFont === "pair"
+      ? `a face that pairs with the heading — either the same family at text weights, or a neutral grotesque beneath it`
+      : (fontCharacterMap[t.bodyFont]?.promptDetails ?? heading.promptDetails)
+
   return [
     `Design language — **${language.name}**: ${language.promptDetails}`,
     "",
@@ -316,7 +445,14 @@ function designBlock(doc: ProjectDoc): string {
       `Corners: ${radiusWords[t.borderRadius] ?? t.borderRadius}.`,
       `Buttons: ${buttonWords[t.buttonStyle] ?? t.buttonStyle}.`,
       `Density: ${densityWords[t.density] ?? t.density}.`,
-      "Define every colour once as CSS custom properties for light and dark themes; components reference the tokens, never raw hex values.",
+      `Headings: ${heading.promptDetails}.`,
+      `Body text: ${bodyFont}.`,
+      `Type scale: ${describeOption(typeScales, t.typeScale).promptDetails}.`,
+      `Icons: ${describeOption(iconStyles, t.iconStyle).promptDetails}.`,
+      `Elevation: ${describeOption(elevations, t.elevation).promptDetails}.`,
+      `Motion: ${describeOption(motions, t.motion).promptDetails}. Respect \`prefers-reduced-motion\` regardless.`,
+      `Themes: ${describeOption(colorSchemes, t.colorScheme).promptDetails}.`,
+      "Define every colour, radius, shadow and font size once as CSS custom properties; components reference the tokens, never raw values.",
     ]),
     "",
     `Creative latitude (${doc.creativity}/10): ${creativityLine(doc.creativity)}`,
@@ -416,6 +552,7 @@ function deliveryBlock(doc: ProjectDoc): string {
 
 const titles: Record<BlockId, string> = {
   overview: "Overview",
+  flows: "User Journeys & Stories",
   screens: "Screens",
   navigation: "Navigation & Flow",
   views: "Roles & Access",
@@ -463,6 +600,11 @@ function scopeToSurface(doc: ProjectDoc, surface: Surface): ProjectDoc {
     moduleEdges: doc.moduleEdges.filter(
       (e) => moduleIds.has(e.from) && moduleIds.has(e.to)
     ),
+    // A journey whose every screen lives on another build is not this build's
+    // journey — listing it would describe work that is not in this repo.
+    flows: doc.flows.filter((flow) =>
+      screens.some((screen) => screen.flows.includes(flow.id))
+    ),
     sections: surface === "web" ? doc.sections : [],
     stack: stackFor(doc, surface),
     structure: structureFor(doc, surface),
@@ -473,6 +615,7 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
   const target = getTarget(doc.target)
   const bodies: Record<BlockId, string> = {
     overview: overviewBlock(doc),
+    flows: flowsBlock(doc),
     screens: screensBlock(doc),
     navigation: navigationBlock(doc),
     views: viewsBlock(doc),
