@@ -32,12 +32,113 @@ export const starters: Starter[] = [
   theme { primary #4f46e5; secondary #0ea5e9; radius md; buttons filled }
 }
 
-screen login     "Sign In"     { template auth;      layout auth-split }
-screen dashboard "Dashboard"   { template dashboard; layout dashboard-sidebar }
-screen records   "Records"     { template table;     layout table-advanced }
-screen record    "Record"      { template detail;    layout detail-two-column }
-screen record_new "New Record" { template form;      layout form-two-column }
-screen settings  "Settings"    { template settings;  layout settings-sections }
+flows {
+  flow access "Getting in" {
+    story {
+      as     "a returning customer"
+      want   "sign in and land where the work is"
+      so     "I am not navigating before I can start"
+      accept [
+        "signing in goes straight to the dashboard, not to a landing page"
+        "a wrong password does not reveal whether the address is registered"
+      ]
+    }
+  }
+  flow record_work "Working with records" {
+    story {
+      as     "somebody who lives in this product"
+      want   "find a record, open it, and change it"
+      so     "the day's work takes a few clicks rather than a search"
+      accept [
+        "the list keeps its filters when you come back from a record"
+        "saving a new record returns to the list with it visible"
+        "an empty list says what to do next, not 'no data'"
+      ]
+    }
+  }
+  flow account "Account and settings" {
+    story {
+      as     "an account owner"
+      want   "change how the product is set up for us"
+      so     "I do not have to ask support for a routine change"
+      accept [ "every change says whether it saved" ]
+    }
+  }
+}
+
+screen login "Sign In" {
+  template auth
+  layout   auth-split
+  flows    [access]
+  story {
+    as     "a signed-out customer"
+    want   "sign in with my email and password"
+    so     "I can reach my work"
+    accept [
+      "the submit button stays disabled until both fields have something in them"
+      "a failed attempt keeps the email filled in"
+    ]
+  }
+}
+
+screen dashboard "Dashboard" {
+  template dashboard
+  layout   dashboard-sidebar
+  flows    [access, record_work]
+  story {
+    as     "somebody starting their day"
+    want   "see what needs attention before I go looking for it"
+    so     "nothing important waits because nobody opened the right screen"
+    accept [ "every figure says the period it covers" ]
+  }
+}
+
+screen records "Records" {
+  template table
+  layout   table-advanced
+  flows    [record_work]
+  story {
+    as     "somebody looking for one record"
+    want   "filter and sort until I can see it"
+    so     "I do not page through hundreds by hand"
+    accept [
+      "clearing a filter returns to page 1 rather than an empty page 7"
+      "the filtered list can be shared as a link"
+    ]
+  }
+}
+
+screen record "Record" {
+  template detail
+  layout   detail-two-column
+  flows    [record_work]
+  story {
+    as     "somebody who opened a record"
+    want   "see everything about it in one place"
+    so     "I can answer a question without opening three more screens"
+  }
+}
+
+screen record_new "New Record" {
+  template form
+  layout   form-two-column
+  flows    [record_work]
+  story {
+    as     "somebody adding a record"
+    want   "fill it in and save without losing what I typed"
+    so     "a mistyped field does not cost me the whole form"
+    accept [
+      "validation errors appear beside the field, not only at the top"
+      "leaving with unsaved changes asks first"
+    ]
+  }
+}
+
+screen settings "Settings" {
+  template settings
+  layout   settings-sections
+  flows    [account]
+}
 
 flow {
   login      -> dashboard  : "on successful login"
@@ -62,12 +163,119 @@ snippets [a11y, states, tables, data-table-shell, api-hooks, pagination]`,
   theme { primary #0f766e; secondary #f59e0b; radius md; buttons filled }
 }
 
-screen login    "Sign In"          { template auth; layout auth-split }
-screen signup   "Create Account"   { template auth; layout auth-center }
-screen otp      "Verify Email"     { template auth; layout auth-otp }
-screen forgot   "Forgot Password"  { template auth; layout auth-minimal }
-screen reset    "Set New Password" { template auth; layout auth-center }
-screen welcome  "Welcome"          { template onboarding; layout onboarding-checklist }
+flows {
+  flow sign_up "Creating an account" {
+    story {
+      as     "somebody who has just decided to try this"
+      want   "create an account and get in"
+      so     "I can judge the product rather than the sign-up form"
+      accept [
+        "the email is verified before the account can do anything"
+        "the resend link says how long until it can be used again"
+      ]
+    }
+  }
+  flow sign_in "Signing in" {
+    story {
+      as     "a returning user"
+      want   "get back in"
+      so     "I can carry on"
+      accept [ "a failed attempt says what to try, not just that it failed" ]
+    }
+  }
+  flow recovery "Recovering an account" {
+    story {
+      as     "somebody who has forgotten their password"
+      want   "set a new one without contacting support"
+      so     "I am not blocked for a day waiting on someone"
+      accept [
+        "the screen never reveals whether an address is registered"
+        "a reset link works once, and expires"
+        "changing the password signs out every other session"
+      ]
+    }
+  }
+  flow first_run "First run" {
+    story {
+      as     "somebody who has just signed up"
+      want   "know what to do first"
+      so     "the empty product does not feel like a mistake"
+    }
+  }
+}
+
+screen login "Sign In" {
+  template auth
+  layout   auth-split
+  flows    [sign_in]
+  story {
+    as     "a returning user"
+    want   "sign in with my email and password"
+    so     "I reach my work"
+  }
+}
+
+screen signup "Create Account" {
+  template auth
+  layout   auth-center
+  flows    [sign_up]
+  story {
+    as     "a new user"
+    want   "create an account with as little typing as possible"
+    so     "I can see the product before committing to anything"
+    accept [ "password rules are stated before the first attempt, not after it" ]
+  }
+}
+
+screen otp "Verify Email" {
+  template auth
+  layout   auth-otp
+  flows    [sign_up]
+  story {
+    as     "somebody who has just signed up"
+    want   "enter the code from my email"
+    so     "I can finish setting up"
+    accept [
+      "pasting the whole code fills every box"
+      "a wrong code can be corrected without starting over"
+    ]
+  }
+}
+
+screen forgot "Forgot Password" {
+  template auth
+  layout   auth-minimal
+  flows    [recovery]
+  story {
+    as     "somebody locked out"
+    want   "ask for a reset link"
+    so     "I can get back in myself"
+    accept [ "the confirmation is the same whether or not the address exists" ]
+  }
+}
+
+screen reset "Set New Password" {
+  template auth
+  layout   auth-center
+  flows    [recovery]
+  story {
+    as     "somebody who clicked a reset link"
+    want   "set a new password and be signed in"
+    so     "I am not asked to sign in again immediately"
+    accept [ "an expired or reused link explains itself and offers a new one" ]
+  }
+}
+
+screen welcome "Welcome" {
+  template onboarding
+  layout   onboarding-checklist
+  flows    [first_run]
+  story {
+    as     "somebody on their first visit"
+    want   "be told the two or three things worth doing first"
+    so     "the empty product does not look broken"
+  }
+}
 
 flow {
   login  -> signup  : "click Create account"
@@ -97,11 +305,54 @@ Never reveal whether an email address exists on the forgot-password screen.
   theme { primary #1d4ed8; secondary #059669; radius sm; buttons filled; density compact }
 }
 
-screen login     "Sign In"      { template auth;      layout auth-center }
+flows {
+  flow access "Getting in" {
+    story { as "an administrator"; want "sign in"; so "I can do the work" }
+  }
+  flow user_admin "Managing users" {
+    story {
+      as     "an administrator"
+      want   "add people, change what they can do, and remove them"
+      so     "access matches who actually works here"
+      accept [
+        "a destructive action names the record it is about to affect"
+        "deactivating somebody does not delete their history"
+        "bulk actions say how many rows they will touch before they run"
+      ]
+    }
+  }
+  flow governance "Roles and audit" {
+    story {
+      as     "whoever answers for access in an audit"
+      want   "see who can do what, and who changed it"
+      so     "I can answer the question without asking engineering"
+      accept [
+        "every destructive action writes an audit entry"
+        "the audit log records who, what, and when — and cannot be edited"
+      ]
+    }
+  }
+}
+
+screen login "Sign In" {
+  template auth
+  layout   auth-center
+  flows    [access]
+}
 
 screen users "Users" {
   template table
   layout   table-master-detail
+  flows    [user_admin]
+  story {
+    as     "an administrator"
+    want   "find a person and act on them without leaving the list"
+    so     "routine changes take seconds"
+    accept [
+      "the list keeps its filters after an action closes"
+      "an action on a row says what happened when it finishes"
+    ]
+  }
 
   module filters   "Filter bar"    { kind filters; on "page load" }
   module table     "User table"    { kind table;   note "server-driven paging, 25 per page" }
@@ -118,10 +369,21 @@ screen users "Users" {
   }
 }
 
-screen user_new  "Invite User"  { template form;      layout form-single }
-screen roles     "Roles"        { template admin;     layout table-advanced }
-screen audit     "Audit Log"    { template table;     layout table-basic }
-screen settings  "Settings"     { template settings;  layout settings-sections }
+screen user_new "Invite User" {
+  template form
+  layout   form-single
+  flows    [user_admin]
+  story {
+    as     "an administrator"
+    want   "invite somebody with the right role from the start"
+    so     "they do not need a second change on their first day"
+    accept [ "inviting an address that already has an account says so" ]
+  }
+}
+
+screen roles    "Roles"     { template admin;    layout table-advanced; flows [governance] }
+screen audit    "Audit Log" { template table;    layout table-basic;    flows [governance] }
+screen settings "Settings"  { template settings; layout settings-sections; flows [user_admin] }
 
 flow {
   login    -> users    : "on successful login"
@@ -150,9 +412,32 @@ Every destructive action names the record in its confirmation and writes an audi
   theme { primary #7c3aed; secondary #f59e0b; radius lg; buttons rounded; density spacious }
 }
 
-screen home    "Home"    { template landing; layout hero-two-column }
-screen pricing "Pricing" { template landing; layout hero-center }
-screen contact "Contact" { template form;    layout form-single }
+flows {
+  flow convert "Deciding to try it" {
+    story {
+      as     "somebody who arrived from a search result"
+      want   "understand what this is and what it costs"
+      so     "I can decide without booking a call"
+      accept [
+        "what the product does is legible without scrolling"
+        "pricing is reachable from anywhere on the page"
+        "there is one obvious next action, and it is the same one throughout"
+      ]
+    }
+  }
+  flow enquiry "Talking to a person" {
+    story {
+      as     "somebody whose situation does not fit the pricing table"
+      want   "reach a human without a lengthy form"
+      so     "I do not give up and go elsewhere"
+      accept [ "the form says what happens next and when to expect a reply" ]
+    }
+  }
+}
+
+screen home    "Home"    { template landing; layout hero-two-column; flows [convert] }
+screen pricing "Pricing" { template landing; layout hero-center;     flows [convert] }
+screen contact "Contact" { template form;    layout form-single;     flows [enquiry] }
 
 flow {
   home    -> pricing : "click Pricing"
@@ -186,11 +471,58 @@ snippets [responsive, a11y]`,
   theme { primary #db2777; secondary #0ea5e9; radius lg; buttons rounded }
 }
 
-screen catalogue "Catalogue"    { template search;   layout search-results }
-screen product   "Product"      { template product;  layout product-gallery }
-screen cart      "Cart"         { template table;    layout table-basic }
-screen checkout  "Checkout"     { template checkout; layout checkout-steps }
-screen confirm   "Order Placed" { template empty;    layout empty-first-run }
+flows {
+  flow browse "Finding something to buy" {
+    story {
+      as     "a shopper"
+      want   "narrow a large catalogue to the few things I might buy"
+      so     "I am not scrolling past things that were never relevant"
+      accept [ "a filtered catalogue can be shared as a link" ]
+    }
+  }
+  flow purchase "Buying it" {
+    story {
+      as     "a shopper who has decided"
+      want   "pay without being made to create an account first"
+      so     "I do not abandon a full basket at the last step"
+      accept [
+        "the order summary stays visible at every step, including on mobile"
+        "a payment failure returns to the payment step with the details kept"
+        "the total, including delivery and tax, is shown before payment"
+      ]
+    }
+  }
+}
+
+screen catalogue "Catalogue"  { template search;  layout search-results;  flows [browse] }
+screen product   "Product"    { template product; layout product-gallery; flows [browse, purchase] }
+screen cart      "Cart"       { template table;   layout table-basic;     flows [purchase] }
+
+screen checkout "Checkout" {
+  template checkout
+  layout   checkout-steps
+  flows    [purchase]
+  story {
+    as     "a shopper paying"
+    want   "get through the steps without losing what I have entered"
+    so     "one mistake does not cost me the whole order"
+    accept [
+      "going back a step keeps everything already filled in"
+      "the step I am on, and how many remain, is always visible"
+    ]
+  }
+}
+
+screen confirm "Order Placed" {
+  template empty
+  layout   empty-first-run
+  flows    [purchase]
+  story {
+    as     "somebody who has just paid"
+    want   "proof it worked and a way to check on it"
+    so     "I do not have to email to ask whether the order went through"
+  }
+}
 
 flow {
   catalogue -> product  : "click a product"
@@ -219,13 +551,51 @@ Payment failures return to the payment step with the entered details preserved.
   theme { design modern-soft; primary #0891b2; secondary #f97316; radius large; buttons rounded }
 }
 
-screen onboarding "Get Started" { template onboarding; layout mobile-onboarding; surface mobile }
-screen signin     "Sign In"     { template auth;       layout mobile-form; surface mobile }
+flows {
+  flow access "Getting in" {
+    story {
+      as     "a field engineer picking up a phone at 7am"
+      want   "sign in once and stay signed in"
+      so     "I am not typing a password in a van in the rain"
+      accept [ "the session survives the app being closed and reopened" ]
+    }
+  }
+  flow day_of_work "Working through the day" {
+    story {
+      as     "a field engineer"
+      want   "see today's jobs and update each one as I finish it"
+      so     "the office knows where things stand without phoning me"
+      accept [
+        "the app opens with the last known list even before the network answers"
+        "a status update made offline is queued, and the screen says so"
+        "queued work syncs on its own when signal returns"
+      ]
+    }
+  }
+  flow getting_there "Getting to the job" {
+    story {
+      as     "a field engineer between calls"
+      want   "see where my stops are"
+      so     "I am not driving back across the same town twice"
+      accept [ "declining location permission still leaves the addresses readable" ]
+    }
+  }
+}
+
+screen onboarding "Get Started" { template onboarding; layout mobile-onboarding; surface mobile; flows [access] }
+screen signin     "Sign In"     { template auth;       layout mobile-form; surface mobile; flows [access] }
 
 screen home "Today" {
   template dashboard
   layout   mobile-tabs
   surface  mobile
+  flows    [day_of_work]
+  story {
+    as     "a field engineer starting the day"
+    want   "see what I have on, in the order I will do it"
+    so     "I can leave without planning it myself"
+    accept [ "the list is readable one-handed, outdoors, in daylight" ]
+  }
   module tabs   "Tab bar"      { kind nav }
   module stats  "Today's jobs" { kind stats }
   module list   "Job list"     { kind list; on "screen focus" }
@@ -239,6 +609,17 @@ screen job "Job Detail" {
   template detail
   layout   mobile-detail
   surface  mobile
+  flows    [day_of_work]
+  story {
+    as     "a field engineer standing on site"
+    want   "change the status and attach a photo in a few taps"
+    so     "I never write the same thing again in the van afterwards"
+    accept [
+      "a photo taken with no signal is queued rather than lost"
+      "declining the camera permission leaves a way to finish without a photo"
+      "the sticky actions stay reachable one-handed"
+    ]
+  }
   module summary "Job summary"   { kind panel }
   module actions "Sticky actions" { kind action }
   module sheet   "Update status"  { kind sheet; on "tap Update status" }
@@ -256,6 +637,7 @@ screen map "Route Map" {
   template dashboard
   layout   mobile-map
   surface  mobile
+  flows    [getting_there]
   module map_view "Map"          { kind map }
   module sheet    "Stops sheet"  { kind sheet }
   module perms    "Location permission" { kind permission; on "screen open" }
@@ -265,7 +647,7 @@ screen map "Route Map" {
   }
 }
 
-screen profile "Profile" { template profile; layout mobile-profile; surface mobile }
+screen profile "Profile" { template profile; layout mobile-profile; surface mobile; flows [access] }
 
 flow {
   onboarding -> signin  : "tap Get started"
@@ -310,12 +692,38 @@ Permissions: location (background while on a job), camera, notifications.
   theme { design minimal-mono; primary #0a84ff; secondary #30d158; radius large; buttons filled }
 }
 
-screen signin "Sign In" { template auth; layout mobile-form; surface mobile }
+flows {
+  flow access "Getting in" {
+    story { as "a returning user"; want "sign in on my phone"; so "I can reach my clients" }
+  }
+  flow client_work "Keeping client records" {
+    story {
+      as     "somebody who sees clients all day"
+      want   "find a client, read their history, and add to it"
+      so     "the record is written while I still remember the visit"
+      accept [
+        "reads work offline from the local store"
+        "a write made offline retries when connectivity returns"
+        "the list stays usable at accessibility text sizes"
+      ]
+    }
+  }
+  flow overview "Seeing how things are going" {
+    story {
+      as     "somebody running their own book of work"
+      want   "see the trend without exporting anything"
+      so     "I notice a quiet month while I can still do something about it"
+    }
+  }
+}
+
+screen signin "Sign In" { template auth; layout mobile-form; surface mobile; flows [access] }
 
 screen home "Overview" {
   template dashboard
   layout   mobile-tabs
   surface  mobile
+  flows    [overview]
   module tabs  "Tab view"    { kind nav }
   module cards "Summary"     { kind stats }
   module chart "Trend chart" { kind chart }
@@ -325,6 +733,7 @@ screen clients "Clients" {
   template list
   layout   mobile-list
   surface  mobile
+  flows    [client_work]
   module search "Searchable list" { kind filters }
   module list   "Client list"     { kind list }
   module add    "Add client"      { kind sheet; on "tap the plus button" }
@@ -339,6 +748,12 @@ screen client "Client Detail" {
   template detail
   layout   mobile-detail
   surface  mobile
+  flows    [client_work]
+  story {
+    as     "somebody who has just finished a visit"
+    want   "add what happened to the client's history"
+    so     "the next visit starts from what actually happened"
+  }
   module header  "Header"      { kind panel }
   module history "Visit history" { kind timeline }
   module edit    "Edit sheet"  { kind sheet; on "tap Edit" }
@@ -347,7 +762,7 @@ screen client "Client Detail" {
   }
 }
 
-screen settings "Settings" { template settings; layout mobile-profile; surface mobile }
+screen settings "Settings" { template settings; layout mobile-profile; surface mobile; flows [access] }
 
 flow {
   signin  -> home     : "on successful sign in"

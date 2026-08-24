@@ -222,3 +222,132 @@ flow { a -> b : "x"; b -> c : "y" }
     expect(next.find((s) => s.id === hidden.id)!.x).toBe(5000)
   })
 })
+
+describe("merging journeys and stories", () => {
+  const withFlows = () =>
+    parse(`
+flows {
+  flow auth "Authentication" {
+    story { as "a user"; want "sign in"; so "I can work"
+      accept [ "wrong password is explained" ] }
+  }
+}
+screen login   "Sign In" { flows [auth]
+  story { as "a signed-out user"; want "sign in"; so "I reach my work" } }
+screen clients "Clients" { template table }
+flow { login -> clients : "x" }
+`)
+
+  it("attaches a fragment's screens to a journey that already exists", () => {
+    const doc = withFlows()
+    const authId = doc.flows[0].id
+    mergeDoc(
+      doc,
+      parse(`
+        screen forgot "Forgot password" { flows [auth] }
+        flow { login -> forgot : "click Forgot password" }
+      `)
+    )
+    // One journey, not two: the fragment named `auth` and got the real one.
+    expect(doc.flows).toHaveLength(1)
+    expect(doc.flows[0].id).toBe(authId)
+    expect(screenByKey(doc, "forgot").flows).toEqual([authId])
+  })
+
+  it("adds a new journey the fragment introduces", () => {
+    const doc = withFlows()
+    const report = mergeDoc(
+      doc,
+      parse(`
+        flows { flow billing "Billing" { story { as "an owner"; want "pay"; so "we stay live" } } }
+        screen invoices "Invoices" { flows [billing] }
+        flow { clients -> invoices : "click Invoices" }
+      `)
+    )
+    expect(report.newFlows).toBe(1)
+    expect(doc.flows.map((f) => f.key)).toEqual(["auth", "billing"])
+    expect(doc.flows[1].story.want).toBe("pay")
+  })
+
+  it("adds a flow tag to an existing screen without replacing the ones it had", () => {
+    const doc = withFlows()
+    mergeDoc(
+      doc,
+      parse(`
+        flows { flow onboarding "Onboarding" {} }
+        screen login "Sign In" { flows [onboarding] }
+      `)
+    )
+    const keyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
+    expect(screenByKey(doc, "login").flows.map((id) => keyOf.get(id))).toEqual([
+      "auth",
+      "onboarding",
+    ])
+  })
+
+  it("never overwrites a story that is already there", () => {
+    const doc = withFlows()
+    mergeDoc(
+      doc,
+      parse(`screen login "Sign In" { story { as "somebody else"; want "something else" } }`)
+    )
+    const login = screenByKey(doc, "login")
+    expect(login.story.role).toBe("a signed-out user")
+    expect(login.story.want).toBe("sign in")
+  })
+
+  it("fills a blank field and appends criteria it does not already have", () => {
+    const doc = withFlows()
+    mergeDoc(
+      doc,
+      parse(`
+        screen login "Sign In" {
+          story {
+            so "I reach my work"
+            accept [ "the email is kept after a failed attempt" "wrong password is explained" ]
+          }
+        }
+      `)
+    )
+    const login = screenByKey(doc, "login")
+    expect(login.story.soThat).toBe("I reach my work")
+    // The screen's own story had no criteria — the pair on `auth` belongs to
+    // the journey, not to this screen — so both of these are new here.
+    expect(login.story.criteria).toEqual([
+      "the email is kept after a failed attempt",
+      "wrong password is explained",
+    ])
+  })
+
+  it("does not duplicate a criterion the same story already carries", () => {
+    const doc = withFlows()
+    const authId = doc.flows[0].id
+    mergeDoc(
+      doc,
+      parse(`
+        flows { flow auth "Authentication" { story { accept [ "wrong password is explained" ] } } }
+      `)
+    )
+    expect(doc.flows.find((f) => f.id === authId)!.story.criteria).toEqual([
+      "wrong password is explained",
+    ])
+  })
+
+  it("drops a tag naming a journey the fragment never declared", () => {
+    const doc = withFlows()
+    // `mergeDoc` receives a parsed document, and the parser already creates a
+    // flow for a tag it did not see declared — so the only way a tag arrives
+    // unresolved is a hand-built document. It must not become a dangling id.
+    mergeDoc(doc, {
+      ...parse(`screen ghost "Ghost" {}`),
+      flows: [],
+      screens: [
+        {
+          ...parse(`screen ghost "Ghost" {}`).screens[0],
+          flows: ["flw_never_existed"],
+        },
+      ],
+    })
+    expect(screenByKey(doc, "ghost").flows).toEqual([])
+  })
+})

@@ -1,7 +1,8 @@
 import { uid } from "@/lib/utils"
-import type { ProjectDoc } from "@/types/project"
+import type { ProjectDoc, UserStory } from "@/types/project"
 
 export type MergeReport = {
+  newFlows: number
   newScreens: number
   updatedScreens: number
   newModules: number
@@ -26,6 +27,7 @@ export type MergeReport = {
  */
 export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
   const report: MergeReport = {
+    newFlows: 0,
     newScreens: 0,
     updatedScreens: 0,
     newModules: 0,
@@ -33,6 +35,38 @@ export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
     newInnerEdges: 0,
     newSections: 0,
   }
+
+  // --------------------------------------------------------------- flows
+  // Resolved before screens, because a screen's flow tags are ids and have to
+  // be remapped onto this document's flows as the screen lands.
+  const flowByKey = new Map(doc.flows.map((f) => [f.key, f]))
+  /** incoming flow id → id in `doc` */
+  const flowIds = new Map<string, string>()
+
+  for (const incomingFlow of [...incoming.flows].sort((a, b) => a.order - b.order)) {
+    const existing = flowByKey.get(incomingFlow.key)
+    if (existing) {
+      flowIds.set(incomingFlow.id, existing.id)
+      fillStory(existing.story, incomingFlow.story)
+      if (!existing.note.trim() && incomingFlow.note.trim()) {
+        existing.note = incomingFlow.note
+      }
+      continue
+    }
+    const flow = {
+      ...incomingFlow,
+      id: uid("flw"),
+      order: doc.flows.length,
+    }
+    flowIds.set(incomingFlow.id, flow.id)
+    flowByKey.set(flow.key, flow)
+    doc.flows.push(flow)
+    report.newFlows += 1
+  }
+
+  /** incoming tag ids → this document's, dropping any that did not resolve */
+  const mapFlowTags = (ids: string[]) =>
+    ids.map((id) => flowIds.get(id)).filter((id): id is string => Boolean(id))
 
   const byKey = new Map(doc.screens.map((s) => [s.key, s]))
   /** incoming screen id → id in `doc` */
@@ -57,6 +91,16 @@ export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
         existing.note = incomingScreen.note
         touched = true
       }
+      if (fillStory(existing.story, incomingScreen.story)) touched = true
+      // Flow tags are added, never replaced: a fragment about billing knows
+      // this screen is part of billing, and knows nothing about the two other
+      // journeys it was already in.
+      for (const flowId of mapFlowTags(incomingScreen.flows)) {
+        if (!existing.flows.includes(flowId)) {
+          existing.flows.push(flowId)
+          touched = true
+        }
+      }
       if (touched) report.updatedScreens += 1
       continue
     }
@@ -70,6 +114,7 @@ export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
     const screen = {
       ...incomingScreen,
       id: uid("scr"),
+      flows: mapFlowTags(incomingScreen.flows),
       y: below + incomingScreen.y,
     }
     screenIds.set(incomingScreen.id, screen.id)
@@ -147,6 +192,7 @@ export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
 
 export function describeMerge(report: MergeReport): string {
   const parts = [
+    report.newFlows && `${report.newFlows} new flow${plural(report.newFlows)}`,
     report.newScreens && `${report.newScreens} new screen${plural(report.newScreens)}`,
     report.updatedScreens && `${report.updatedScreens} updated`,
     report.newModules && `${report.newModules} module${plural(report.newModules)}`,
@@ -156,6 +202,32 @@ export function describeMerge(report: MergeReport): string {
     report.newSections && `${report.newSections} section${plural(report.newSections)}`,
   ].filter(Boolean)
   return parts.length ? parts.join(" · ") : "Nothing new — the project already had all of it"
+}
+
+/**
+ * Fills only the blanks of a story, the same rule the rest of the merge follows.
+ *
+ * A fragment that mentions a screen in passing writes a thinner story than the
+ * one already on it; letting that overwrite would mean pasting a small fragment
+ * quietly destroys work. Criteria are appended rather than replaced, so two
+ * fragments can each contribute what they know.
+ */
+function fillStory(existing: UserStory, incoming: UserStory): boolean {
+  let touched = false
+  for (const field of ["role", "want", "soThat"] as const) {
+    if (!existing[field].trim() && incoming[field].trim()) {
+      existing[field] = incoming[field]
+      touched = true
+    }
+  }
+  for (const criterion of incoming.criteria) {
+    const text = criterion.trim()
+    if (text && !existing.criteria.some((c) => c.trim() === text)) {
+      existing.criteria.push(text)
+      touched = true
+    }
+  }
+  return touched
 }
 
 function plural(count: number) {

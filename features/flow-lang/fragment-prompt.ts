@@ -14,20 +14,38 @@ import type { ProjectDoc } from "@/types/project"
  * of creating a second copy of each.
  */
 export function buildFragmentPrompt(doc: ProjectDoc): string {
+  const flowKeyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
   const inventory = doc.screens.length
     ? doc.screens
         .map((screen) => {
           const modules = doc.modules
             .filter((m) => m.screenId === screen.id)
             .sort((a, b) => a.order - b.order)
-          const line = `- \`${screen.key}\` — ${screen.title}${screen.template ? ` (${screen.template})` : ""} · ${screen.surface}`
+          const tags = screen.flows
+            .map((id) => flowKeyOf.get(id))
+            .filter(Boolean)
+          const inFlows = tags.length ? ` · flows: ${tags.join(", ")}` : ""
+          const line = `- \`${screen.key}\` — ${screen.title}${screen.template ? ` (${screen.template})` : ""} · ${screen.surface}${inFlows}`
           if (!modules.length) return line
           return `${line}\n  modules: ${modules.map((m) => `\`${m.key}\` (${m.kind})`).join(", ")}`
         })
         .join("\n")
     : "_(this project has no screens yet — your fragment will be the first)_"
 
+  const flowInventory = doc.flows.length
+    ? doc.flows
+        .map((flow) => {
+          const members = doc.screens
+            .filter((s) => s.flows.includes(flow.id))
+            .map((s) => `\`${s.key}\``)
+          return `- \`${flow.key}\` — ${flow.name}${members.length ? ` · ${members.join(", ")}` : " · _(no screens yet)_"}`
+        })
+        .join("\n")
+    : "_(this project has no flows yet — name the ones your feature needs)_"
+
   const anchorExample = doc.screens[0]?.key ?? "dashboard"
+  const anchorFlows = doc.screens[0]?.flows.map((id) => flowKeyOf.get(id)).filter(Boolean) ?? []
+  const flowExample = doc.flows[0]?.key ?? "billing"
   const screenLayoutIds = allLayouts
     .filter((l) => l.scope === "screen")
     .map((l) => l.id)
@@ -54,6 +72,14 @@ way this goes wrong.
 
 ${inventory}
 
+## The journeys it already has
+
+Reuse these keys too. A feature that belongs to an existing journey joins it;
+inventing \`authentication\` beside an existing \`auth\` splits one flow into two
+that can never be looked at together.
+
+${flowInventory}
+
 # Output rules
 
 1. Output **one fenced code block** and nothing else.
@@ -69,6 +95,16 @@ ${inventory}
    modules — anything you leave out is left alone.
 5. Keep it tight: the feature asked for, and nothing else. Do not redesign
    neighbouring screens, and do not "improve" what is already there.
+5a. **Tag every new screen with \`flows [ … ]\`.** Reuse a key from the list
+   above where the feature belongs to a journey that exists. Declare a new flow
+   in a \`flows { … }\` block only when the feature genuinely is a new journey —
+   and then give it a story.
+5b. **Write a \`story { … }\` for every new screen**: one line each for \`as\`,
+   \`want\` and \`so\`, then 3–6 checkable acceptance criteria in the language of
+   the person using it, not the framework's. Include what happens when it goes
+   wrong. Do not write a story for a screen you are only redeclaring to add a
+   module to — it already has one, and a thinner one would not replace it
+   anyway.
 6. Label every connection with what causes it.
 7. New screen keys are lowercase snake_case and must not collide with the list
    above unless you mean to attach to that screen.
@@ -82,7 +118,7 @@ ${inventory}
 
 \`\`\`
 # --- adds two modules to a screen that already exists ---
-screen ${anchorExample} {
+screen ${anchorExample} {${anchorFlows.length ? `\n  # already in: ${anchorFlows.join(", ")} — leave its flows and story alone` : ""}
   module export_menu "Export"      { kind action; on "click Export" }
   module date_range  "Date range"  { kind filters }
   inner {
@@ -90,10 +126,36 @@ screen ${anchorExample} {
   }
 }
 
+# --- only if the feature really is a new journey ---
+flows {
+  flow ${flowExample} "Invoicing" {
+    story {
+      as     "someone who bills clients"
+      want   "raise an invoice and send it without leaving the app"
+      so     "I am not rebuilding the same numbers in a spreadsheet"
+      accept [
+        "an invoice cannot be sent twice"
+        "a draft survives closing the tab"
+      ]
+    }
+  }
+}
+
 # --- a brand new screen the feature needs ---
 screen invoice_new "New Invoice" {
   template form
   layout   form-sidebar-summary
+  flows    [${flowExample}]
+  story {
+    as     "someone raising an invoice"
+    want   "add line items and see the total before I send it"
+    so     "the client never gets a figure I have not checked"
+    accept [
+      "the total recalculates as a line item changes, with no Save first"
+      "sending is blocked, with a reason, while any line item is incomplete"
+      "leaving the screen with unsent changes asks before discarding them"
+    ]
+  }
   note     "Line items, tax, and a preview before send"
   module line_items "Line items" { kind list }
   module totals     "Totals"     { kind panel }
@@ -125,5 +187,6 @@ ${screenLayoutIds.map((l) => `- ${l}`).join("\n")}
 ## module kinds
 ${moduleKinds.map((k) => `- ${k.id} — ${k.description}`).join("\n")}
 
-Now write the fragment for the feature described.`
+Now write the fragment for the feature described — tagged into a journey, and
+with a story on every new screen.`
 }
