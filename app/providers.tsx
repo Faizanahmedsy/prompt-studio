@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { Toaster } from "@/components/ui/sonner"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { useProjectStore } from "@/stores/use-project-store"
+import { usePromptDraftStore } from "@/stores/use-prompt-draft-store"
 import { useSyncStore } from "@/stores/use-sync-store"
 import { useUiStore } from "@/stores/use-ui-store"
 
@@ -18,6 +19,9 @@ function StoreHydration() {
   useEffect(() => {
     useProjectStore.persist.rehydrate()
     useUiStore.persist.rehydrate()
+    // Hand-edits to a generated prompt, which outlive a reload the same way the
+    // document does — nobody expects a rewritten paragraph to vanish on F5.
+    usePromptDraftStore.persist.rehydrate()
     // Without this the link between a local project and its server row never
     // loads, `hydrated` stays false, and the sync hook waits forever for a
     // signal that is not coming.

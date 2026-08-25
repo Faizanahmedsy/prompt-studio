@@ -48,6 +48,19 @@ export function useLiveProject(project: Project | null): Live {
   // handler reaches its own `clearConflict` through a ref.
   const clearConflictRef = useRef<(() => void) | null>(null)
 
+  /**
+   * The last document this tab accepted *from someone else*.
+   *
+   * Applying a peer's edit replaces the store's document, which makes `project`
+   * a new object, which fires the outbound effect below — so the tab that was
+   * only watching sent the edit straight back. The server has no way to tell
+   * that apart from a real save: it stamped the echo with *this* tab's user and
+   * fanned it out, and the person who actually made the change was told someone
+   * else had made it. Remembering what we applied lets the effect recognise its
+   * own echo and stay quiet.
+   */
+  const appliedRemote = useRef<string | null>(null)
+
   const applyRemote = useCallback((incoming: unknown, version: number, byName: string) => {
     const local = current.current
     if (!local) return
@@ -56,6 +69,7 @@ export function useLiveProject(project: Project | null): Live {
     // `silent` keeps it out of the undo stack. Ctrl+Z is for taking back your
     // own change, and being able to undo a colleague's edit — on their screen
     // too, once it syncs back — is not an undo, it is a fight.
+    appliedRemote.current = JSON.stringify(parsed.data)
     useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
     if (remoteId) useSyncStore.getState().setVersion(remoteId, version)
     toast.message(`${byName} updated this project`, { duration: 2000 })
@@ -82,6 +96,7 @@ export function useLiveProject(project: Project | null): Live {
         if (local !== JSON.stringify(parsed.data)) {
           useProjectStore.getState().saveVersion("Before sync")
         }
+        appliedRemote.current = JSON.stringify(parsed.data)
         useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
       }
       if (remoteId) useSyncStore.getState().setVersion(remoteId, hello.doc_version)
@@ -92,6 +107,7 @@ export function useLiveProject(project: Project | null): Live {
     onConflict: (message) => {
       const parsed = projectDocSchema.safeParse(message.doc)
       if (parsed.success) {
+        appliedRemote.current = JSON.stringify(parsed.data)
         useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
         if (remoteId) useSyncStore.getState().setVersion(remoteId, message.doc_version)
         toast.warning("Reloaded — someone else had saved a newer version")
@@ -142,7 +158,16 @@ export function useLiveProject(project: Project | null): Live {
   // every change and sends on the trailing edge.
   useEffect(() => {
     if (!project || !remoteId || collaboration.status !== "open") return
-    collaboration.sendDoc(docOf(project) as unknown as Record<string, unknown>)
+    const outgoing = docOf(project)
+    // The echo guard. Cleared rather than merely compared, so the *next* edit
+    // — which really is this person's — goes out normally even though it is
+    // built on top of what a colleague sent.
+    if (appliedRemote.current !== null) {
+      const applied = appliedRemote.current
+      appliedRemote.current = null
+      if (applied === JSON.stringify(outgoing)) return
+    }
+    collaboration.sendDoc(outgoing as unknown as Record<string, unknown>)
     // `project` is a new object on every edit, which is exactly the trigger.
   }, [project, remoteId, collaboration.status, collaboration.sendDoc])
 

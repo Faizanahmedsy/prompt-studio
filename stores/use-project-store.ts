@@ -164,6 +164,12 @@ export const useProjectStore = create<ProjectState>()(
         // Drop the link to the server row as well, or the next pull sees a
         // project it believes is already here and never brings it back.
         useSyncStore.getState().unlink(id)
+        // Hand-edited prompts are keyed by project id, and ids are not reused
+        // — but a deleted project's drafts are dead weight in localStorage
+        // that nothing would ever clear.
+        void import("@/stores/use-prompt-draft-store").then(({ usePromptDraftStore }) =>
+          usePromptDraftStore.getState().clearProject(id)
+        )
         set((state) => {
           const projects = state.projects.filter((p) => p.id !== id)
           const { [id]: _past, ...past } = state.past

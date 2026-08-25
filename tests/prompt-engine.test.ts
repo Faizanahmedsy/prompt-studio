@@ -806,4 +806,34 @@ describe("the design block", () => {
   it("still names the primary colour for every other language", () => {
     expect(themed({ primaryColor: "#ff0000" })).toContain("#ff0000")
   })
+
+  it("asks for a token system before any styling", () => {
+    const text = themed({})
+    expect(text).toContain("Design it before you style it")
+    expect(text).toContain("could belong to any product in this category")
+  })
+
+  it("carries the craft rules that a token list alone does not imply", () => {
+    const text = themed({})
+    expect(text).toContain("65 characters")
+    expect(text).toContain("tabular-nums")
+    expect(text).toContain("focus-visible")
+    expect(text).toContain("prefers-reduced-motion")
+    expect(text).toContain("overflow-x: auto")
+  })
+
+  it("names the generated-design defaults so the agent can avoid them", () => {
+    const text = themed({})
+    expect(text).toContain("#F4F1EA")
+    expect(text).toContain("Space Grotesk")
+    expect(text).toContain("emoji as section markers")
+    // The list is guidance for the unchosen, never a veto over a real choice.
+    expect(text).toContain("the settings win")
+  })
+
+  it("keeps the anti-default guidance out of Basic, which is not designed at all", () => {
+    const text = themed({ designLanguage: "basic" })
+    expect(text).not.toContain("Design it before you style it")
+    expect(text).not.toContain("#F4F1EA")
+  })
 })

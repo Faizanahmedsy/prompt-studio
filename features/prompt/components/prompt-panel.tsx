@@ -6,7 +6,9 @@ import {
   Download,
   FileDiff,
   History,
+  Pencil,
   Printer,
+  RotateCcw,
   Wand2,
 } from "lucide-react"
 import Link from "next/link"
@@ -24,12 +26,14 @@ import { getTarget } from "@/features/prompt/engine/targets"
 import { copyText, downloadFile } from "@/lib/download"
 import { cn, countWords, estimateTokens } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
+import { usePromptDraftStore } from "@/stores/use-prompt-draft-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
 
 export function PromptPanel({ project }: { project: Project }) {
   const [lastGenerated, setLastGenerated] = useState("")
   const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
   const saveVersion = useProjectStore((s) => s.saveVersion)
   const advanced = useUiStore((s) => s.experience === "advanced")
   const mode = useUiStore((s) => s.mode)
@@ -44,20 +48,33 @@ export function PromptPanel({ project }: { project: Project }) {
   )
   const target = getTarget(project.target)
 
-  const diff = useMemo(
-    () => diffLines(lastGenerated, built.text),
-    [lastGenerated, built.text]
-  )
+  // Subscribing to the whole map rather than a selector result: the key depends
+  // on the surface, and a selector returning `drafts[key]` re-runs anyway.
+  const drafts = usePromptDraftStore((s) => s.drafts)
+  const setDraft = usePromptDraftStore((s) => s.set)
+  const clearDraft = usePromptDraftStore((s) => s.clear)
+  const draft = drafts[`${project.id}:${surface}`] ?? null
+  const edited = draft !== null
+  /**
+   * What every action downstream works on. Once someone has edited the prompt,
+   * the edit *is* the prompt — copying, downloading and the token count all
+   * follow it, because handing over text that differs from what is on screen
+   * is the one thing an editable field must never do.
+   */
+  const text = draft ?? built.text
+  const stale = usePromptDraftStore((s) => s.isStale(project.id, surface, built.text))
+
+  const diff = useMemo(() => diffLines(lastGenerated, text), [lastGenerated, text])
   const stats = diffStats(diff)
 
   const generate = async () => {
-    await copyText(built.text)
-    setLastGenerated(built.text)
+    await copyText(text)
+    setLastGenerated(text)
     saveVersion(`Generated for ${target.name}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
     toast.success("Prompt copied", {
-      description: `${estimateTokens(built.text).toLocaleString()} tokens · saved as a version`,
+      description: `${estimateTokens(text).toLocaleString()} tokens · saved as a version`,
     })
   }
 
@@ -67,12 +84,28 @@ export function PromptPanel({ project }: { project: Project }) {
         title="Prompt"
         actions={
           <>
+            <Hint label={editing ? "Done editing" : "Edit the prompt by hand"}>
+              <Button
+                size="icon-xs"
+                variant={editing ? "secondary" : "ghost"}
+                onClick={() => {
+                  // Entering the editor materialises the draft, so the very
+                  // first keystroke is not also a state transition.
+                  if (!editing && !edited) setDraft(project.id, surface, built.text, built.text)
+                  setEditing((value) => !value)
+                }}
+                aria-label={editing ? "Stop editing prompt" : "Edit prompt"}
+                aria-pressed={editing}
+              >
+                {editing ? <Check /> : <Pencil />}
+              </Button>
+            </Hint>
             <Hint label="Copy markdown">
               <Button
                 size="icon-xs"
                 variant="ghost"
                 onClick={() => {
-                  copyText(built.text)
+                  copyText(text)
                   toast.success("Copied to clipboard")
                 }}
                 aria-label="Copy prompt"
@@ -87,7 +120,7 @@ export function PromptPanel({ project }: { project: Project }) {
                 onClick={() =>
                   downloadFile(
                     `${project.name.toLowerCase().replace(/\s+/g, "-")}-prompt.md`,
-                    built.text,
+                    text,
                     "text/markdown;charset=utf-8"
                   )
                 }
@@ -108,11 +141,33 @@ export function PromptPanel({ project }: { project: Project }) {
       />
 
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-2 text-[11px] text-muted-foreground">
-        <Meter label="chars" value={built.text.length} />
-        <Meter label="words" value={countWords(built.text)} />
-        <Meter label="~tokens" value={estimateTokens(built.text)} highlight />
+        <Meter label="chars" value={text.length} />
+        <Meter label="words" value={countWords(text)} />
+        <Meter label="~tokens" value={estimateTokens(text)} highlight />
         <span className="ml-auto truncate">{target.name}</span>
       </div>
+
+      {edited && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-warning-soft/40 px-3 py-1.5 text-[11px] text-muted-foreground">
+          <span className="truncate">
+            {stale
+              ? "Edited by hand — the build has moved on since."
+              : "Edited by hand — this text is used instead of the build."}
+          </span>
+          <Button
+            size="xs"
+            variant="ghost"
+            className="ml-auto shrink-0"
+            onClick={() => {
+              clearDraft(project.id, surface)
+              setEditing(false)
+              toast.success("Back to the generated prompt")
+            }}
+          >
+            <RotateCcw /> Reset
+          </Button>
+        </div>
+      )}
 
       <Tabs defaultValue="preview" className="flex min-h-0 flex-1 flex-col">
         <div className="shrink-0 px-3 pt-2">
@@ -141,16 +196,45 @@ export function PromptPanel({ project }: { project: Project }) {
         </div>
 
         <TabsContent value="preview" className="min-h-0">
-          <PanelBody className="space-y-3">
-            {built.blocks.map((block) => (
-              <section key={block.id} className="space-y-1">
-                <SectionLabel>{block.title}</SectionLabel>
+          {editing ? (
+            /**
+             * One textarea over the whole prompt, not a field per block.
+             *
+             * The blocks are a rendering of the document, so editing one in
+             * place would raise the question of what happens to it when the
+             * document changes — and there is no honest answer. Editing the
+             * finished text has an honest answer: it is yours now, and the
+             * banner tells you when the build beneath it has moved on.
+             */
+            <div className="flex h-full min-h-0 flex-col">
+              <textarea
+                value={text}
+                onChange={(event) =>
+                  setDraft(project.id, surface, event.target.value, built.text)
+                }
+                spellCheck={false}
+                aria-label="Generated prompt"
+                className="code-surface min-h-0 flex-1 resize-none border-0 bg-surface p-3 text-foreground/90 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
+            </div>
+          ) : (
+            <PanelBody className="space-y-3">
+              {edited ? (
                 <pre className="code-surface whitespace-pre-wrap break-words rounded-lg bg-surface p-2.5 text-foreground/90">
-                  {block.body}
+                  {text}
                 </pre>
-              </section>
-            ))}
-          </PanelBody>
+              ) : (
+                built.blocks.map((block) => (
+                  <section key={block.id} className="space-y-1">
+                    <SectionLabel>{block.title}</SectionLabel>
+                    <pre className="code-surface whitespace-pre-wrap break-words rounded-lg bg-surface p-2.5 text-foreground/90">
+                      {block.body}
+                    </pre>
+                  </section>
+                ))
+              )}
+            </PanelBody>
+          )}
         </TabsContent>
 
         <TabsContent value="diff" className={cn("min-h-0", !advanced && "hidden")}>
