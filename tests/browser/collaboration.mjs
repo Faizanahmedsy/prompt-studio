@@ -35,6 +35,31 @@ async function waitForCount(page, want, { timeout = 25000, label = "" } = {}) {
   throw new Error(`${label}: screen count settled at ${last}, wanted ${want}`)
 }
 
+/**
+ * Toast text currently on screen.
+ *
+ * Sonner renders into a region and removes the node when the toast expires, so
+ * this has to be read while it is up rather than afterwards.
+ */
+const toastText = `
+  return [...document.querySelectorAll("[data-sonner-toast]")]
+    .map((node) => node.innerText.replace(/\\s+/g, " ").trim());`
+
+async function toastsMatching(page, pattern) {
+  const seen = await page.evaluate(toastText)
+  return seen.filter((line) => pattern.test(line))
+}
+
+async function waitForToast(page, pattern, { timeout = 20000 } = {}) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    const [first] = await toastsMatching(page, pattern)
+    if (first) return first
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  return null
+}
+
 const screenCount = `
   const store = JSON.parse(localStorage.getItem("ps:v1"));
   const project = store.state.projects.find((p) => p.id === store.state.activeId);
@@ -109,6 +134,11 @@ async function main() {
     check("the second browser shows an avatar for the first", presence, "no presence stack rendered")
 
     console.log("\n== an edit crosses between the two ==")
+    const storedVersionBefore = await fetch(`${API}/api/v1/projects/${remoteId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((body) => body.data.doc_version)
     const aliceBefore = await one.evaluate(screenCount)
     // "Add screen" opens a template menu; the screen appears when one is picked.
     await one.evaluate(clickLabelled("Add screen"))
@@ -126,6 +156,35 @@ async function main() {
 
     await waitForCount(two, before + 1, { label: "the second browser", timeout: 30000 })
     check("the second browser received it live", true)
+
+    console.log("\n== and the right person is credited ==")
+    // The toast names whoever made the change. Bob should see Alice's name.
+    const bobToast = await waitForToast(two, /Alice/)
+    check("the watcher is told who changed it", Boolean(bobToast), `toast said: ${bobToast ?? "nothing"}`)
+
+    // And the regression that made this worth testing at all: applying a
+    // colleague's document used to fire the outbound effect, so the watching
+    // tab sent the edit straight back and the server stamped it with *that*
+    // tab's user. Alice made this change; nothing may tell her Bob did.
+    // Polled rather than slept-then-read: the toast lives for two seconds, so
+    // sleeping past it and looking afterwards finds an empty region either way
+    // and the check passes whether or not the bug is present.
+    const aliceToldBob = await waitForToast(one, /Bob/, { timeout: 6000 })
+    check(
+      "the editor is not told a colleague made her own change",
+      aliceToldBob === null,
+      aliceToldBob ?? ""
+    )
+
+    // The echo also cost a save per watching tab. One edit, one version.
+    const afterEdit = await fetch(`${API}/api/v1/projects/${remoteId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json())
+    check(
+      "one edit produced one version, not one per open tab",
+      afterEdit.data.doc_version === storedVersionBefore + 1,
+      `version went ${storedVersionBefore} -> ${afterEdit.data.doc_version}`
+    )
 
     console.log("\n== and it is what the database holds ==")
     const stored = await fetch(`${API}/api/v1/projects/${remoteId}`, {

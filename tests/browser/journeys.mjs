@@ -13,7 +13,7 @@
  */
 import { launch } from "./cdp.mjs"
 
-const APP = process.env.APP ?? "http://localhost:3000"
+const APP = process.env.APP ?? "http://localhost:3002"
 const fails = []
 const check = (label, ok, extra = "") => {
   console.log(`  ${ok ? "PASS" : "FAIL"}  ${label}${ok ? "" : `  <- ${extra}`}`)
