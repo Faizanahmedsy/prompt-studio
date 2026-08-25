@@ -1,7 +1,9 @@
 "use client"
 
-import { Heart, Workflow } from "lucide-react"
+import { Workflow } from "lucide-react"
 import Link from "next/link"
+
+import { Credit } from "@/components/shared/credit"
 
 /**
  * The frame every signed-out screen sits in.
@@ -40,20 +42,7 @@ export function AuthShell({
 
       {footer && <div className="text-sm text-muted-foreground">{footer}</div>}
 
-      <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-        Developed with
-        <Heart className="size-3 fill-destructive text-destructive" aria-hidden="true" />
-        <span className="sr-only">love</span>
-        by
-        <a
-          href="https://faizansaiyed.vercel.app/"
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
-        >
-          Faizan
-        </a>
-      </p>
+      <Credit />
     </main>
   )
 }

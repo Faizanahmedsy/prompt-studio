@@ -84,12 +84,10 @@ export const useUiStore = create<UiState>()(
   persist(
     (set) => ({
       experience: "easy",
-      // Leaving advanced mode must not strand the user on a hidden surface.
-      setExperience: (experience) =>
-        set((s) => ({
-          experience,
-          mode: experience === "easy" && s.mode === "code" ? "web" : s.mode,
-        })),
+      // The Code tab exists in both experiences now, so switching to Easy no
+      // longer strands anyone on a hidden surface — and resetting their mode
+      // would mean toggling Advanced silently threw away the tab they were on.
+      setExperience: (experience) => set({ experience }),
       mode: "web",
       leftOpen: true,
       rightOpen: true,
@@ -136,7 +134,7 @@ export const useUiStore = create<UiState>()(
       skipHydration: true,
       partialize: (state) => ({
         experience: state.experience,
-        mode: state.mode === "code" ? "web" : state.mode,
+        mode: state.mode,
         leftOpen: state.leftOpen,
         rightOpen: state.rightOpen,
       }),

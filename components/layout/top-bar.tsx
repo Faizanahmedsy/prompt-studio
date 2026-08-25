@@ -4,7 +4,6 @@ import {
   Code2,
   Command,
   Globe,
-  Heart,
   LayoutPanelTop,
   Moon,
   PanelLeft,
@@ -20,6 +19,7 @@ import {
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { ExperienceToggle } from "@/components/layout/experience-toggle"
+import { Credit } from "@/components/shared/credit"
 import { Button } from "@/components/ui/button"
 import { Hint, Kbd } from "@/components/ui/misc"
 import {
@@ -66,30 +66,6 @@ function SurfaceCount({ count }: { count: number }) {
   )
 }
 
-/**
- * The byline. Sits next to the product name rather than in a footer — this app
- * is a full-height workbench with no footer to put it in, and the header is
- * where a reader already looks to find out what they are using.
- */
-function Credit() {
-  return (
-    <span className="hidden items-center gap-1 whitespace-nowrap pl-1 text-[11px] text-muted-foreground lg:flex">
-      Developed with
-      <Heart className="size-3 fill-destructive text-destructive" aria-hidden="true" />
-      <span className="sr-only">love</span>
-      by
-      <a
-        href="https://faizansaiyed.vercel.app/"
-        target="_blank"
-        rel="noreferrer"
-        className="font-medium text-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
-      >
-        Faizan
-      </a>
-    </span>
-  )
-}
-
 export function TopBar({
   project,
   live,
@@ -126,7 +102,7 @@ export function TopBar({
         </span>
       </span>
 
-      <Credit />
+      <Credit className="hidden whitespace-nowrap pl-1 lg:flex" />
 
       <ProjectMenu project={project} />
 
@@ -155,12 +131,15 @@ export function TopBar({
             <span className="hidden sm:inline">Backend</span>
             <SurfaceCount count={counts.backend} />
           </TabsTrigger>
-          {advanced && (
-            <TabsTrigger value="code">
-              <Code2 />
-              <span className="hidden sm:inline">Code</span>
-            </TabsTrigger>
-          )}
+          {/*
+            Available in Easy too. Reading the Flow source is how you check what
+            the diagram actually says, and hiding it behind Advanced made that a
+            setting to discover rather than a tab to click.
+          */}
+          <TabsTrigger value="code">
+            <Code2 />
+            <span className="hidden sm:inline">Code</span>
+          </TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -246,7 +225,12 @@ export function TopBar({
           </Button>
         </Hint>
 
-        <span className="hidden items-center xl:flex">
+        {/*
+          `lg` rather than `xl`: this is the only way to reclaim the width the
+          inspector takes, and on a 1280px laptop it was hidden at exactly the
+          size where someone most wants it.
+        */}
+        <span className="hidden items-center lg:flex">
           {advanced && (
             <Hint label="Toggle library">
               <Button
