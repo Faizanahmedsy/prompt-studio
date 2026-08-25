@@ -22,11 +22,10 @@ import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
 import { getTarget } from "@/features/prompt/engine/targets"
 import { copyText, downloadFile } from "@/lib/download"
-import { countWords, estimateTokens } from "@/lib/utils"
+import { cn, countWords, estimateTokens } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
-import { cn } from "@/lib/utils"
 
 export function PromptPanel({ project }: { project: Project }) {
   const [lastGenerated, setLastGenerated] = useState("")

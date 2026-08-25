@@ -26,8 +26,6 @@ import type { Project } from "@/types/project"
 export function ViewSwitcher({ project }: { project: Project }) {
   const activeViewId = useUiStore((s) => s.activeViewId)
   const setActiveView = useUiStore((s) => s.setActiveView)
-  const viewStrict = useUiStore((s) => s.viewStrict)
-  const setViewStrict = useUiStore((s) => s.setViewStrict)
 
   const active = project.views.find((v) => v.id === activeViewId) ?? null
 

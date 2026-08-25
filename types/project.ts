@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 export const borderRadiusValues = [
   "none",
@@ -26,6 +26,33 @@ export const buttonStyleValues = [
   "sharp",
 ] as const
 
+/**
+ * Typefaces are chosen by **character**, not by name.
+ *
+ * The generated project will not have your font licence, and an agent told to
+ * use a specific commercial face either fails or silently substitutes one. A
+ * direction it can satisfy with whatever it has is worth more than a name it
+ * cannot honour.
+ */
+export const fontCharacterValues = [
+  "geometric",
+  "grotesque",
+  "humanist",
+  "serif",
+  "slab",
+  "mono",
+] as const
+export type FontCharacter = (typeof fontCharacterValues)[number]
+
+/** Body text may simply follow the heading — the default, and usually right. */
+export const bodyFontValues = ["pair", ...fontCharacterValues] as const
+
+export const typeScaleValues = ["compact", "balanced", "expressive"] as const
+export const iconStyleValues = ["line", "solid", "duotone"] as const
+export const elevationValues = ["flat", "subtle", "layered"] as const
+export const motionValues = ["none", "restrained", "expressive"] as const
+export const colorSchemeValues = ["light", "both", "dark-first"] as const
+
 export const themeSchema = z.object({
   /** id from features/theme/data/design-languages.ts */
   designLanguage: z.string().default("modern-soft"),
@@ -34,6 +61,60 @@ export const themeSchema = z.object({
   borderRadius: z.enum(borderRadiusValues).default("medium"),
   buttonStyle: z.enum(buttonStyleValues).default("filled"),
   density: z.enum(["compact", "comfortable", "spacious"]).default("comfortable"),
+  headingFont: z.enum(fontCharacterValues).default("grotesque"),
+  bodyFont: z.enum(bodyFontValues).default("pair"),
+  /** how far apart the heading sizes sit */
+  typeScale: z.enum(typeScaleValues).default("balanced"),
+  iconStyle: z.enum(iconStyleValues).default("line"),
+  elevation: z.enum(elevationValues).default("subtle"),
+  motion: z.enum(motionValues).default("restrained"),
+  colorScheme: z.enum(colorSchemeValues).default("both"),
+})
+
+/**
+ * A user story — why a screen or a journey exists, in the form a product person
+ * would recognise, plus the criteria that say when it is actually done.
+ *
+ * It is three fields rather than one sentence because the model writes it and
+ * the app has to render it: parsing "As a … I want … so that …" back out of
+ * free text works right up until a model phrases it differently, and then it
+ * fails silently. Three keys in the grammar, three fields in the panel.
+ *
+ * Every part is optional. A screen with an empty story behaves exactly as a
+ * screen written before stories existed.
+ */
+export const userStorySchema = z.object({
+  /** "an operations admin" */
+  role: z.string().default(""),
+  /** "see every client in one filterable table" */
+  want: z.string().default(""),
+  /** "I can reach the right record without hunting through pages" */
+  soThat: z.string().default(""),
+  /** checkable acceptance criteria, in the client's language */
+  criteria: z.array(z.string()).default([]),
+})
+
+/**
+ * A named user journey — "Authentication", "Invite a user", "Checkout".
+ *
+ * Flows are a **second axis, independent of views**. A view answers *who can
+ * reach this screen*; a flow answers *what journey is it part of*. A screen has
+ * one role set and belongs to several flows at once — Sign In starts
+ * authentication and is also the first step of onboarding — so the two can
+ * never share one control without fighting.
+ *
+ * Membership is a tag on the screen (`screen.flows`), not a list of screens
+ * here. One fact in one place: with a list on both sides they eventually
+ * disagree and nothing can say which was meant.
+ */
+export const flowSchema = z.object({
+  id: z.string(),
+  /** stable slug used by the `.flow` language — unique per project */
+  key: z.string(),
+  name: z.string(),
+  story: userStorySchema.default({}),
+  note: z.string().default(""),
+  order: z.number().default(0),
 })
 
 /**
@@ -76,6 +157,15 @@ export const screenSchema = z.object({
    * existed behaving exactly as they did.
    */
   views: z.array(z.string()).default([]),
+  /**
+   * Flow ids this screen is part of. Normally written by the model as it
+   * generates the file and corrected from the inspector — never derived from
+   * the graph, so a tag never re-computes itself behind you. Empty means
+   * ungrouped, which is a state the flow picker shows rather than hides.
+   */
+  flows: z.array(z.string()).default([]),
+  /** why this screen exists, and when it is done */
+  story: userStorySchema.default({}),
   x: z.number().default(0),
   y: z.number().default(0),
 })
@@ -202,6 +292,7 @@ export const projectDocSchema = z.object({
   target: z.string().default("claude-code"),
   creativity: z.number().min(0).max(10).default(5),
   views: z.array(viewSchema).default([]),
+  flows: z.array(flowSchema).default([]),
   screens: z.array(screenSchema).default([]),
   edges: z.array(edgeSchema).default([]),
   modules: z.array(moduleSchema).default([]),
@@ -255,6 +346,8 @@ export const projectFileSchema = z.object({
 
 export type Theme = z.infer<typeof themeSchema>
 export type Screen = z.infer<typeof screenSchema>
+export type UserStory = z.infer<typeof userStorySchema>
+export type FlowGroup = z.infer<typeof flowSchema>
 export type FlowView = z.infer<typeof viewSchema>
 export type FlowEdge = z.infer<typeof edgeSchema>
 export type ScreenModule = z.infer<typeof moduleSchema>

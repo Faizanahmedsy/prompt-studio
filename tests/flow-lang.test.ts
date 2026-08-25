@@ -11,16 +11,19 @@ function normalise(doc: ProjectDoc) {
   // Module keys are unique per screen only, so a module needs its screen's key
   // in front of it to be identifiable across a reparse.
   const viewKeyOf = new Map(doc.views.map((v) => [v.id, v.key]))
+  const flowKeyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
   const moduleKeyOf = new Map(
     doc.modules.map((m) => [m.id, `${keyOf.get(m.screenId)}.${m.key}`])
   )
   return {
     ...doc,
-    screens: doc.screens.map(({ id, x, y, views, ...rest }) => ({
+    screens: doc.screens.map(({ id, x, y, views, flows, ...rest }) => ({
       ...rest,
       views: views.map((v) => viewKeyOf.get(v)),
+      flows: flows.map((f) => flowKeyOf.get(f)),
     })),
     edges: doc.edges
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: `id` is destructured to drop it — these assertions compare on keys, not generated ids
       .map(({ id, from, to, trigger, views }) => ({
         from: keyOf.get(from),
         to: keyOf.get(to),
@@ -37,6 +40,7 @@ function normalise(doc: ProjectDoc) {
         `${a.screen}${a.order}`.localeCompare(`${b.screen}${b.order}`)
       ),
     moduleEdges: doc.moduleEdges
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: as above — `id` is destructured only to omit it
       .map(({ id, from, to, trigger }) => ({
         from: moduleKeyOf.get(from),
         to: moduleKeyOf.get(to),
@@ -45,6 +49,7 @@ function normalise(doc: ProjectDoc) {
       .sort((a, b) => `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`)),
     sections: doc.sections.map(({ id, ...rest }) => rest),
     views: doc.views.map(({ id, ...rest }) => rest),
+    flows: doc.flows.map(({ id, ...rest }) => rest),
   }
 }
 
@@ -326,4 +331,176 @@ flow { home -> app_home : "x" }
     const again = parseFlow(serializeFlow(first)).doc
     expect(normalise(again)).toEqual(normalise(first))
   })
+})
+
+describe("user stories", () => {
+  const source = `
+app "Storied"
+
+flows {
+  flow auth "Authentication" {
+    note "covers recovery too"
+    story {
+      as     "a returning user who has forgotten their password"
+      want   "get back in without contacting support"
+      so     "I am not blocked for a day"
+      accept [
+        "a reset link expires 30 minutes after it is issued"
+        "using a link twice fails with an explanation"
+      ]
+    }
+  }
+  flow onboarding "First run" {}
+}
+
+screen login "Sign In" {
+  template auth
+  flows [auth, onboarding]
+  story {
+    as     "a signed-out user"
+    want   "sign in with my email and password"
+    so     "I can reach my work"
+    accept [
+      "a wrong password says so without saying which field was wrong"
+      "the submit button is disabled until both fields are filled"
+    ]
+  }
+}
+
+screen home "Home" {
+  template dashboard
+  flows [onboarding]
+}
+
+flow { login -> home : "on successful login" }
+`
+
+  it("reads a story block on a screen", () => {
+    const { doc, errors } = parseFlow(source)
+    expect(errors).toEqual([])
+    const login = doc.screens.find((s) => s.key === "login")!
+    expect(login.story.role).toBe("a signed-out user")
+    expect(login.story.want).toBe("sign in with my email and password")
+    expect(login.story.soThat).toBe("I can reach my work")
+    expect(login.story.criteria).toHaveLength(2)
+    expect(login.story.criteria[1]).toContain("disabled until both fields")
+  })
+
+  it("reads flow groups and their stories", () => {
+    const { doc } = parseFlow(source)
+    expect(doc.flows.map((f) => f.key)).toEqual(["auth", "onboarding"])
+    const auth = doc.flows[0]
+    expect(auth.name).toBe("Authentication")
+    expect(auth.note).toBe("covers recovery too")
+    expect(auth.story.want).toBe("get back in without contacting support")
+    expect(auth.story.criteria).toHaveLength(2)
+  })
+
+  it("tags screens into flows, and one screen into several", () => {
+    const { doc } = parseFlow(source)
+    const keyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
+    const tags = (key: string) =>
+      doc.screens.find((s) => s.key === key)!.flows.map((id) => keyOf.get(id))
+    expect(tags("login")).toEqual(["auth", "onboarding"])
+    expect(tags("home")).toEqual(["onboarding"])
+  })
+
+  it("survives serialize → parse", () => {
+    const first = parseFlow(source).doc
+    const again = parseFlow(serializeFlow(first)).doc
+    expect(normalise(again)).toEqual(normalise(first))
+  })
+
+  it("does not mistake an arrow inside a criterion for a transition", () => {
+    const { doc } = parseFlow(`
+      screen a "A" {
+        story { accept ["login -> dashboard happens without a full reload"] }
+      }
+      screen b "B" {}
+      flow { a -> b : "next" }
+    `)
+    expect(doc.edges).toHaveLength(1)
+    expect(doc.screens.map((s) => s.key)).toEqual(["a", "b"])
+    expect(doc.screens[0].story.criteria[0]).toContain("without a full reload")
+  })
+
+  it("accepts the one-line sentence form", () => {
+    const { doc } = parseFlow(
+      `screen a "A" { story "As an admin I want to export a report, so that finance can reconcile it" }`
+    )
+    const story = doc.screens[0].story
+    expect(story.role).toBe("admin")
+    expect(story.want).toBe("export a report")
+    expect(story.soThat).toBe("finance can reconcile it")
+  })
+
+  it("strips the lead-in a model repeats back", () => {
+    const { doc } = parseFlow(`
+      screen a "A" {
+        story {
+          as   "As a billing admin"
+          want "I want to refund a charge"
+          so   "so that the customer is not chased"
+        }
+      }
+    `)
+    const story = doc.screens[0].story
+    expect(story.role).toBe("billing admin")
+    expect(story.want).toBe("refund a charge")
+    expect(story.soThat).toBe("the customer is not chased")
+  })
+
+  it("creates a flow named by a tag but never declared", () => {
+    const { doc } = parseFlow(`screen a "A" { flows [checkout] }`)
+    expect(doc.flows.map((f) => f.key)).toEqual(["checkout"])
+    expect(doc.flows[0].name).toBe("Checkout")
+    expect(doc.screens[0].flows).toEqual([doc.flows[0].id])
+  })
+
+  it("tolerates a model that lists screens inside the flow instead", () => {
+    const { doc } = parseFlow(`
+      flows { flow auth "Authentication" { screens [login, forgot] } }
+      screen login  "Sign In" {}
+      screen forgot "Forgot"  {}
+    `)
+    const auth = doc.flows[0]
+    expect(doc.screens.every((s) => s.flows.includes(auth.id))).toBe(true)
+  })
+
+  it("leaves a project with no stories exactly as it was", () => {
+    const { doc } = parseFlow(`screen a "A" { template auth }`)
+    expect(doc.flows).toEqual([])
+    expect(doc.screens[0].flows).toEqual([])
+    expect(doc.screens[0].story).toEqual({
+      role: "",
+      want: "",
+      soThat: "",
+      criteria: [],
+    })
+    expect(serializeFlow(doc)).not.toContain("story")
+  })
+})
+
+describe("the starters demonstrate the feature they teach", () => {
+  const real = starters.filter((s) => s.id !== "blank")
+
+  for (const starter of real) {
+    it(`"${starter.name}" groups its screens into journeys`, () => {
+      const { doc, errors } = parseFlow(starter.source)
+      expect(errors).toEqual([])
+      expect(doc.flows.length).toBeGreaterThan(0)
+
+      // Every screen tagged: an untagged one would sit in the Ungrouped bucket
+      // of a starter, which is the app teaching that the tag is optional.
+      const untagged = doc.screens.filter((s) => !s.flows.length)
+      expect(untagged.map((s) => s.key)).toEqual([])
+    })
+
+    it(`"${starter.name}" gives every journey a story`, () => {
+      const { doc } = parseFlow(starter.source)
+      for (const flow of doc.flows) {
+        expect(flow.story.want.trim(), `${flow.key} has no story`).not.toBe("")
+      }
+    })
+  }
 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles, SlidersHorizontal } from "lucide-react"
+import { SlidersHorizontal, Sparkles } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { type Experience, useUiStore } from "@/stores/use-ui-store"
@@ -35,6 +35,10 @@ export function ExperienceToggle() {
   const setExperience = useUiStore((s) => s.setExperience)
 
   return (
+    // <fieldset> would bring legend semantics and a default border that a
+    // two-button segmented control does not want; a labelled group is the
+    // right shape.
+    // biome-ignore lint/a11y/useSemanticElements: see above
     <div
       role="group"
       aria-label="Interface mode"

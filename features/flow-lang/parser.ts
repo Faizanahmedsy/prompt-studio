@@ -4,6 +4,7 @@ import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { snippets } from "@/features/library/data/snippets"
 import { screenTemplates } from "@/features/library/data/templates"
+import { promptTargets } from "@/features/prompt/engine/targets"
 import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
@@ -11,17 +12,17 @@ import { designLanguages } from "@/features/theme/data/design-languages"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
   type FlowEdge,
+  type FlowGroup,
   type FlowView,
   type ModuleEdge,
   type ProjectDoc,
+  projectDocSchema,
   type Screen,
   type ScreenModule,
   type Section,
-  projectDocSchema,
   surfaceValues,
+  type UserStory,
 } from "@/types/project"
-
-import { promptTargets } from "@/features/prompt/engine/targets"
 
 import {
   closestMatch,
@@ -96,6 +97,15 @@ type Ctx =
   | { kind: "inner"; screenId: string }
   | { kind: "flow" }
   | { kind: "views" }
+  | { kind: "flows" }
+  | { kind: "flowGroup"; id: string }
+  /**
+   * A `story { … }` body. It holds the story object itself rather than an id
+   * because a story hangs off either a screen or a flow, and threading "which
+   * kind of parent" through would buy nothing. `collecting` is true while a
+   * multi-line `accept [ … ]` list is still open.
+   */
+  | { kind: "story"; story: UserStory; collecting: boolean }
   | { kind: "landing" }
   | { kind: "stack" }
   | { kind: "unknown" }
@@ -119,6 +129,7 @@ export function parseFlow(source: string): ParseResult {
   const moduleEdges: ModuleEdge[] = []
   const sections: Section[] = []
   const views: FlowView[] = []
+  const flows: FlowGroup[] = []
   const byKey = new Map<string, Screen>()
   let profile: string | undefined
 
@@ -126,7 +137,7 @@ export function parseFlow(source: string): ParseResult {
   let pending: Ctx | null = null
   const ctx = () => stack[stack.length - 1]
 
-  const ensureScreen = (rawKey: string, line: number, title?: string) => {
+  const ensureScreen = (rawKey: string, _line: number, title?: string) => {
     const key = slugify(rawKey)
     const existing = byKey.get(key)
     if (existing) {
@@ -142,6 +153,8 @@ export function parseFlow(source: string): ParseResult {
       note: "",
       surface: "web",
       views: [],
+      flows: [],
+      story: emptyStory(),
       x: 0,
       y: 0,
     }
@@ -201,6 +214,31 @@ export function parseFlow(source: string): ParseResult {
     }
     views.push(view)
     return view
+  }
+
+  /**
+   * Flow groups, like views, may be named before they are declared — a screen
+   * tagged `flows [auth]` in a file whose `flows { … }` block the model forgot
+   * should still be grouped, not silently ungrouped.
+   */
+  const ensureFlow = (rawKey: string, name?: string) => {
+    const key = slugify(rawKey)
+    if (!key) return null
+    const existing = flows.find((f) => f.key === key)
+    if (existing) {
+      if (name) existing.name = name
+      return existing
+    }
+    const flow: FlowGroup = {
+      id: uid("flw"),
+      key,
+      name: name || titleFromKey(key),
+      story: emptyStory(),
+      note: "",
+      order: flows.length,
+    }
+    flows.push(flow)
+    return flow
   }
 
   /** `@super_admin @admin` anywhere on a line — the view tags for a transition. */
@@ -339,6 +377,135 @@ export function parseFlow(source: string): ParseResult {
           })
       }
       continue
+    }
+
+    // ----------------------------------------------------------- story block
+    // Before the arrow test below, deliberately: an acceptance criterion may
+    // legitimately read "login -> dashboard", and that must not be mistaken
+    // for a transition.
+    if (current.kind === "story") {
+      const story = current.story
+
+      if (current.collecting) {
+        pushCriteria(story, raw, heredocs)
+        if (raw.includes("]")) current.collecting = false
+        continue
+      }
+
+      const inline = (quoted[0] ?? words.slice(1).join(" ")).trim()
+      const value = resolveHeredoc(inline, heredocs).trim()
+      switch (keyword) {
+        case "as":
+        case "as_a":
+        case "role":
+        case "persona":
+        case "who":
+          story.role = stripLead(value, /^as\s+(a|an|the)\s+/i)
+          break
+        case "want":
+        case "wants":
+        case "i_want":
+        case "iwant":
+        case "goal":
+        case "need":
+          story.want = stripLead(value, /^i\s+want\s+(to\s+)?/i)
+          break
+        case "so":
+        case "so_that":
+        case "sothat":
+        case "benefit":
+        case "value":
+        case "why":
+          story.soThat = stripLead(value, /^so\s+that\s+/i)
+          break
+        case "accept":
+        case "acceptance":
+        case "acceptance_criteria":
+        case "criteria":
+        case "ac":
+        case "given": {
+          const items = quoted.length ? quoted : bracketList(rest)
+          const heredoc = rest.match(/«H\d+»/)
+          if (heredoc) {
+            for (const line of resolveHeredoc(heredoc[0], heredocs).split("\n")) {
+              const text = line.replace(/^\s*[-*•]\s*/, "").trim()
+              if (text) story.criteria.push(text)
+            }
+          } else {
+            for (const item of items) {
+              const text = item.trim()
+              if (text) story.criteria.push(text)
+            }
+          }
+          // `accept [` on its own opens a list that runs over several lines.
+          if (raw.includes("[") && !raw.includes("]")) current.collecting = true
+          break
+        }
+        default:
+          warnings.push({
+            line,
+            message: `Unknown story property "${keyword}" — ignored.`,
+          })
+      }
+      continue
+    }
+
+    // ----------------------------------------------------------- flows block
+    if (current.kind === "flows") {
+      const declares =
+        keyword === "flow" || keyword === "journey" || keyword === "group"
+      const key = declares
+        ? (words[1] ?? slugify(quoted[0] ?? ""))
+        : (words[0] ?? slugify(quoted[0] ?? ""))
+      const flow = ensureFlow(key, quoted[0])
+      if (!flow) {
+        errors.push({ line, message: `Could not read flow: "${raw}".` })
+        continue
+      }
+      if (quoted[1]) flow.note = quoted[1]
+      pending = { kind: "flowGroup", id: flow.id }
+      continue
+    }
+
+    if (current.kind === "flowGroup") {
+      const flow = flows.find((f) => f.id === current.id)
+      if (!flow) continue
+      const inline = (quoted[0] ?? words.slice(1).join(" ")).trim()
+      switch (keyword) {
+        case "name":
+        case "title":
+          if (inline) flow.name = inline
+          continue
+        case "note":
+        case "notes":
+        case "description":
+          flow.note = resolveHeredoc(inline, heredocs).trim()
+          continue
+        case "story":
+        case "user_story":
+        case "userstory": {
+          if (quoted[0]) applyStorySentence(flow.story, quoted[0])
+          pending = { kind: "story", story: flow.story, collecting: false }
+          continue
+        }
+        case "screens":
+        case "screen": {
+          // Membership really lives on the screen. A model that lists screens
+          // here anyway is understood rather than corrected — losing the
+          // grouping over a matter of style would be the worse outcome.
+          for (const item of bracketList(rest).concat(quoted)) {
+            const screen = ensureScreen(item, line)
+            if (!screen.flows.includes(flow.id)) screen.flows.push(flow.id)
+          }
+          continue
+        }
+        default:
+          warnings.push({
+            line,
+            message: `Unknown flow property "${keyword}" — ignored.`,
+          })
+          continue
+      }
     }
 
     // ------------------------------------------------------------ flow block
@@ -538,6 +705,28 @@ export function parseFlow(source: string): ParseResult {
         case "description":
           screen.note = resolveHeredoc(quoted[0] ?? value, heredocs)
           break
+        case "story":
+        case "user_story":
+        case "userstory": {
+          // Both forms are accepted: a `story { … }` body, and the one-line
+          // `story "As a … I want … so that …"` a model writes when it is
+          // being terse.
+          if (quoted[0]) {
+            applyStorySentence(screen.story, resolveHeredoc(quoted[0], heredocs))
+          }
+          pending = { kind: "story", story: screen.story, collecting: false }
+          break
+        }
+        case "flows":
+        case "flow":
+        case "journeys":
+        case "journey": {
+          for (const item of bracketList(rest).concat(quoted)) {
+            const flow = ensureFlow(item)
+            if (flow && !screen.flows.includes(flow.id)) screen.flows.push(flow.id)
+          }
+          break
+        }
         default:
           warnings.push({
             line,
@@ -571,6 +760,11 @@ export function parseFlow(source: string): ParseResult {
       case "roles":
       case "personas": {
         pending = { kind: "views" }
+        continue
+      }
+      case "flows":
+      case "journeys": {
+        pending = { kind: "flows" }
         continue
       }
       case "landing":
@@ -681,6 +875,17 @@ export function parseFlow(source: string): ParseResult {
   for (const screen of screens) {
     screen.views = screen.views.filter((id) => viewIds.has(id))
   }
+
+  flows.forEach((flow, index) => {
+    flow.order = index
+  })
+  doc.flows = flows
+  const flowIds = new Set(flows.map((f) => f.id))
+  for (const screen of screens) {
+    // A tag naming a flow that never materialised would render as a group
+    // nothing can select, so it is dropped rather than kept as a ghost.
+    screen.flows = [...new Set(screen.flows.filter((id) => flowIds.has(id)))]
+  }
   for (const edge of edges) {
     edge.views = edge.views.filter((id) => viewIds.has(id))
   }
@@ -704,6 +909,55 @@ export function parseFlow(source: string): ParseResult {
   }
 
   return { doc, profile, warnings, errors }
+}
+
+function emptyStory(): UserStory {
+  return { role: "", want: "", soThat: "", criteria: [] }
+}
+
+/**
+ * Models restate the scaffolding they were given — `as "As a signed-in admin"`,
+ * `want "I want to see every client"`. Storing that means rendering "As a As a
+ * signed-in admin" in the prompt, so the lead-in comes off here, once, rather
+ * than being worked around at every place a story is displayed.
+ */
+function stripLead(value: string, lead: RegExp) {
+  return value.replace(lead, "").replace(/^[,\s]+/, "").replace(/[,.\s]+$/, "").trim()
+}
+
+/** The one-line form: `story "As a … I want … so that …"`. */
+function applyStorySentence(story: UserStory, sentence: string) {
+  const text = sentence.trim()
+  if (!text) return
+  const match = text.match(
+    /^as\s+(?:an?|the)?\s*(.+?)[,\s]+i\s+want\s+(?:to\s+)?(.+?)(?:[,\s]+so\s+that\s+(.+))?$/i
+  )
+  if (!match) {
+    // Not the canonical shape — keep it whole rather than throwing it away.
+    if (!story.want) story.want = text
+    return
+  }
+  if (!story.role) story.role = match[1].trim()
+  if (!story.want) story.want = match[2].trim().replace(/[.,]$/, "")
+  if (!story.soThat && match[3]) story.soThat = match[3].trim().replace(/[.]$/, "")
+}
+
+/** One line of a multi-line `accept [ … ]` list. */
+function pushCriteria(story: UserStory, raw: string, heredocs: string[]) {
+  const body = raw.replace(/[[\]]/g, " ")
+  const { rest, quoted } = readQuoted(body)
+  if (quoted.length) {
+    for (const item of quoted) {
+      const text = item.trim()
+      if (text) story.criteria.push(text)
+    }
+    return
+  }
+  const text = resolveHeredoc(rest, heredocs)
+    .replace(/^\s*[-*•]\s*/, "")
+    .replace(/,\s*$/, "")
+    .trim()
+  if (text) story.criteria.push(text)
 }
 
 function titleFromKey(key: string) {

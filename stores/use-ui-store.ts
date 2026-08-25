@@ -50,6 +50,17 @@ type UiState = {
   activeViewId: string | null
   /** show only screens explicitly tagged for the active view */
   viewStrict: boolean
+  /**
+   * Which journey the canvas is filtered to; null = the whole app. The second
+   * axis, independent of `activeViewId` — a screen has one role set and belongs
+   * to several journeys, so the two filters compose rather than replace each
+   * other. `"ungrouped"` is the bucket for screens carrying no flow tag: it is
+   * shown rather than hidden, because a screen in no journey is one nobody has
+   * said the purpose of.
+   */
+  activeFlowId: string | null
+  /** keep the rest of the app on screen, faded, instead of hiding it */
+  flowFaded: boolean
 
   setMode: (mode: WorkMode) => void
   toggleLeft: () => void
@@ -62,7 +73,12 @@ type UiState = {
   reportCardHeight: (id: string, height: number) => void
   setActiveView: (id: string | null) => void
   setViewStrict: (strict: boolean) => void
+  setActiveFlow: (id: string | null) => void
+  setFlowFaded: (faded: boolean) => void
 }
+
+/** The bucket for screens with no journey tag at all. */
+export const UNGROUPED_FLOW = "ungrouped"
 
 export const useUiStore = create<UiState>()(
   persist(
@@ -84,6 +100,8 @@ export const useUiStore = create<UiState>()(
       cardHeights: {},
       activeViewId: null,
       viewStrict: false,
+      activeFlowId: null,
+      flowFaded: false,
 
       // "flow" was the old name for the web surface.
       setMode: (mode) => set({ mode: (mode as string) === "flow" ? "web" : mode }),
@@ -101,6 +119,8 @@ export const useUiStore = create<UiState>()(
       setExpandedScreens: (expandedScreenIds) => set({ expandedScreenIds }),
       setActiveView: (activeViewId) => set({ activeViewId }),
       setViewStrict: (viewStrict) => set({ viewStrict }),
+      setActiveFlow: (activeFlowId) => set({ activeFlowId }),
+      setFlowFaded: (flowFaded) => set({ flowFaded }),
       // Sub-pixel jitter from a resize observer must not loop the canvas.
       reportCardHeight: (id, height) =>
         set((s) => {

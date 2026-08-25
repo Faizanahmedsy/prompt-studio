@@ -13,6 +13,11 @@ import {
 } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
+import {
+  stackFor,
+  structureFor,
+  surfaceMeta,
+} from "@/features/builder/utils/surfaces"
 import { conventions } from "@/features/stack/data/conventions"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import {
@@ -20,11 +25,6 @@ import {
   stackWarnings,
 } from "@/features/stack/data/stack-catalogue"
 import { structureMap, structurePresets } from "@/features/stack/data/structures"
-import {
-  stackFor,
-  structureFor,
-  surfaceMeta,
-} from "@/features/builder/utils/surfaces"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Stack, Structure, Surface } from "@/types/project"

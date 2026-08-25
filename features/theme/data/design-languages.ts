@@ -35,6 +35,26 @@ export type DesignLanguage = {
 
 export const designLanguages: DesignLanguage[] = [
   {
+    id: "basic",
+    name: "Basic",
+    tagline: "No design at all — structure only",
+    traits: ["No colour", "Browser defaults", "Spacing only"],
+    promptDetails:
+      "**Do not design this.** Produce unstyled, semantically correct HTML and nothing more: real headings in order, labelled form controls, `<table>` for tabular data, `<button>` for actions, `<a>` for navigation. No colour palette, no brand colour, no background fills, no gradients, no shadows, no border radius, no icon set, no custom fonts — the browser's defaults, left alone. The only styling permitted is whatever spacing and max-width is needed to keep the page readable, and the visible focus outline, which must not be removed. Every interactive state (hover, focus, disabled, loading, error) must still be distinguishable without colour. This is the right starting point when the visual design is arriving separately — a stylesheet dropped in later should be able to style this markup without any of it being fought first.",
+    preview: {
+      radius: 2,
+      shadow: "none",
+      border: 1,
+      tint: 0,
+      headingWeight: 700,
+      headingTracking: "0",
+      fontFamily: "sans",
+      density: 1,
+      buttonRadius: "sm",
+      accent: "outline",
+    },
+  },
+  {
     id: "modern-soft",
     name: "Modern & friendly",
     tagline: "Rounded, soft shadows, generous space",

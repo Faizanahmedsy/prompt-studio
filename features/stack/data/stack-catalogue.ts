@@ -1,6 +1,5 @@
-import { isNative, platformOf } from "./platforms"
-
 import type { Stack } from "@/types/project"
+import { isNative, platformOf } from "./platforms"
 
 export type StackOption = {
   id: string

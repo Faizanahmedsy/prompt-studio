@@ -1,5 +1,22 @@
 import type { LayoutOption } from "./layout-types"
 import {
+  avatarRow,
+  bar,
+  card,
+  chart,
+  circle,
+  col,
+  field,
+  frame,
+  grid,
+  heading,
+  pill,
+  row,
+  spacer,
+  sub,
+  table,
+} from "./wire-helpers"
+import {
   appBar,
   bubbles,
   chipRow,
@@ -22,23 +39,6 @@ import {
   tabBar,
   tabBarWithFab,
 } from "./wire-mobile"
-import {
-  avatarRow,
-  bar,
-  card,
-  chart,
-  circle,
-  col,
-  field,
-  frame,
-  grid,
-  heading,
-  pill,
-  row,
-  spacer,
-  sub,
-  table,
-} from "./wire-helpers"
 
 /** Left navigation rail used by most app-shell layouts. */
 const rail = (width = 22) =>

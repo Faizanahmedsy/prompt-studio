@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm check
+
+      - name: Types
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        # `NEXT_PUBLIC_*` is inlined at build time, so the build needs values —
+        # a missing one produces a bundle that points at nothing and fails only
+        # in the browser, long after CI has gone green.
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8010
+          NEXT_PUBLIC_WS_URL: ws://localhost:8010
+        run: pnpm build
+
+  # The browser suite needs the API, the app and Chrome all running at once, so
+  # it is a separate job rather than three more steps on the one above.
+  browser:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: intelliwealth
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: prompt_studio
+        ports: ["5442:5432"]
+        options: >-
+          --health-cmd "pg_isready -U intelliwealth"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6382:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 5
+
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@v4
+        with:
+          path: prompt-studio
+
+      - name: Check out the API
+        uses: actions/checkout@v4
+        with:
+          repository: faizanahmed-sy-devstree/prompt-studio-backend
+          path: prompt-studio-backend
+          # A private sibling repo, so the default GITHUB_TOKEN is not enough.
+          # Without this secret the job is skipped rather than failing red.
+          token: ${{ secrets.BACKEND_REPO_TOKEN }}
+        continue-on-error: true
+        id: backend
+
+      - name: Skip if the API is not available
+        if: steps.backend.outcome != 'success'
+        run: |
+          echo "::notice::BACKEND_REPO_TOKEN is not set, so the browser suite cannot run."
+          echo "SKIP=1" >> "$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@v5
+        if: env.SKIP != '1'
+      - uses: pnpm/action-setup@v4
+        if: env.SKIP != '1'
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with:
+          node-version: 22
+
+      - name: Start the API
+        if: env.SKIP != '1'
+        working-directory: prompt-studio-backend
+        env:
+          ENVIRONMENT: development
+          SECRET_KEY: ci-only-secret-key-not-used-anywhere-else-0123456789
+          REDIS_PASSWORD: ""
+          BACKEND_CORS_ORIGINS: '["http://localhost:3002"]'
+          # Every request in CI comes from one address; the production quotas
+          # would throttle the suite rather than anything it is testing.
+          RATE_LIMIT_REGISTER: 5000/3600
+          RATE_LIMIT_SIGN_IN: 5000/300
+          BCRYPT_ROUNDS: 4
+        run: |
+          uv sync
+          uv run alembic upgrade head
+          uv run python -m app.seed
+          uv run uvicorn app.main:app --port 8010 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8010/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8010/health
+
+      - name: Start the app
+        if: env.SKIP != '1'
+        working-directory: prompt-studio
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8010
+          NEXT_PUBLIC_WS_URL: ws://localhost:8010
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm start -p 3002 &
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3002/login >/dev/null && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://127.0.0.1:3002/login
+
+      - name: Drive it
+        if: env.SKIP != '1'
+        working-directory: prompt-studio
+        env:
+          APP: http://localhost:3002
+          API: http://127.0.0.1:8010
+        run: pnpm test:browser

@@ -3,18 +3,20 @@ import {
   isMobileLayout,
 } from "@/features/library/data/layouts"
 import { moduleKindMap } from "@/features/library/data/module-kinds"
-import { screenTemplateMap } from "@/features/library/data/templates"
 import { sectionTypeMap } from "@/features/library/data/section-types"
+import { screenTemplateMap } from "@/features/library/data/templates"
+import { slugify, uid, uniqueKey } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
-import { slugify, uid, uniqueKey } from "@/lib/utils"
 import type {
+  FlowGroup,
   FlowView,
   ProjectDoc,
   Screen,
   ScreenModule,
   Section,
   Surface,
+  UserStory,
 } from "@/types/project"
 
 import { autoLayout, edgeExists } from "./graph"
@@ -57,6 +59,8 @@ export function addScreen(
       note: "",
       surface,
       views: [],
+      flows: [],
+      story: { role: "", want: "", soThat: "", criteria: [] },
       x: position?.x ?? 80 + (doc.screens.length % 4) * 260,
       y: position?.y ?? 80 + Math.floor(doc.screens.length / 4) * 180,
     }
@@ -306,6 +310,140 @@ export function toggleScreenView(screenId: string, viewId: string) {
       ? screen.views.filter((v) => v !== viewId)
       : [...screen.views, viewId]
   })
+}
+
+// ----------------------------------------------------------------- flows
+
+/**
+ * Flow groups are the *journey* axis, independent of views.
+ *
+ * Membership is a tag on the screen and nothing else. Nothing here derives a
+ * group from the graph: a derived group re-computes the moment an edge is
+ * added, which means it changes under the person looking at it and there is no
+ * way to say "no, that screen is not part of checkout". A tag can just be
+ * removed.
+ */
+export function addFlow(name = "New flow"): string | null {
+  let newId: string | null = null
+  update((doc) => {
+    const flow: FlowGroup = {
+      id: uid("flw"),
+      key: uniqueKey(
+        slugify(name),
+        doc.flows.map((f) => f.key)
+      ),
+      name,
+      story: { role: "", want: "", soThat: "", criteria: [] },
+      note: "",
+      order: doc.flows.length,
+    }
+    newId = flow.id
+    doc.flows.push(flow)
+  })
+  return newId
+}
+
+export function updateFlow(id: string, patch: Partial<FlowGroup>) {
+  update((doc) => {
+    const flow = doc.flows.find((f) => f.id === id)
+    if (!flow) return
+    if (patch.key) {
+      patch.key = uniqueKey(
+        slugify(patch.key),
+        doc.flows.filter((f) => f.id !== id).map((f) => f.key)
+      )
+    }
+    Object.assign(flow, patch)
+  })
+}
+
+export function deleteFlow(id: string) {
+  update((doc) => {
+    doc.flows = doc.flows.filter((f) => f.id !== id)
+    // The screens stay; they simply become ungrouped, which the flow picker
+    // shows rather than hides.
+    for (const screen of doc.screens) {
+      screen.flows = screen.flows.filter((f) => f !== id)
+    }
+    doc.flows.forEach((flow, index) => {
+      flow.order = index
+    })
+  })
+}
+
+/** Adds or removes one flow tag on a screen. */
+export function toggleScreenFlow(screenId: string, flowId: string) {
+  update((doc) => {
+    const screen = doc.screens.find((s) => s.id === screenId)
+    if (!screen) return
+    screen.flows = screen.flows.includes(flowId)
+      ? screen.flows.filter((f) => f !== flowId)
+      : [...screen.flows, flowId]
+  })
+}
+
+// ---------------------------------------------------------------- stories
+
+/**
+ * Patches the story of a screen or a flow, whichever owns `id`.
+ *
+ * Coalesced per field. A story is the most typing there is anywhere in this
+ * app — three sentences and a list of criteria — and without this every
+ * keystroke is its own undo step, so one ⌘Z after writing a story rubs out a
+ * single character. The key includes the field so moving between them still
+ * breaks the run.
+ */
+export function updateStory(id: string, patch: Partial<UserStory>) {
+  const field = Object.keys(patch)[0] ?? "story"
+  update(
+    (doc) => {
+      const owner =
+        doc.screens.find((s) => s.id === id) ?? doc.flows.find((f) => f.id === id)
+      if (!owner) return
+      Object.assign(owner.story, patch)
+    },
+    { coalesce: `story:${id}:${field}` }
+  )
+}
+
+export function setCriterion(id: string, index: number, text: string) {
+  update(
+    (doc) => {
+      const owner =
+        doc.screens.find((s) => s.id === id) ?? doc.flows.find((f) => f.id === id)
+      if (!owner || index < 0 || index >= owner.story.criteria.length) return
+      owner.story.criteria[index] = text
+    },
+    { coalesce: `criterion:${id}:${index}` }
+  )
+}
+
+export function addCriterion(id: string) {
+  update((doc) => {
+    const owner =
+      doc.screens.find((s) => s.id === id) ?? doc.flows.find((f) => f.id === id)
+    if (!owner) return
+    owner.story.criteria.push("")
+  })
+}
+
+export function removeCriterion(id: string, index: number) {
+  update((doc) => {
+    const owner =
+      doc.screens.find((s) => s.id === id) ?? doc.flows.find((f) => f.id === id)
+    if (!owner) return
+    owner.story.criteria.splice(index, 1)
+  })
+}
+
+/** True when anything at all has been written — what the canvas marker reads. */
+export function hasStory(story: UserStory): boolean {
+  return Boolean(
+    story.role.trim() ||
+      story.want.trim() ||
+      story.soThat.trim() ||
+      story.criteria.some((c) => c.trim())
+  )
 }
 
 export function toggleEdgeView(edgeId: string, viewId: string) {

@@ -1,5 +1,5 @@
 import { sectionTypeMap } from "@/features/library/data/section-types"
-import type { ProjectDoc } from "@/types/project"
+import type { ProjectDoc, UserStory } from "@/types/project"
 
 /**
  * Emits canonical `.flow` source for a project document.
@@ -29,9 +29,31 @@ export function serializeFlow(doc: ProjectDoc): string {
     out.push("}")
   }
 
+  if (doc.flows.length) {
+    out.push("")
+    out.push("flows {")
+    for (const flow of [...doc.flows].sort((a, b) => a.order - b.order)) {
+      const head = `  flow ${flow.key} ${quote(flow.name)}`
+      const hasStory = storyLines(flow.story, 4).length > 0
+      if (!hasStory && !flow.note.trim()) {
+        out.push(`${head} {}`)
+        continue
+      }
+      out.push(`${head} {`)
+      if (flow.note.trim()) out.push(`    note ${block(flow.note.trim(), 4)}`)
+      out.push(...storyLines(flow.story, 4))
+      out.push("  }")
+    }
+    out.push("}")
+  }
+
   const viewKeyOf = new Map(doc.views.map((v) => [v.id, v.key]))
   const viewKeys = (ids: string[]) =>
     ids.map((id) => viewKeyOf.get(id)).filter(Boolean) as string[]
+
+  const flowKeyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
+  const flowKeys = (ids: string[]) =>
+    ids.map((id) => flowKeyOf.get(id)).filter(Boolean) as string[]
 
   if (doc.screens.length) {
     out.push("")
@@ -45,6 +67,9 @@ export function serializeFlow(doc: ProjectDoc): string {
       if (screen.surface !== "web") out.push(`  surface ${screen.surface}`)
       const belongsTo = viewKeys(screen.views)
       if (belongsTo.length) out.push(`  in [${belongsTo.join(", ")}]`)
+      const journeys = flowKeys(screen.flows)
+      if (journeys.length) out.push(`  flows [${journeys.join(", ")}]`)
+      out.push(...storyLines(screen.story, 2))
 
       const modules = doc.modules
         .filter((m) => m.screenId === screen.id)
@@ -167,6 +192,40 @@ export function serializeFlow(doc: ProjectDoc): string {
   }
 
   return `${out.join("\n")}\n`
+}
+
+/**
+ * A `story { … }` body, or nothing at all when the story is empty.
+ *
+ * Emitted as a block rather than a sentence so it parses back into the same
+ * three fields it came from — the round-trip is what makes the code view a
+ * real editing surface rather than an export.
+ */
+function storyLines(story: UserStory, indent: number): string[] {
+  // A story field is one sentence. Collapsing any newline that got typed into
+  // one keeps `quote()` honest — it has no escape for a line break, and a raw
+  // one would split the statement in half on the way back in.
+  const flat = (value: string) => value.replace(/\s*\n\s*/g, " ").trim()
+  const role = flat(story.role)
+  const want = flat(story.want)
+  const soThat = flat(story.soThat)
+  const criteria = story.criteria.map(flat).filter(Boolean)
+  if (!role && !want && !soThat && !criteria.length) return []
+
+  const pad = " ".repeat(indent)
+  const inner = " ".repeat(indent + 2)
+  const item = " ".repeat(indent + 4)
+  const lines = [`${pad}story {`]
+  if (role) lines.push(`${inner}as     ${quote(role)}`)
+  if (want) lines.push(`${inner}want   ${quote(want)}`)
+  if (soThat) lines.push(`${inner}so     ${quote(soThat)}`)
+  if (criteria.length) {
+    lines.push(`${inner}accept [`)
+    for (const entry of criteria) lines.push(`${item}${quote(entry)}`)
+    lines.push(`${inner}]`)
+  }
+  lines.push(`${pad}}`)
+  return lines
 }
 
 function quote(value: string) {

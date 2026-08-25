@@ -1,5 +1,6 @@
 export type BlockId =
   | "overview"
+  | "flows"
   | "screens"
   | "navigation"
   | "views"
@@ -45,6 +46,7 @@ export const promptTargets: PromptTarget[] = [
       "stack",
       "structure",
       "conventions",
+      "flows",
       "screens",
       "navigation",
       "views",
@@ -68,6 +70,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "flows",
       "screens",
       "navigation",
       "views",
@@ -96,6 +99,7 @@ export const promptTargets: PromptTarget[] = [
       "stack",
       "structure",
       "conventions",
+      "flows",
       "screens",
       "navigation",
       "views",
@@ -119,6 +123,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "flows",
       "screens",
       "navigation",
       "views",
@@ -147,6 +152,7 @@ export const promptTargets: PromptTarget[] = [
       "stack",
       "structure",
       "conventions",
+      "flows",
       "screens",
       "navigation",
       "views",

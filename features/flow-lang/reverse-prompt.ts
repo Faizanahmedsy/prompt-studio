@@ -136,7 +136,7 @@ There is no file tree to read; the navigators are the source of truth.
 \`\`\`bash
 rg -n 'createNativeStackNavigator|createBottomTabNavigator|createDrawerNavigator'
 rg -n '<Stack.Screen|<Tab.Screen|<Drawer.Screen'   # every screen + its name
-rg -n 'navigation\.(navigate|push|replace|goBack|popTo)'
+rg -n 'navigation\\.(navigate|push|replace|goBack|popTo)'
 \`\`\`
 
 Every \`<Stack.Screen name="...">\` is one screen; the \`component\` prop points at
@@ -146,7 +146,7 @@ the file to read.
 
 \`\`\`bash
 rg -n 'NavigationStack|NavigationSplitView|TabView|navigationDestination'
-rg -n '\.sheet\(|\.fullScreenCover\(|\.popover\(|\.alert\(|\.confirmationDialog\('
+rg -n '\\.sheet\\(|\\.fullScreenCover\\(|\\.popover\\(|\\.alert\\(|\\.confirmationDialog\\('
 rg --files -g '**/*View.swift'
 \`\`\`
 
@@ -164,7 +164,7 @@ rg --files -g '**/*View.swift'
 
 \`\`\`bash
 rg -n ': UIViewController|: UITableViewController|: UICollectionViewController'
-rg -n 'pushViewController|present\(|performSegue|instantiateViewController'
+rg -n 'pushViewController|present\\(|performSegue|instantiateViewController'
 rg --files -g '**/*.storyboard'
 \`\`\`
 
@@ -355,6 +355,74 @@ Rules:
 
 ---
 
+# Phase 2c — user journeys, and a story for every screen
+
+The diagram is read two ways: the **whole app** — every screen and every
+transition — and **flow-wise**, the same screens grouped into named user
+journeys. You produce both, from one file. The transitions are written once in
+\`flow { … }\`; a screen's \`flows [ … ]\` tag is what the second reading uses.
+
+\`\`\`
+flows {
+  flow auth "Authentication" {
+    story {
+      as     "a signed-out member of staff"
+      want   "get into the console, and back in when I have lost my password"
+      so     "I can start work without raising a ticket"
+      accept [
+        "the reset link is single-use and expires (lib/auth/reset.ts: 30 min)"
+        "a failed sign in does not reveal whether the address exists"
+      ]
+    }
+  }
+  flow client_admin "Managing clients" {
+    story { as "an org admin"; want "keep the client list accurate"; so "the team never works from stale records" }
+  }
+}
+
+screen clients "Clients" {
+  template table
+  flows    [client_admin]
+  story {
+    as     "an org admin"
+    want   "find a client and open their record"
+    so     "I can answer a question without leaving the console"
+    accept [
+      "the list is scoped to the signed-in organisation (proxy.ts)"
+      "filters are held in the URL, so a filtered list can be sent to someone"
+      "? deletion appears to be soft — deleted_at is set, but nothing reads it"
+    ]
+  }
+}
+\`\`\`
+
+Rules — and these differ from writing a story for a product that does not exist
+yet, because **you are describing code that already runs**:
+
+- **Every screen gets a story, and every screen gets at least one flow tag.**
+  An untagged screen is one nobody could say the purpose of.
+- **Say what the code does, not what it ought to do.** The acceptance criteria
+  are read off the implementation — the validation that is actually there, the
+  guard that actually runs, the empty state that actually renders.
+- **Where the behaviour is unclear, say so** with a leading \`?\`, exactly as you
+  would in a note. Never invent a criterion to round the story out: a story with
+  two real criteria is worth more than one with five, three of which nobody
+  implemented. This is the same rule as the citation rule, applied to stories.
+- **3–6 criteria** per story. Prefer the rules a reader could not guess from the
+  screen's name — what happens on failure, what is scoped, what is cached, what
+  is irreversible.
+- **Aim for 3–8 flows.** Group by what a person is trying to get done, not by
+  folder: \`auth\`, \`onboarding\`, \`client_admin\`, \`billing\`, \`reporting\`. A
+  route group is often a good starting guess, and often wrong — check the
+  transitions before trusting it.
+- **A flow is not a role.** "Admin" belongs in \`views\`; "invite a user" is a
+  flow. If a name would fit in the \`views\` block, it is not a flow.
+- Tag generously: a dashboard several journeys return to belongs to all of them.
+- Keep \`src:\` citations in the \`note\`, not in the story. The story says what
+  the screen is for; the note says where it lives.
+
+---
+
 # Phase 3 — backend repositories
 
 Same grammar, service semantics. Do **not** invent new keywords.
@@ -389,7 +457,9 @@ main ones". Instead:
    attaches rather than duplicating. A correct half is useful; a fabricated
    whole is not.
 4. Depth is what gets cut under pressure, never coverage: a screen with a
-   \`template\` and one note is fine, a missing screen is not.
+   \`template\`, a flow tag and a one-line story is fine, a missing screen is
+   not. If something has to give, drop acceptance criteria before dropping
+   screens, and drop screens never.
 
 ---
 
@@ -405,9 +475,36 @@ app "Name from package.json" {
   theme { design modern-soft; primary #2563eb }
 }
 
+flows {
+  flow auth "Authentication" {
+    story { as "a signed-out user"; want "get into the console"; so "I can start work" }
+  }
+  flow client_admin "Managing clients" {
+    story {
+      as     "an org admin"
+      want   "find a client and see everything recorded against them"
+      so     "I can answer a question without leaving the console"
+      accept [
+        "every query is scoped to the signed-in organisation (proxy.ts)"
+        "filters live in the URL, so a filtered list can be shared as a link"
+      ]
+    }
+  }
+}
+
 screen clients "Clients" {
   template table
   layout   table-advanced
+  flows    [client_admin]
+  story {
+    as     "an org admin"
+    want   "search and filter the client list"
+    so     "I can reach one record out of several thousand"
+    accept [
+      "paging is server-side; the client never holds the whole list"
+      "? above 500 rows the table falls back to client-side paging"
+    ]
+  }
   note     "Server component; useClients() → GET /api/clients, paged. src: app/(app)/clients/page.tsx"
 
   module filters   "Filter bar"   { kind filters; on "page load"; note "URL-synced. src: features/clients/components/client-filters.tsx" }
@@ -423,9 +520,31 @@ screen clients "Clients" {
   }
 }
 
+screen login "Sign In" {
+  template auth
+  layout   auth-split
+  flows    [auth]
+  story {
+    as     "a signed-out user"
+    want   "sign in with email and password"
+    so     "I can reach the console"
+    accept [ "a failed attempt keeps the email filled in" ]
+  }
+  note     "Credentials POST /api/auth/login. src: app/(auth)/login/page.tsx"
+}
+
 screen client_detail "Client Detail" {
   template detail
   layout   detail-two-column
+  flows    [client_admin]
+  story {
+    as     "an org admin"
+    want   "see a client's history in one place"
+    so     "I do not have to reconstruct it from three screens"
+    accept [
+      "the Activity tab loads on selection, not with the page"
+    ]
+  }
   note     "src: app/(app)/clients/[id]/page.tsx"
   module tabs     "Tabs"     { kind tabs }
   module activity "Activity" { kind list; on "select the Activity tab" }

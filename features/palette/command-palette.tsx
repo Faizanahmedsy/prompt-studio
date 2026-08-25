@@ -35,20 +35,20 @@ import {
   addSection,
   arrangeScreens,
 } from "@/features/builder/utils/actions"
-import { PasteFlowDialog } from "@/features/flow-lang/components/flow-code-view"
 import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
+import { PasteFlowDialog } from "@/features/flow-lang/components/flow-code-view"
 import { buildFragmentPrompt } from "@/features/flow-lang/fragment-prompt"
 import { buildReverseEnginePrompt } from "@/features/flow-lang/reverse-prompt"
-import { screenTemplates } from "@/features/library/data/templates"
 import { sectionTypes } from "@/features/library/data/section-types"
 import { starters } from "@/features/library/data/starters"
+import { screenTemplates } from "@/features/library/data/templates"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { copyText, downloadFile } from "@/lib/download"
 import { encodeShare, shareUrl } from "@/lib/share-codec"
 import { useProjectStore } from "@/stores/use-project-store"
-import type { Surface } from "@/types/project"
 import { useUiStore } from "@/stores/use-ui-store"
-import { SCHEMA_VERSION, type Project } from "@/types/project"
+import type { Surface } from "@/types/project"
+import { type Project, SCHEMA_VERSION } from "@/types/project"
 
 export function CommandPalette({ project }: { project: Project }) {
   const open = useUiStore((s) => s.paletteOpen)

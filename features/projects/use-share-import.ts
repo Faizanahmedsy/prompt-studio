@@ -5,7 +5,7 @@ import { toast } from "sonner"
 
 import { clearShareToken, decodeShare, readShareToken } from "@/lib/share-codec"
 import { useProjectStore } from "@/stores/use-project-store"
-import { SCHEMA_VERSION, projectFileSchema } from "@/types/project"
+import { projectFileSchema, SCHEMA_VERSION } from "@/types/project"
 
 /**
  * Opens a `#s=` share link. The payload is validated through the same schema as

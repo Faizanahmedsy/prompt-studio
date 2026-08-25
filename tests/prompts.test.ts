@@ -8,6 +8,7 @@ import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
 import { starterDoc } from "@/features/library/data/starters"
 import { screenTemplates } from "@/features/library/data/templates"
+import { buildFigmaImportPrompt } from "@/features/theme/figma-prompt"
 
 /**
  * Every fenced block in a prompt is an example the model will copy. An example
@@ -156,5 +157,160 @@ describe("choosing which builds to produce", () => {
     const prompt = buildFragmentPrompt(doc)
     expect(prompt).toContain("· mobile")
     expect(prompt).toContain("Say which build each new screen belongs to")
+  })
+})
+
+describe("the shell snippets the reverse prompt hands to ripgrep", () => {
+  /**
+   * These are regexes written inside a template literal, so `\.` and `\(` in
+   * the source are dropped before the string ever exists — the escape has to be
+   * `\\.` and `\\(` to survive. Three of them were not, which turned `\(` into
+   * an unterminated group: `rg` answers with a syntax error and the model reads
+   * an empty result as "this project has none of those".
+   *
+   * The assertions run against the GENERATED prompt for exactly that reason.
+   * Checking the source would pass while the output stayed broken.
+   */
+  const prompt = prompts.reverse
+
+  function shellPatterns(source: string): { line: string; pattern: string }[] {
+    return (source.match(/```bash\n[\s\S]*?```/g) ?? [])
+      .flatMap((block) => block.split("\n"))
+      .filter((line) => /^\s*(rg|grep|find)\b/.test(line))
+      .map((line) => ({ line, pattern: line.match(/'([^']*)'/)?.[1] ?? "" }))
+      .filter((entry) => entry.pattern !== "")
+  }
+
+  it("emits patterns ripgrep can actually parse", () => {
+    const patterns = shellPatterns(prompt)
+    expect(patterns.length).toBeGreaterThan(10)
+
+    for (const { line, pattern } of patterns) {
+      const opens = (pattern.match(/(?<!\\)\(/g) ?? []).length
+      const closes = (pattern.match(/(?<!\\)\)/g) ?? []).length
+      expect(opens, `unbalanced brackets — rg would refuse this: ${line}`).toBe(closes)
+    }
+  })
+
+  it("keeps the escapes that make a dot mean a dot", () => {
+    // `navigation.` matches navigationRef, navigationState and every other
+    // near-miss; `navigation\.` is what was meant.
+    expect(prompt).toContain("navigation\\.(navigate")
+    expect(prompt).toContain("\\.sheet\\(")
+    expect(prompt).toContain("present\\(")
+  })
+})
+
+describe("asking the model for journeys and stories", () => {
+  it("tells the authoring prompt to produce both diagrams from one file", () => {
+    const p = prompts.authoring
+    expect(p).toContain("two diagrams")
+    expect(p).toContain("whole-app")
+    expect(p).toContain("flow-wise")
+    expect(p).toMatch(/Name the journeys before you name the screens/i)
+  })
+
+  it("requires a flow tag on every screen and a story on both", () => {
+    const p = prompts.authoring
+    expect(p).toMatch(/Every screen carries at least one .*flows/i)
+    expect(p).toMatch(/story \{ … \}. for every screen and every flow/i)
+    expect(p).toContain("3–6 acceptance criteria")
+  })
+
+  it("warns the model off confusing a journey with a role", () => {
+    for (const p of [prompts.authoring, prompts.reverse]) {
+      expect(p).toMatch(/a flow is (not|a journey, never) a role/i)
+    }
+  })
+
+  it("tells the reverse prompt to describe what the code does, not what it should", () => {
+    const p = prompts.reverse
+    expect(p).toMatch(/Say what the code does, not what it ought to do/i)
+    expect(p).toMatch(/Never invent a criterion/i)
+  })
+
+  it("gives the fragment prompt the project's existing journeys", () => {
+    const doc = parseFlow(`
+      flows { flow auth "Authentication" {} }
+      screen login "Sign In" { flows [auth] }
+    `).doc
+    const p = buildFragmentPrompt(doc)
+    expect(p).toContain("`auth`")
+    expect(p).toContain("Authentication")
+    expect(p).toMatch(/inventing .authentication. beside an existing .auth./i)
+  })
+
+  it("every complete worked example tags all of its screens into a journey", () => {
+    // The complete examples — the ones that open with `app "…"` — are what the
+    // model copies wholesale. One that skips the tag teaches that the tag is
+    // optional, and the demonstration beats the rule every time.
+    //
+    // The focused snippets are deliberately exempt: the three lines showing
+    // what `surface` does, or the `views` block showing role tags, teach one
+    // keyword each, and padding them with unrelated syntax is how an example
+    // stops being readable.
+    let checked = 0
+    for (const [name, prompt] of Object.entries(prompts)) {
+      for (const example of flowExamples(prompt)) {
+        if (!/^\s*app\s+"/m.test(example)) continue
+        checked += 1
+        const { doc } = parseFlow(example)
+        const untagged = doc.screens.filter((s) => !s.flows.length)
+        expect(
+          untagged.map((s) => s.key),
+          `untagged screens in a ${name} example`
+        ).toEqual([])
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+})
+
+describe("the Figma import prompt", () => {
+  const doc = starterDoc("saas-dashboard")!
+
+  it("names the file it writes and the tokens the project already uses", () => {
+    const p = buildFigmaImportPrompt(doc)
+    expect(p).toContain("app/globals.css")
+    expect(p).toContain("--primary / --primary-foreground")
+    expect(p).toContain("@theme inline")
+  })
+
+  it("follows the styling choice to a different file and a different shape", () => {
+    const mui = buildFigmaImportPrompt({
+      ...doc,
+      stack: { ...doc.stack, styling: "mui" },
+    })
+    expect(mui).toContain("styles/theme.ts")
+    expect(mui).toContain("createTheme")
+    expect(mui).not.toContain("@theme inline")
+  })
+
+  it("asks for a whole file, and for the guesses to be declared", () => {
+    const p = buildFigmaImportPrompt(doc)
+    expect(p).toMatch(/Output the whole file/i)
+    expect(p).toMatch(/what you measured and what you guessed/i)
+    expect(p).toMatch(/Never name a licensed typeface/i)
+  })
+
+  it("drops the dark-theme rule when the project ships light only", () => {
+    const light = buildFigmaImportPrompt({
+      ...doc,
+      theme: { ...doc.theme, colorScheme: "light" },
+    })
+    expect(light).toContain("do not add a dark block")
+    expect(light).not.toMatch(/Design the dark theme, do not invert it/i)
+
+    const both = buildFigmaImportPrompt(doc)
+    expect(both).toMatch(/Design the dark theme, do not invert it/i)
+  })
+
+  it("does not ask for the CSS to be brought back into Prompt Studio", () => {
+    // The stylesheet goes straight into the developer's repository. A prompt
+    // that told Claude to hand it back would describe a round trip that does
+    // not exist.
+    const p = buildFigmaImportPrompt(doc)
+    expect(p).not.toMatch(/paste .* back into Prompt Studio/i)
+    expect(p).toContain("Do not touch any other file.")
   })
 })

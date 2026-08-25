@@ -8,18 +8,20 @@ import { GlobalSettingsBar } from "@/components/layout/global-settings-bar"
 import { Inspector } from "@/components/layout/inspector"
 import { TopBar } from "@/components/layout/top-bar"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { TooltipProvider } from "@/components/ui/misc"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { FlowCanvas } from "@/features/builder/components/flow-canvas"
 import { OutlineList } from "@/features/builder/components/outline-list"
+import { useLiveProject } from "@/features/cloud/use-live-project"
+import { useProjectSync } from "@/features/cloud/use-project-sync"
 import { FlowCodeView } from "@/features/flow-lang/components/flow-code-view"
 import { LandingPreview } from "@/features/landing/components/landing-preview"
 import { LibraryPanel } from "@/features/library/components/library-panel"
 import { CommandPalette } from "@/features/palette/command-palette"
 import { ShortcutsOverlay } from "@/features/palette/shortcuts-overlay"
 import { useWorkbenchHotkeys } from "@/features/palette/use-hotkeys"
-import { PromptPanel } from "@/features/prompt/components/prompt-panel"
 import { useShareImport } from "@/features/projects/use-share-import"
+import { PromptPanel } from "@/features/prompt/components/prompt-panel"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
@@ -48,6 +50,10 @@ export function Workbench({ project }: { project: Project }) {
 
   useWorkbenchHotkeys()
   useShareImport(hydrated)
+  // Everything the account can see, kept in step over HTTP...
+  useProjectSync()
+  // ...and the one project on screen, kept live over a websocket.
+  const live = useLiveProject(project)
 
   // Easy mode has no library pane at all — adding happens on the canvas.
   const advanced = ui.experience === "advanced"
@@ -93,7 +99,7 @@ export function Workbench({ project }: { project: Project }) {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="flex h-dvh flex-col overflow-hidden bg-background">
-        <TopBar project={project} />
+        <TopBar project={project} live={live} />
 
         {isDesktop ? (
           <PanelGroup

@@ -5,28 +5,23 @@ import {
   Command,
   Globe,
   Heart,
-  Workflow,
   LayoutPanelTop,
   Moon,
   PanelLeft,
   PanelRight,
   Redo2,
   Server,
+  Share2,
   Smartphone,
   Sun,
   Undo2,
+  Workflow,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
-
 import { ExperienceToggle } from "@/components/layout/experience-toggle"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { FlowActions } from "@/features/flow-lang/components/flow-actions"
 import { Hint, Kbd } from "@/components/ui/misc"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ProjectMenu } from "@/features/projects/components/project-menu"
-import { promptTargets } from "@/features/prompt/engine/targets"
 import {
   Select,
   SelectContent,
@@ -34,17 +29,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { AccountMenu } from "@/features/auth/components/account-menu"
+import {
+  countsBySurface,
+  surfaceMeta,
+} from "@/features/builder/utils/surfaces"
+import { MembersDialog } from "@/features/cloud/components/members-dialog"
+import { PresenceStack, SyncBadge } from "@/features/cloud/components/presence-stack"
+import type { CollabMember } from "@/features/collab/use-collaboration"
+import { FlowActions } from "@/features/flow-lang/components/flow-actions"
+import { ProjectMenu } from "@/features/projects/components/project-menu"
+import { promptTargets } from "@/features/prompt/engine/targets"
+import { cn } from "@/lib/utils"
+import { useAuthStore } from "@/stores/use-auth-store"
 import {
   useCanRedo,
   useCanUndo,
   useProjectStore,
 } from "@/stores/use-project-store"
-import { cn } from "@/lib/utils"
-import {
-  countsBySurface,
-  surfaceMeta,
-} from "@/features/builder/utils/surfaces"
-import { type WorkMode, useUiStore } from "@/stores/use-ui-store"
+import { useSyncStore } from "@/stores/use-sync-store"
+import { useUiStore, type WorkMode } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
 /**
@@ -84,8 +90,23 @@ function Credit() {
   )
 }
 
-export function TopBar({ project }: { project: Project }) {
+export function TopBar({
+  project,
+  live,
+}: {
+  project: Project
+  /** The collaboration session for this project, owned by the Workbench. */
+  live?: {
+    members: CollabMember[]
+    status: "idle" | "connecting" | "open" | "reconnecting" | "closed"
+    conflict: boolean
+    reload: () => void
+  }
+}) {
   const ui = useUiStore()
+  const me = useAuthStore((s) => s.user)
+  const remoteId = useSyncStore((s) => s.links[project.id] ?? null)
+  const [sharing, setSharing] = useState(false)
   const advanced = ui.experience === "advanced"
   const update = useProjectStore((s) => s.update)
   const undo = useProjectStore((s) => s.undo)
@@ -144,6 +165,23 @@ export function TopBar({ project }: { project: Project }) {
       </Tabs>
 
       <div className="ml-auto flex items-center gap-1.5">
+        {live && <PresenceStack members={live.members} youId={me?.id} />}
+        {live && (
+          <SyncBadge status={live.status} conflict={live.conflict} onReload={live.reload} />
+        )}
+
+        <Hint label="Share this project with an email address">
+          <Button size="icon-sm" variant="ghost" onClick={() => setSharing(true)} aria-label="Share">
+            <Share2 />
+          </Button>
+        </Hint>
+        <MembersDialog
+          remoteId={remoteId}
+          projectName={project.name}
+          open={sharing}
+          onOpenChange={setSharing}
+        />
+
         <FlowActions />
 
         <Separator orientation="vertical" className="mx-0.5 h-6 max-lg:hidden" />
@@ -236,6 +274,8 @@ export function TopBar({ project }: { project: Project }) {
         </span>
 
         <ThemeToggle />
+
+        <AccountMenu />
       </div>
     </header>
   )

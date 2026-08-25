@@ -105,5 +105,5 @@ export function layoutCategories(layouts: LayoutOption[]) {
   return Array.from(new Set(layouts.map((l) => l.category)))
 }
 
-export { screenLayouts, sectionLayouts }
 export type { LayoutOption }
+export { screenLayouts, sectionLayouts }

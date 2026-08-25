@@ -47,14 +47,17 @@ Then: edit on the canvas → **Generate prompt** → paste into Claude Code.
 
 ## 3. Domain model — `types/project.ts`
 
-`SCHEMA_VERSION = 4`. Every field has a `.default()`, which is what makes an
-older saved project load instead of failing.
+`SCHEMA_VERSION = 5`. Every field has a `.default()`, which is what makes an
+older saved project load instead of failing — there is no migration function,
+and 4 → 5 needed none.
 
 ```
 ProjectDoc
   name, target, creativity
   views[]        { id, key, name, note }            // role perspectives
-  screens[]      { id, key, title, template, layout, note, surface, views[], x, y }
+  flows[]        { id, key, name, story, note, order }     // user journeys
+  screens[]      { id, key, title, template, layout, note, surface,
+                   views[], flows[], story, x, y }
   edges[]        { id, from, to, trigger, views[] } // screen → screen
   modules[]      { id, screenId, key, name, kind, trigger, note, order }
   moduleEdges[]  { id, from, to, trigger }          // module → module, one screen
@@ -62,6 +65,8 @@ ProjectDoc
   theme, conventions, requirements, snippetIds
   stack, structure                                 // the WEB surface's
   surfaces { mobile: {stack,structure}, backend: {…} }
+
+UserStory { role, want, soThat, criteria[] }        // on a screen and on a flow
 ```
 
 **Modules are the "inside of a screen"** — a table, its filter bar, the modal it
@@ -78,6 +83,34 @@ every view**. Most screens in a real app are shared, and tagging each with all
 five roles would go stale the moment a sixth appears — so tagging is how you say
 "only these roles". The canvas filters at render; the project always holds the
 whole app, so switching role can never lose anything and positions stay put.
+
+**Stories are written by the model, not typed here.** A `UserStory` hangs off
+both a screen and a flow. It is three fields rather than one sentence because
+the `.flow` grammar has three keys and the app has to render them: parsing
+"As a … I want … so that …" back out of free text works right up until a model
+phrases it differently, and then it fails silently. All three inbound prompts
+(`authoring-prompt.ts`, `reverse-prompt.ts`, `fragment-prompt.ts`) ask for a
+story per screen and per flow, so the inspector is where one gets *corrected*,
+not authored — nobody was ever going to type ninety-six of them.
+
+**Flows are a second axis, independent of views** (`features/builder/utils/flows.ts`).
+A view answers *who can reach this screen*; a flow answers *what journey is it
+part of*. A screen has one role set and belongs to several flows at once — Sign
+In starts authentication and is also the first step of onboarding — so they are
+two controls on the toolbar, and the canvas composes both filters.
+
+The membership rule is deliberately the **opposite** of the views rule: an
+untagged screen belongs to *every* view, but to *no* flow. "Sign In is shared"
+is the common and correct case for a role; a screen in no journey is a gap worth
+seeing, which is why the picker has an **Ungrouped** bucket rather than hiding
+them.
+
+Membership lives on the screen (`screen.flows`) and nowhere else. The `flows`
+block only declares a journey and its story — with a screen list on both sides
+they eventually disagree and nothing can say which was meant. Nothing derives a
+group from the graph, either: a derived group re-computes when an edge is added,
+so it changes under the person looking at it, and there is no way to say "no,
+that screen is not part of checkout". A tag can just be removed.
 
 **Surfaces are separate builds of one product** — web, mobile, backend. The
 tabs switch between them; each has its own stack, folder structure and generated
@@ -122,10 +155,18 @@ features/
   prompt/engine/         build-prompt.ts, targets.ts, diff.ts
   stack/data/            stack catalogue, structures, conventions, profiles
     platforms.ts         web / react-native / ios — derived from the framework
-  theme/data/            design-languages.ts (8, each with a live preview)
+  theme/data/            design-languages.ts (9, each with a live preview —
+                           "basic" is the one that tells the agent NOT to design)
+                         typography.ts (font character, scale, icons,
+                           elevation, motion, themes)
+  theme/figma-prompt.ts  the Import-from-Figma prompt. Nothing comes back into
+                           the app — Claude Code writes the stylesheet straight
+                           into the developer's repo, so the prompt has to emit
+                           a complete file with its path and import line
 stores/
   use-project-store.ts   persisted; undo/redo, versions, profiles
-  use-ui-store.ts        view state — including which screens are expanded
+  use-ui-store.ts        view state — expanded screens, activeViewId (role),
+                           activeFlowId (journey) and flowFaded
 ```
 
 **All catalogues are single-sourced.** The authoring prompts list valid ids by
@@ -186,16 +227,36 @@ app "Product" {
   theme { design modern-soft; primary #2563eb; radius md }
 }
 
-views {
+views {                           # WHO can reach a screen
   super_admin "Super Admin"
   admin       "Org Admin"
+}
+
+flows {                           # WHAT JOURNEY a screen is part of
+  flow client_admin "Managing clients" {
+    story {
+      as     "an org admin"
+      want   "keep the client list accurate"
+      so     "the team never works from stale records"
+      accept [
+        "clearing a filter returns to page 1"
+        "an empty result says what to change, not 'no data'"
+      ]
+    }
+  }
 }
 
 screen clients "Clients" {
   template table
   layout   table-advanced
   note     "server-driven paging"
-  in [admin]                      # omit entirely = every role
+  in    [admin]                   # omit entirely = every role
+  flows [client_admin]            # omit = ungrouped, which is shown, not hidden
+  story {
+    as   "an org admin"
+    want "find a client and open their record"
+    so   "I can answer a question without leaving the console"
+  }
 
   module filters   "Filter bar"   { kind filters; on "page load" }
   module table     "Client table" { kind table }
@@ -224,6 +285,13 @@ requirements """free text"""
 
 Braces and semicolons optional. `->` `=>` `→` all connect. `# ` starts a
 comment (but `#2563eb` survives). `"""` fences multi-line text.
+
+Inside a `story`, `accept [ … ]` may run over several lines with one quoted
+criterion per line. The field keys are synonym-tolerant (`as`/`role`/`as_a`,
+`want`/`i_want`, `so`/`so_that`, `accept`/`criteria`/`ac`) and a one-line
+`story "As a … I want … so that …"` is parsed apart — this text is written by a
+language model, and a parser that dies on a synonym sends the user back to
+ChatGPT to try again.
 
 A fragment is the same grammar with the `app`/`stack`/`theme` blocks left out.
 

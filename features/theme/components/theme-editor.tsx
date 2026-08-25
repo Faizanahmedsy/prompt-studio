@@ -1,12 +1,27 @@
 "use client"
 
+import { Figma } from "lucide-react"
+import { toast } from "sonner"
+
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
+import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/misc"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout } from "@/features/library/data/layouts"
 import { DesignLanguageCard } from "@/features/theme/components/design-language-card"
 import { designLanguages } from "@/features/theme/data/design-languages"
+import {
+  colorSchemes,
+  elevations,
+  fontCharacters,
+  iconStyles,
+  motions,
+  type ThemeOption,
+  typeScales,
+} from "@/features/theme/data/typography"
+import { buildFigmaImportPrompt } from "@/features/theme/figma-prompt"
+import { copyText } from "@/lib/download"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import {
@@ -14,6 +29,42 @@ import {
   buttonStyleValues,
   type Project,
 } from "@/types/project"
+
+/** A select built from one of the typography catalogues, hint and all. */
+function OptionField({
+  label,
+  options,
+  value,
+  onChange,
+  extra = [],
+}: {
+  label: string
+  options: ThemeOption[]
+  value: string
+  onChange: (value: string) => void
+  extra?: { value: string; label: string; hint: string }[]
+}) {
+  const all = [
+    ...extra,
+    ...options.map((o) => ({ value: o.id, label: o.label, hint: o.hint })),
+  ]
+  const current = all.find((o) => o.value === value)
+  return (
+    <div className="space-y-1">
+      <SelectField
+        label={label}
+        value={value}
+        onValueChange={onChange}
+        options={all.map(({ value: v, label: l }) => ({ value: v, label: l }))}
+      />
+      {current?.hint && (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {current.hint}
+        </p>
+      )}
+    </div>
+  )
+}
 
 const creativityWords = [
   "Literal",
@@ -39,6 +90,18 @@ export function ThemeEditor({ project }: { project: Project }) {
       Object.assign(doc.theme, patch)
     })
 
+  // "Basic" tells the agent to apply no colour at all. Leaving the pickers live
+  // beneath it would offer a choice that the generated prompt then ignores.
+  const isBasic = theme.designLanguage === "basic"
+
+  const copyFigmaPrompt = () => {
+    copyText(buildFigmaImportPrompt(project))
+    toast.success("Figma import prompt copied", {
+      description:
+        "Paste it into Claude Code with your Figma screenshots. It writes the stylesheet straight into your project.",
+    })
+  }
+
   return (
     <div className="space-y-4">
       <section className="space-y-2">
@@ -54,12 +117,26 @@ export function ThemeEditor({ project }: { project: Project }) {
             <DesignLanguageCard
               key={language.id}
               language={language}
-              accent={theme.primaryColor}
+              accent={language.id === "basic" ? "#71717a" : theme.primaryColor}
               selected={theme.designLanguage === language.id}
               onSelect={() => set({ designLanguage: language.id })}
             />
           ))}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={copyFigmaPrompt}
+          className="h-8 w-full gap-2 text-xs font-semibold"
+        >
+          <Figma className="size-3.5" />
+          Import from Figma
+        </Button>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Copies a prompt for Claude Code. Give it your Figma screenshots and it
+          writes the stylesheet for this project — the same token names the build
+          prompt already uses.
+        </p>
       </section>
 
       <div className="rounded-lg border border-border bg-surface p-2">
@@ -73,30 +150,83 @@ export function ThemeEditor({ project }: { project: Project }) {
         </p>
       </div>
 
-      <ColorField
-        label="Primary colour"
-        value={theme.primaryColor}
-        onChange={(primaryColor) => set({ primaryColor })}
-      />
-      <ColorField
-        label="Secondary colour"
-        value={theme.secondaryColor}
-        onChange={(secondaryColor) => set({ secondaryColor })}
-      />
+      {isBasic ? (
+        <p className="rounded-lg border border-dashed border-border px-3 py-2 text-[11px] leading-snug text-muted-foreground">
+          <strong className="font-semibold text-foreground">Basic</strong> asks
+          the agent for unstyled, semantic markup — so the colour, elevation and
+          motion settings are left out of the prompt entirely. Pick another
+          language, or bring a design in from Figma above.
+        </p>
+      ) : (
+        <>
+          <ColorField
+            label="Primary colour"
+            value={theme.primaryColor}
+            onChange={(primaryColor) => set({ primaryColor })}
+          />
+          <ColorField
+            label="Secondary colour"
+            value={theme.secondaryColor}
+            onChange={(secondaryColor) => set({ secondaryColor })}
+          />
 
-      <SelectField
-        label="Corner radius"
-        value={theme.borderRadius}
-        onValueChange={(value) =>
-          set({ borderRadius: value as Project["theme"]["borderRadius"] })
-        }
-        options={borderRadiusValues.map((value) => ({
-          value,
-          label: value.charAt(0).toUpperCase() + value.slice(1),
-        }))}
-      />
+          <OptionField
+            label="Heading font"
+            options={fontCharacters}
+            value={theme.headingFont}
+            onChange={(value) =>
+              set({ headingFont: value as Project["theme"]["headingFont"] })
+            }
+          />
+          <OptionField
+            label="Body font"
+            options={fontCharacters}
+            value={theme.bodyFont}
+            onChange={(value) =>
+              set({ bodyFont: value as Project["theme"]["bodyFont"] })
+            }
+            extra={[
+              {
+                value: "pair",
+                label: "Pair with the heading",
+                hint: "The agent picks a face that sits with the heading — usually right.",
+              },
+            ]}
+          />
+          <OptionField
+            label="Type scale"
+            options={typeScales}
+            value={theme.typeScale}
+            onChange={(value) =>
+              set({ typeScale: value as Project["theme"]["typeScale"] })
+            }
+          />
+          <OptionField
+            label="Themes"
+            options={colorSchemes}
+            value={theme.colorScheme}
+            onChange={(value) =>
+              set({ colorScheme: value as Project["theme"]["colorScheme"] })
+            }
+          />
+        </>
+      )}
 
-      {advanced && (
+      {!isBasic && (
+        <SelectField
+          label="Corner radius"
+          value={theme.borderRadius}
+          onValueChange={(value) =>
+            set({ borderRadius: value as Project["theme"]["borderRadius"] })
+          }
+          options={borderRadiusValues.map((value) => ({
+            value,
+            label: value.charAt(0).toUpperCase() + value.slice(1),
+          }))}
+        />
+      )}
+
+      {advanced && !isBasic && (
         <>
       <SelectField
         label="Button style"
@@ -121,6 +251,31 @@ export function ThemeEditor({ project }: { project: Project }) {
           { value: "comfortable", label: "Comfortable" },
           { value: "spacious", label: "Spacious" },
         ]}
+      />
+
+      <OptionField
+        label="Icons"
+        options={iconStyles}
+        value={theme.iconStyle}
+        onChange={(value) =>
+          set({ iconStyle: value as Project["theme"]["iconStyle"] })
+        }
+      />
+      <OptionField
+        label="Elevation"
+        options={elevations}
+        value={theme.elevation}
+        onChange={(value) =>
+          set({ elevation: value as Project["theme"]["elevation"] })
+        }
+      />
+      <OptionField
+        label="Motion"
+        options={motions}
+        value={theme.motion}
+        onChange={(value) =>
+          set({ motion: value as Project["theme"]["motion"] })
+        }
       />
         </>
       )}

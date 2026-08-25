@@ -3,6 +3,7 @@
 import { Handle, type NodeProps, Position } from "@xyflow/react"
 import {
   AlertCircle,
+  BookOpenCheck,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
@@ -11,9 +12,9 @@ import {
 import { memo, useEffect, useRef } from "react"
 
 import { Glyph } from "@/components/icons/glyph"
-import { addModule } from "@/features/builder/utils/actions"
-import { describeLayout } from "@/features/library/data/layouts"
+import { addModule, hasStory } from "@/features/builder/utils/actions"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
+import { describeLayout } from "@/features/library/data/layouts"
 import { screenTemplateMap } from "@/features/library/data/templates"
 import { cn } from "@/lib/utils"
 import { useUiStore } from "@/stores/use-ui-store"
@@ -25,6 +26,10 @@ export type ScreenNodeData = {
   isEntry: boolean
   moduleCount: number
   expanded: boolean
+  /** outside the journey being looked at, kept on screen but faded */
+  dimmed?: boolean
+  /** journeys this screen belongs to, for the footer chip */
+  flowNames?: string[]
 }
 
 /**
@@ -39,7 +44,16 @@ export const ScreenNode = memo(function ScreenNode({
   data,
   selected,
 }: NodeProps & { data: ScreenNodeData }) {
-  const { screen, accent, isEntry, moduleCount, expanded } = data
+  const {
+    screen,
+    accent,
+    isEntry,
+    moduleCount,
+    expanded,
+    dimmed = false,
+    flowNames = [],
+  } = data
+  const storied = hasStory(screen.story)
   const template = screenTemplateMap[screen.template]
   const layout = screen.layout ? describeLayout(screen.layout) : null
   // A mobile build should look like one at a glance, before reading a word.
@@ -69,7 +83,15 @@ export const ScreenNode = memo(function ScreenNode({
   }, [screen.id, reportCardHeight])
 
   return (
-    <div className="group flex h-full w-full flex-col">
+    <div
+      className={cn(
+        "group flex h-full w-full flex-col transition-opacity",
+        // Faded rather than hidden: this screen is not in the journey being
+        // read, but seeing where the journey joins the rest of the app is the
+        // reason someone turned this on.
+        dimmed && "opacity-25 saturate-0 hover:opacity-60"
+      )}
+    >
       <div
         ref={cardRef}
         className={cn(
@@ -98,6 +120,14 @@ export const ScreenNode = memo(function ScreenNode({
               {screen.key}
             </span>
           </span>
+          {storied && (
+            <span
+              title="This screen has a user story"
+              className="shrink-0 text-primary"
+            >
+              <BookOpenCheck className="size-3.5" />
+            </span>
+          )}
           {isEntry && (
             <span className="shrink-0 rounded-full bg-success-soft px-1.5 py-0.5 text-[9px] font-semibold uppercase text-success">
               Start
@@ -155,6 +185,15 @@ export const ScreenNode = memo(function ScreenNode({
           ) : (
             <p className="mt-1.5 truncate px-1 text-[10px] text-muted-foreground">
               {layout?.name ?? "Choose a layout"}
+            </p>
+          )}
+
+          {flowNames.length > 0 && (
+            <p
+              className="mt-1 truncate px-1 text-[10px] text-primary/80"
+              title={flowNames.join(" · ")}
+            >
+              {flowNames.join(" · ")}
             </p>
           )}
         </div>

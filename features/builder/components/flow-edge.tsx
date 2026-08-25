@@ -89,6 +89,9 @@ export function FlowEdge({
         >
           {editing ? (
             <input
+              // The editor is created by the click that opens it and removed on
+              // blur, so not focusing it would mean a second click to type.
+              // biome-ignore lint/a11y/noAutofocus: see above
               autoFocus
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
