@@ -5,7 +5,8 @@
       "**",
       "!node_modules",
       "!.next",
-      "!**/*.css"
+      "!**/*.css",
+      "!mcp/dist"
     ]
   },
   "formatter": {
