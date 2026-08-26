@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { parseFlow } from "@/features/flow-lang/parser"
 import { serializeFlow } from "@/features/flow-lang/serializer"
-import { starters } from "@/features/library/data/starters"
+import { starterDoc, starters } from "@/features/library/data/starters"
 import type { ProjectDoc } from "@/types/project"
 
 /** Ids and canvas coordinates are regenerated on every parse — compare meaning. */
@@ -503,4 +503,50 @@ describe("the starters demonstrate the feature they teach", () => {
       }
     })
   }
+})
+
+describe("the theme survives a round trip", () => {
+  const themed = {
+    designLanguage: "bold-graphic",
+    primaryColor: "#ff0000",
+    secondaryColor: "#00ff00",
+    borderRadius: "full",
+    buttonStyle: "outlined",
+    density: "spacious",
+    headingFont: "slab",
+    bodyFont: "humanist",
+    typeScale: "expressive",
+    iconStyle: "duotone",
+    elevation: "layered",
+    motion: "none",
+    colorScheme: "dark-first",
+  } as const
+
+  it("writes every field and reads every field back", () => {
+    // The seven settings added with stories and journeys were written by
+    // neither end: the serializer skipped them and the parser warned about
+    // them. Copy Flow / Paste Flow quietly reset a project's typography,
+    // elevation, motion and dark-mode choice to the defaults.
+    const doc = { ...starterDoc("saas-dashboard")!, theme: { ...themed } }
+    const source = serializeFlow(doc)
+    const parsed = parseFlow(source)
+    expect(parsed.errors).toEqual([])
+    expect(parsed.doc.theme).toEqual(themed)
+  })
+
+  it("keeps the current value and says so when a theme word is not recognised", () => {
+    const parsed = parseFlow(
+      'app "X" {\n  theme {\n    motion interpretive-dance\n  }\n}\n'
+    )
+    expect(parsed.doc.theme.motion).toBe("restrained")
+    expect(parsed.warnings.map((issue) => issue.message).join(" ")).toContain(
+      "interpretive-dance"
+    )
+  })
+
+  it("does not warn about the fields it now understands", () => {
+    const source = serializeFlow({ ...starterDoc("saas-dashboard")!, theme: { ...themed } })
+    const messages = parseFlow(source).warnings.map((issue) => issue.message)
+    expect(messages.filter((message) => message.includes("Unknown theme property"))).toEqual([])
+  })
 })

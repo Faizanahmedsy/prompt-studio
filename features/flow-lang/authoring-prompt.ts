@@ -1,3 +1,4 @@
+import { groupLayouts } from "@/features/library/data/layout-catalogue"
 import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
@@ -8,6 +9,15 @@ import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
 import { designLanguages } from "@/features/theme/data/design-languages"
+import {
+  bodyFontValues,
+  colorSchemeValues,
+  elevationValues,
+  fontCharacterValues,
+  iconStyleValues,
+  motionValues,
+  typeScaleValues,
+} from "@/types/project"
 
 /**
  * The prompt a developer copies into ChatGPT alongside the client's
@@ -15,9 +25,14 @@ import { designLanguages } from "@/features/theme/data/design-languages"
  * list of valid ids can never drift from the code.
  */
 export function buildAuthoringPrompt(): string {
-  const screenLayoutIds = allLayouts
-    .filter((l) => l.scope === "screen")
-    .map((l) => `${l.id} (${l.name})`)
+  // Grouped, and with the one-line description the picker shows.
+  //
+  // The list used to be bare ids with the display name in brackets, which asks
+  // a model to choose between twenty-eight options from their names alone. It
+  // did what anyone would: reached for the four whose names were self-evident
+  // and used them for everything. The description is what makes the rest
+  // reachable — it is the same sentence a person reads in the layout picker.
+  const screenLayoutIds = groupLayouts(allLayouts.filter((l) => l.scope === "screen"))
 
   const sectionLayoutsByType = sectionTypes
     .map((type) => {
@@ -146,7 +161,13 @@ decide what screens the product needs, and write the Flow file.
 app "Product name" {
   target claude-code          # who will build it
   creativity 6                # 0 = follow spec literally, 10 = free rein
-  theme { design modern-soft; primary #2563eb; secondary #10b981; radius md; buttons filled; density comfortable }
+  theme {
+    design modern-soft; primary #2563eb; secondary #10b981
+    radius md; buttons filled; density comfortable
+    # Optional, and all defaulted — set the ones the product has an opinion about.
+    headings grotesque; body pair; scale balanced
+    icons line; elevation subtle; motion restrained; scheme both
+  }
 }
 
 # OPTIONAL — only if the product has more than one kind of user.
@@ -277,11 +298,24 @@ ${promptTargets.map((t) => `- ${t.id} — ${t.description}`).join("\n")}
 ## design languages (theme \`design\`)
 ${designLanguages.map((d) => `- ${d.id} — ${d.tagline}`).join("\n")}
 
+## the rest of the theme block
+Every one has a default, so omit what the product has no opinion about. Setting
+them is how a brief gets a look of its own rather than the same soft-modern
+default every product gets.
+
+- \`headings\` — ${fontCharacterValues.join(", ")}
+- \`body\` — ${bodyFontValues.join(", ")} (\`pair\` = choose something that sits under the heading face)
+- \`scale\` — ${typeScaleValues.join(", ")}: how far apart the heading sizes sit
+- \`icons\` — ${iconStyleValues.join(", ")}
+- \`elevation\` — ${elevationValues.join(", ")}: how much the surfaces lift off the page
+- \`motion\` — ${motionValues.join(", ")}
+- \`scheme\` — ${colorSchemeValues.join(", ")}: \`both\` ships light and dark, \`dark-first\` designs dark and derives light
+
 ## screen templates
 ${screenTemplates.map((t) => `- ${t.id} — ${t.description}`).join("\n")}
 
 ## screen layouts
-${screenLayoutIds.map((l) => `- ${l}`).join("\n")}
+${screenLayoutIds}
 
 ## module kinds
 ${moduleKinds.map((k) => `- ${k.id} — ${k.description}`).join("\n")}

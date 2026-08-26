@@ -2,7 +2,7 @@
 
 import { Trash2 } from "lucide-react"
 
-import { TextAreaField, TextField } from "@/components/shared/form"
+import { TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
 import { deleteFlow, toggleScreenFlow, updateFlow } from "@/features/builder/utils/actions"
@@ -54,14 +54,8 @@ export function FlowInspector({
         ownerId={flow.id}
         story={flow.story}
         subject="this journey"
-      />
-
-      <TextAreaField
-        label="Notes"
-        placeholder="Anything the story does not cover"
-        rows={2}
-        value={flow.note}
-        onChange={(event) => updateFlow(flow.id, { note: event.target.value })}
+        note={flow.note}
+        onNoteChange={(note) => updateFlow(flow.id, { note })}
       />
 
       <div className="space-y-1.5">

@@ -4,7 +4,7 @@ import { Copy, Trash2 } from "lucide-react"
 import { useState } from "react"
 
 import { Glyph } from "@/components/icons/glyph"
-import { SelectField, TextAreaField, TextField } from "@/components/shared/form"
+import { SelectField, TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
 import {
@@ -114,17 +114,11 @@ export function ScreenInspector({
         ownerId={screen.id}
         story={screen.story}
         subject="this screen"
+        note={screen.note}
+        onNoteChange={(note) => updateScreen(screen.id, { note })}
       />
 
       <ScreenFlows project={project} screen={screen} />
-
-      <TextAreaField
-        label="Notes"
-        placeholder="Anything the story does not cover: fields, rules, edge cases…"
-        rows={3}
-        value={screen.note}
-        onChange={(event) => updateScreen(screen.id, { note: event.target.value })}
-      />
 
       <div className="space-y-1.5">
         <SectionLabel>Build</SectionLabel>

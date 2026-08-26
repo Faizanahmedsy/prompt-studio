@@ -94,7 +94,7 @@ export function useLiveProject(project: Project | null): Live {
       if (parsed.success && current.current) {
         const local = JSON.stringify(docOf(current.current))
         if (local !== JSON.stringify(parsed.data)) {
-          useProjectStore.getState().saveVersion("Before sync")
+          useProjectStore.getState().saveVersion("Before syncing a colleague\u2019s changes", "auto")
         }
         appliedRemote.current = JSON.stringify(parsed.data)
         useProjectStore.getState().replaceDoc(parsed.data, { silent: true })

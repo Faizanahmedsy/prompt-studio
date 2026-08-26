@@ -15,7 +15,22 @@ export function serializeFlow(doc: ProjectDoc): string {
   out.push(`  target ${doc.target}`)
   out.push(`  creativity ${doc.creativity}`)
   out.push(
-    `  theme { design ${doc.theme.designLanguage}; primary ${doc.theme.primaryColor}; secondary ${doc.theme.secondaryColor}; radius ${doc.theme.borderRadius}; buttons ${doc.theme.buttonStyle}; density ${doc.theme.density} }`
+    // Every theme field, not the six this used to write.
+    //
+    // Flow is the app's own round-trip format — Copy Flow, Paste Flow, the
+    // share link, the MCP server all go through it — so a field the serializer
+    // omits is a field the user loses. Typography, elevation, motion and the
+    // dark-mode choice silently reverted to defaults on every round trip,
+    // which is the worst kind of data loss: quiet, and only noticed later.
+    //
+    // Split across several lines because one line of thirteen settings is not
+    // something a person can read or edit, and this file is meant to be both.
+    `  theme {`,
+    `    design ${doc.theme.designLanguage}; primary ${doc.theme.primaryColor}; secondary ${doc.theme.secondaryColor}`,
+    `    radius ${doc.theme.borderRadius}; buttons ${doc.theme.buttonStyle}; density ${doc.theme.density}`,
+    `    headings ${doc.theme.headingFont}; body ${doc.theme.bodyFont}; scale ${doc.theme.typeScale}`,
+    `    icons ${doc.theme.iconStyle}; elevation ${doc.theme.elevation}; motion ${doc.theme.motion}; scheme ${doc.theme.colorScheme}`,
+    `  }`
   )
   out.push("}")
 

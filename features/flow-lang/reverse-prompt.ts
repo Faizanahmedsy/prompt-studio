@@ -1,3 +1,4 @@
+import { groupLayouts } from "@/features/library/data/layout-catalogue"
 import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
 import { screenTemplates } from "@/features/library/data/templates"
@@ -17,9 +18,11 @@ import { screenTemplates } from "@/features/library/data/templates"
  * audits a plausible picture.
  */
 export function buildReverseEnginePrompt(): string {
-  const screenLayoutIds = allLayouts
-    .filter((l) => l.scope === "screen")
-    .map((l) => l.id)
+  // Descriptions, not bare ids — see `groupLayouts`. Mapping a codebase is
+  // exactly where the choice matters: the screen already exists, so there is a
+  // right answer to what it looks like, and the model can only find it if it
+  // knows what the ids mean.
+  const screenLayoutIds = groupLayouts(allLayouts.filter((l) => l.scope === "screen"))
 
   return `# Role
 
@@ -593,7 +596,7 @@ Use only these ids. If nothing fits, pick the nearest — never invent one.
 ${screenTemplates.map((t) => `- ${t.id} — ${t.description}`).join("\n")}
 
 ### screen layouts
-${screenLayoutIds.map((l) => `- ${l}`).join("\n")}
+${screenLayoutIds}
 
 ### module kinds
 ${moduleKinds.map((k) => `- ${k.id} — ${k.description}`).join("\n")}

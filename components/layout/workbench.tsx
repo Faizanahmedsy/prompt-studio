@@ -55,9 +55,13 @@ export function Workbench({ project }: { project: Project }) {
   // ...and the one project on screen, kept live over a websocket.
   const live = useLiveProject(project)
 
-  // Easy mode has no library pane at all — adding happens on the canvas.
+  // Easy mode has no library pane at all — adding happens on the canvas — so
+  // the left slot holds the inspector there and the library in Advanced.
+  // Either way it is the same slot and the same toggle: it used to be drawn
+  // unconditionally in Easy, so the button in the top bar did nothing and the
+  // one panel a person most wants out of the way could not be closed.
   const advanced = ui.experience === "advanced"
-  const showLeft = advanced && ui.leftOpen
+  const showLeft = ui.leftOpen
 
   // Opening a screen on a phone should surface the inspector, not hide it.
   useEffect(() => {
@@ -112,7 +116,7 @@ export function Workbench({ project }: { project: Project }) {
             className="min-h-0 flex-1"
           >
             {/* Advanced: library. Easy: the selected screen — nothing global. */}
-            {(showLeft || !advanced) && (
+            {showLeft && (
               <>
                 <Panel
                   id="left"

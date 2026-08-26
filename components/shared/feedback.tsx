@@ -98,7 +98,7 @@ export function ConfirmDialog({
    * refused delete looked exactly like a successful one until the project
    * reappeared.
    */
-  onConfirm: () => void | boolean | Promise<void | boolean>
+  onConfirm: () => boolean | undefined | Promise<boolean | undefined>
 }) {
   const [working, setWorking] = useState(false)
 
@@ -143,14 +143,15 @@ export function useConfirm() {
     title: string
     description?: string
     confirmLabel?: string
-    onConfirm: () => void
-  }>({ open: false, title: "", onConfirm: () => {} })
+    onConfirm: () => boolean | undefined | Promise<boolean | undefined>
+  }>({ open: false, title: "", onConfirm: () => undefined })
 
   const confirm = (options: {
     title: string
     description?: string
     confirmLabel?: string
-    onConfirm: () => void
+    /** Return `false` to keep the dialog open — see `ConfirmDialog`. */
+    onConfirm: () => boolean | undefined | Promise<boolean | undefined>
   }) => setState({ ...options, open: true })
 
   const dialog = (

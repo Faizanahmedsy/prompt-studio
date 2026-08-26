@@ -228,19 +228,21 @@ export function TopBar({
           size where someone most wants it.
         */}
         <span className="hidden items-center lg:flex">
-          {advanced && (
-            <Hint label="Toggle library">
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                onClick={ui.toggleLeft}
-                aria-label="Toggle library panel"
-                aria-pressed={ui.leftOpen}
-              >
-                <PanelLeft />
-              </Button>
-            </Hint>
-          )}
+          {/* The left slot is the library in Advanced and the inspector in
+              Easy. Both are worth being able to close, so the toggle is
+              offered in both — it was Advanced-only, which left the Easy
+              inspector permanently pinned. */}
+          <Hint label={advanced ? "Toggle library" : "Toggle screen panel"}>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={ui.toggleLeft}
+              aria-label={advanced ? "Toggle library panel" : "Toggle screen panel"}
+              aria-pressed={ui.leftOpen}
+            >
+              <PanelLeft />
+            </Button>
+          </Hint>
           <Hint label="Toggle inspector">
             <Button
               size="icon-sm"

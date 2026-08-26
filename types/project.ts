@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 export const borderRadiusValues = [
   "none",
@@ -326,6 +326,21 @@ export const snapshotSchema = z.object({
   label: z.string(),
   createdAt: z.number(),
   doc: projectDocSchema,
+  /**
+   * Who saved it, by display name.
+   *
+   * Stored rather than looked up: a version outlives the session that made it,
+   * and on a shared project the useful question months later is "who took this
+   * snapshot", which no amount of current state can answer. Blank for versions
+   * saved before this existed, and for anyone working signed out.
+   */
+  by: z.string().default(""),
+  /**
+   * What caused it. Every version used to be labelled "Generated for Claude
+   * Code", so a list of them was twenty identical rows and choosing between
+   * them meant opening each one.
+   */
+  kind: z.enum(["generated", "manual", "auto"]).default("manual"),
 })
 
 export const projectSchema = projectDocSchema.extend({

@@ -69,13 +69,46 @@ describe("prompt examples are valid Flow source", () => {
 describe("the reverse-engineer prompt", () => {
   const prompt = prompts.reverse
 
+  it("documents every theme key, so a brief can have a look of its own", () => {
+    const prompt = buildAuthoringPrompt()
+    // These seven were in the schema and the design block but in neither
+    // prompt, so no model ever wrote one and every brief came out with the
+    // same soft-modern defaults.
+    for (const key of ["headings", "body", "scale", "icons", "elevation", "motion", "scheme"]) {
+      expect(prompt).toContain(`\`${key}\``)
+    }
+    expect(prompt).toContain("dark-first")
+    expect(prompt).toContain("expressive")
+  })
+
+  it("gives the reverse prompt the same described layout catalogue", () => {
+    const prompt = buildReverseEnginePrompt()
+    for (const layout of allLayouts.filter((l) => l.scope === "screen")) {
+      expect(prompt).toContain(`\`${layout.id}\` — ${layout.name}: ${layout.description}`)
+    }
+  })
+
+  it("groups the layouts so the shape of the catalogue is visible", () => {
+    const prompt = buildAuthoringPrompt()
+    // Categories, not one flat list of twenty-eight: a model choosing a layout
+    // should be able to see that a wizard and a kanban board exist at all.
+    const categories = new Set(
+      allLayouts.filter((l) => l.scope === "screen").map((l) => l.category)
+    )
+    expect(categories.size).toBeGreaterThan(3)
+    for (const category of categories) expect(prompt).toContain(`**${category}**`)
+  })
+
   it("lists every module kind, template and screen layout", () => {
     for (const kind of moduleKinds) expect(prompt).toContain(`- ${kind.id} —`)
     for (const template of screenTemplates) {
       expect(prompt).toContain(`- ${template.id} —`)
     }
     for (const layout of allLayouts.filter((l) => l.scope === "screen")) {
-      expect(prompt).toContain(`- ${layout.id}`)
+      // Id *and* the sentence that explains it. Bare ids left two thirds of
+      // the catalogue unreachable — a model cannot choose `table-master-detail`
+      // over `table-advanced` from the names alone.
+      expect(prompt).toContain(`\`${layout.id}\` — ${layout.name}: ${layout.description}`)
     }
   })
 

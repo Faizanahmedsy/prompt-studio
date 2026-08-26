@@ -38,7 +38,7 @@ export function useWorkbenchHotkeys() {
   useHotkeys("5", () => ui.setMode("code"), options)
   useHotkeys("[", () => ui.toggleLeft(), options)
   useHotkeys("]", () => ui.toggleRight(), options)
-  useHotkeys("mod+s", () => store.saveVersion("Manual save"), {
+  useHotkeys("mod+s", () => store.saveVersion("Saved by hand", "manual"), {
     ...options,
     enableOnFormTags: true,
   })

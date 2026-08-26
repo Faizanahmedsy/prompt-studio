@@ -1,6 +1,6 @@
 "use client"
 
-import { History, RotateCcw, Trash2 } from "lucide-react"
+import { History, RotateCcw, Sparkles, Trash2, User, Wand2 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
@@ -17,7 +17,7 @@ import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
 import { cn, formatDate, formatTime, relativeTime } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
-import type { Project } from "@/types/project"
+import type { Project, Snapshot } from "@/types/project"
 
 export function VersionsDialog({
   open,
@@ -45,8 +45,9 @@ export function VersionsDialog({
         <DialogHeader>
           <DialogTitle>Version history</DialogTitle>
           <DialogDescription>
-            A version is saved every time you generate, plus whenever you save one
-            by hand. The newest twenty are kept.
+            A snapshot of the whole project. One is taken every time you generate a
+            prompt, whenever you save one by hand, and before a colleague&rsquo;s
+            changes are merged in. The newest twenty are kept — older ones drop off.
           </DialogDescription>
         </DialogHeader>
 
@@ -56,7 +57,7 @@ export function VersionsDialog({
               size="sm"
               variant="outline"
               onClick={() => {
-                saveVersion(`Manual · ${formatTime(Date.now())}`)
+                saveVersion("Saved by hand", "manual")
                 toast.success("Version saved")
               }}
             >
@@ -75,16 +76,25 @@ export function VersionsDialog({
                       : "border-border hover:bg-muted"
                   )}
                 >
-                  <span className="block truncate text-xs font-medium">
-                    {version.label}
+                  <span className="flex items-center gap-1.5 text-xs font-medium">
+                    <KindIcon kind={version.kind} />
+                    <span className="truncate">{version.label}</span>
                   </span>
-                  <span className="block text-[10px] text-muted-foreground">
-                    {formatDate(version.createdAt)} {formatTime(version.createdAt)} ·{" "}
-                    {relativeTime(version.createdAt)}
+                  <span
+                    className="block text-[10px] text-muted-foreground"
+                    title={`${formatDate(version.createdAt)} ${formatTime(version.createdAt)}`}
+                  >
+                    {relativeTime(version.createdAt)} · {formatTime(version.createdAt)}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <User className="size-3 shrink-0" aria-hidden="true" />
+                    {/* Blank for anything saved signed out, or before versions
+                        recorded an author at all — "Unknown" is the honest word
+                        for that, and quieter than an empty gap. */}
+                    <span className="truncate">{version.by || "Unknown"}</span>
                   </span>
                   <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                    {version.doc.screens.length} screens ·{" "}
-                    {version.doc.sections.length} sections
+                    {describeContents(version)}
                   </span>
                 </button>
               ))}
@@ -102,7 +112,7 @@ export function VersionsDialog({
                 }
                 description={
                   project.versions.length
-                    ? "Compare it against the current project before restoring."
+                    ? "Pick a version on the left to see what has changed since, and restore it if you want it back."
                     : "Generate a prompt or save one by hand to start the history."
                 }
               />
@@ -110,7 +120,16 @@ export function VersionsDialog({
               <>
                 <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
                   <span className="text-[11px] text-muted-foreground">
-                    Difference from now: +{stats.added} / −{stats.removed} lines
+                    {stats.added === 0 && stats.removed === 0 ? (
+                      "Identical to the project as it stands now"
+                    ) : (
+                      <>
+                        Restoring this would{" "}
+                        <span className="text-destructive">remove {stats.removed}</span> and{" "}
+                        <span className="text-success">bring back {stats.added}</span> lines of
+                        the prompt
+                      </>
+                    )}
                   </span>
                   <span className="flex gap-1.5">
                     <Button
@@ -128,8 +147,8 @@ export function VersionsDialog({
                       size="xs"
                       onClick={() => {
                         restoreVersion(snapshot.id)
-                        toast.success("Version restored", {
-                          description: "Undo puts it back if that was wrong.",
+                        toast.success(`Restored “${snapshot.label}”`, {
+                          description: "Ctrl+Z puts the project back if that was wrong.",
                         })
                         onOpenChange(false)
                       }}
@@ -162,4 +181,29 @@ export function VersionsDialog({
       </DialogContent>
     </Dialog>
   )
+}
+
+/** What kind of thing this snapshot was, at a glance. */
+function KindIcon({ kind }: { kind: Snapshot["kind"] }) {
+  const className = "size-3 shrink-0 text-muted-foreground"
+  if (kind === "generated") return <Wand2 className={className} aria-label="Generated" />
+  if (kind === "auto") return <Sparkles className={className} aria-label="Taken automatically" />
+  return <History className={className} aria-label="Saved by hand" />
+}
+
+/**
+ * The shape of a version, in words.
+ *
+ * Screens alone read the same on every row of a project that is mostly being
+ * rewired rather than added to, which is what made the old list impossible to
+ * choose from. Journeys and connections move independently of screens, so
+ * naming all three tells two similar snapshots apart.
+ */
+function describeContents(version: Snapshot): string {
+  const parts = [
+    `${version.doc.screens.length} screen${version.doc.screens.length === 1 ? "" : "s"}`,
+    `${version.doc.flows.length} journey${version.doc.flows.length === 1 ? "" : "s"}`,
+    `${version.doc.edges.length} connection${version.doc.edges.length === 1 ? "" : "s"}`,
+  ]
+  return parts.join(" · ")
 }

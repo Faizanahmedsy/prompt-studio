@@ -2,7 +2,7 @@
 
 import { Plus, X } from "lucide-react"
 
-import { TextField } from "@/components/shared/form"
+import { TextAreaField, TextField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,12 +32,24 @@ export function StoryEditor({
   ownerId,
   story,
   subject,
+  note,
+  onNoteChange,
 }: {
   /** the screen id or flow id the story hangs off */
   ownerId: string
   story: UserStory
   /** "this screen" / "this journey" — used in the placeholders */
   subject: string
+  /**
+   * Free text for whatever the three fields and the criteria cannot express.
+   *
+   * Inside this card rather than beside it: it is the same thought as the
+   * story — what this thing has to do — and sitting outside the border, below
+   * the journey tags, it read as a note about the tags. Both are written
+   * together and both end up in the same part of the prompt.
+   */
+  note: string
+  onNoteChange: (note: string) => void
 }) {
   const written = hasStory(story)
 
@@ -115,6 +127,16 @@ export function StoryEditor({
           <Plus className="size-3" />
           Add a criterion
         </Button>
+      </div>
+
+      <div className="pt-1">
+        <TextAreaField
+          label="Notes"
+          placeholder={`Anything the story does not cover about ${subject}: fields, rules, edge cases…`}
+          rows={3}
+          value={note}
+          onChange={(event) => onNoteChange(event.target.value)}
+        />
       </div>
     </div>
   )

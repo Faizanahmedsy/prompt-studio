@@ -70,7 +70,7 @@ export function PromptPanel({ project }: { project: Project }) {
   const generate = async () => {
     await copyText(text)
     setLastGenerated(text)
-    saveVersion(`Generated for ${target.name}`)
+    saveVersion(`Prompt generated for ${target.name}`, "generated")
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
     toast.success("Prompt copied", {

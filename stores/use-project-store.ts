@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware"
 import { starterDoc } from "@/features/library/data/starters"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import { uid } from "@/lib/utils"
+import { useAuthStore } from "@/stores/use-auth-store"
 import { useSyncStore } from "@/stores/use-sync-store"
 import {
   type Project,
@@ -76,7 +77,7 @@ type ProjectState = {
   undo: () => void
   redo: () => void
 
-  saveVersion: (label: string) => void
+  saveVersion: (label: string, kind?: Snapshot["kind"]) => void
   restoreVersion: (versionId: string) => void
   deleteVersion: (versionId: string) => void
 
@@ -95,6 +96,22 @@ function newProject(doc: ProjectDoc, name?: string): Project {
     updatedAt: now,
     schemaVersion: SCHEMA_VERSION,
     versions: [],
+  }
+}
+
+/**
+ * The display name of whoever is signed in, or "" when nobody is.
+ *
+ * Read through `getState` on the module the auth store already exports rather
+ * than imported at the top: the auth store tears down project state on sign
+ * out, and importing it here the other way round would close the loop.
+ */
+function authorName(): string {
+  try {
+    const user = useAuthStore.getState().user
+    return user?.full_name?.trim() || user?.email || ""
+  } catch {
+    return ""
   }
 }
 
@@ -283,7 +300,7 @@ export const useProjectStore = create<ProjectState>()(
         })
       },
 
-      saveVersion: (label) => {
+      saveVersion: (label, kind = "manual") => {
         const state = get()
         const id = state.activeId
         if (!id) return
@@ -295,6 +312,11 @@ export const useProjectStore = create<ProjectState>()(
               label: label || `Version ${p.versions.length + 1}`,
               createdAt: Date.now(),
               doc: docOf(p),
+              // Read at save time, from the store rather than a hook: this runs
+              // outside React, and the name has to be the one that was signed
+              // in when the snapshot was taken, not whoever is here later.
+              by: authorName(),
+              kind,
             }
             return {
               ...p,

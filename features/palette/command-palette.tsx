@@ -81,7 +81,7 @@ export function CommandPalette({ project }: { project: Project }) {
                 run(async () => {
                   const { text } = buildPrompt(project, { surface })
                   await copyText(text)
-                  store.saveVersion("Generated from palette")
+                  store.saveVersion("Prompt generated", "generated")
                   toast.success("Prompt copied")
                 })
               }

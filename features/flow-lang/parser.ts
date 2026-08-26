@@ -11,16 +11,23 @@ import { structurePresets } from "@/features/stack/data/structures"
 import { designLanguages } from "@/features/theme/data/design-languages"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
+  bodyFontValues,
+  colorSchemeValues,
+  elevationValues,
   type FlowEdge,
   type FlowGroup,
   type FlowView,
+  fontCharacterValues,
+  iconStyleValues,
   type ModuleEdge,
+  motionValues,
   type ProjectDoc,
   projectDocSchema,
   type Screen,
   type ScreenModule,
   type Section,
   surfaceValues,
+  typeScaleValues,
   type UserStory,
 } from "@/types/project"
 
@@ -1033,9 +1040,118 @@ function applyThemeProp(
       doc.theme.density = (densityAliases[normalised] ??
         doc.theme.density) as ProjectDoc["theme"]["density"]
       return
+    // The seven settings added with stories and journeys. Without these the
+    // parser dropped them on the floor with an "unknown theme property"
+    // warning, so anything the serializer wrote came back as defaults.
+    //
+    // Each one is checked against its own list of allowed values rather than
+    // assigned blind: a typo should keep the current setting and say so, not
+    // put a word the renderer has never heard of into the document.
+    case "headings":
+    case "headingfont":
+      doc.theme.headingFont = pickThemeValue(
+        normalised,
+        fontCharacterValues,
+        doc.theme.headingFont,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "body":
+    case "bodyfont":
+      doc.theme.bodyFont = pickThemeValue(
+        normalised,
+        bodyFontValues,
+        doc.theme.bodyFont,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "scale":
+    case "typescale":
+      doc.theme.typeScale = pickThemeValue(
+        normalised,
+        typeScaleValues,
+        doc.theme.typeScale,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "icons":
+    case "iconstyle":
+      doc.theme.iconStyle = pickThemeValue(
+        normalised,
+        iconStyleValues,
+        doc.theme.iconStyle,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "elevation":
+    case "shadow":
+      doc.theme.elevation = pickThemeValue(
+        normalised,
+        elevationValues,
+        doc.theme.elevation,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "motion":
+    case "animation":
+      doc.theme.motion = pickThemeValue(
+        normalised,
+        motionValues,
+        doc.theme.motion,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "scheme":
+    case "colorscheme":
+    case "colourscheme":
+      doc.theme.colorScheme = pickThemeValue(
+        normalised,
+        colorSchemeValues,
+        doc.theme.colorScheme,
+        key,
+        line,
+        warnings
+      )
+      return
     default:
       warnings.push({ line, message: `Unknown theme property "${key}" — ignored.` })
   }
+}
+
+/**
+ * One theme word, checked against the values that word is allowed to take.
+ *
+ * A warning rather than an error, like every other unrecognised value in this
+ * parser: an unknown font keeps the current font and produces a diagram, which
+ * is far more useful than refusing the whole file over one line.
+ */
+function pickThemeValue<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  fallback: T,
+  key: string,
+  line: number,
+  warnings: ParseIssue[]
+): T {
+  const match = allowed.find((option) => option === value)
+  if (match) return match
+  warnings.push({
+    line,
+    message: `"${value}" is not a valid ${key} — keeping ${fallback}. One of: ${allowed.join(", ")}.`,
+  })
+  return fallback
 }
 
 function normaliseColor(
