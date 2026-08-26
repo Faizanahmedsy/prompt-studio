@@ -22,7 +22,7 @@ import {
   LayoutGrid,
   Workflow,
 } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/shared/feedback"
@@ -43,10 +43,15 @@ import {
   edgeKindMeta,
 } from "@/features/builder/utils/edge-kinds"
 import {
-  laneFor,
-  type NodeBox,
-  routable,
-} from "@/features/builder/utils/edge-lanes"
+  type Box,
+  labelWidth,
+  type Point,
+  pathFromPoints,
+  pathIsClear,
+  placeLabels,
+  routeAround,
+  stepLabelPoint,
+} from "@/features/builder/utils/edge-routing"
 import { inFlow } from "@/features/builder/utils/flows"
 import {
   analyseGraph,
@@ -94,6 +99,11 @@ const FIT_PADDING = {
 } as const
 
 const FIT = { padding: FIT_PADDING, maxZoom: 1, minZoom: 0.15 } as const
+
+/** Above this many connections, routing every one costs more than it returns. */
+const ROUTE_LIMIT = 400
+/** And within that, this is all the time one pass may spend. */
+const ROUTE_BUDGET_MS = 220
 
 function CanvasInner({
   project,
@@ -160,6 +170,7 @@ function CanvasInner({
     )
   }, [project, visibleScreens, activeViewId, viewStrict])
   const { screenToFlowPosition, fitView } = useReactFlow()
+  const [dragging, setDragging] = useState(false)
   const nodesInitialized = useNodesInitialized()
   const hasFitted = useRef(false)
 
@@ -397,7 +408,7 @@ function CanvasInner({
 
   /** Where every visible card is, in canvas coordinates. */
   const boxes = useMemo(() => {
-    const map = new Map<string, NodeBox>()
+    const map = new Map<string, Box>()
     for (const screen of visibleScreens) {
       const card = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
       const modules = modulesByScreen.get(screen.id)?.length ?? 0
@@ -413,23 +424,69 @@ function CanvasInner({
     return map
   }, [visibleScreens, cardHeights, modulesByScreen, openScreens, surface])
 
+  /**
+   * A path around the cards for every connection that would otherwise cross
+   * one. Recomputed only when the graph settles: routing is cheap per edge and
+   * not free across two hundred of them, and a drag would otherwise re-route
+   * the whole canvas on every mouse move.
+   */
+  const routesRef = useRef<Map<string, Point[]>>(new Map())
+  const routes = useMemo(() => {
+    if (dragging) return routesRef.current
+    const next = new Map<string, Point[]>()
+    // Past this the graph is dense enough that routed lines help nobody, and
+    // the honest answer is a curve rather than a frozen canvas.
+    if (visibleEdges.length <= ROUTE_LIMIT) {
+      const all = [...boxes.entries()]
+      // A budget rather than a promise: on a graph big enough that routing
+      // every line would cost a visible pause, the ones already routed keep
+      // their paths and the rest stay curves. A slow canvas is worse than a
+      // crossed line.
+      const until = performance.now() + ROUTE_BUDGET_MS
+      for (const edge of visibleEdges) {
+        if (performance.now() > until) break
+        const from = boxes.get(edge.from)
+        const to = boxes.get(edge.to)
+        if (!from || !to) continue
+        const others = all
+          .filter(([id]) => id !== edge.from && id !== edge.to)
+          .map(([, box]) => box)
+        if (pathIsClear(from, to, others)) continue
+        const points = routeAround(from, to, others)
+        if (points) next.set(edge.id, points)
+      }
+    }
+    routesRef.current = next
+    return next
+  }, [visibleEdges, boxes, dragging])
+
+  /**
+   * Label positions for every connection at once, nudged apart where two would
+   * print over each other.
+   */
+  const labelPoints = useMemo(() => {
+    const wanted: Array<{ id: string; x: number; y: number; width: number }> = []
+    for (const edge of visibleEdges) {
+      const from = boxes.get(edge.from)
+      const to = boxes.get(edge.to)
+      if (!from || !to) continue
+      const routed = routes.get(edge.id)
+      const point = routed
+        ? { x: pathFromPoints(routed)[1], y: pathFromPoints(routed)[2] }
+        : stepLabelPoint(from, to)
+      wanted.push({
+        id: edge.id,
+        x: point.x,
+        y: point.y,
+        width: labelWidth(edge.trigger || "label"),
+      })
+    }
+    return placeLabels(wanted)
+  }, [visibleEdges, boxes, routes])
+
   const edges: Edge[] = useMemo(() => {
     const out: Edge[] = visibleEdges.map((edge) => {
       const kind: CanvasEdgeKind = edgeKinds.get(edge.id) ?? "next"
-      // A connection that skips columns, or doubles back, would otherwise be
-      // drawn straight through whatever stands between its two ends.
-      const from = boxes.get(edge.from)
-      const to = boxes.get(edge.to)
-      const lane =
-        routable(kind) && from && to
-          ? laneFor(
-              from,
-              to,
-              [...boxes.entries()]
-                .filter(([id]) => id !== edge.from && id !== edge.to)
-                .map(([, box]) => box)
-            )
-          : null
       return {
         id: edge.id,
         source: edge.from,
@@ -437,7 +494,11 @@ function CanvasInner({
         label: edge.trigger || "",
         type: "flow",
         animated: false,
-        data: { kind, lane },
+        data: {
+          kind,
+          points: routes.get(edge.id),
+          labelPoint: labelPoints.get(edge.id),
+        },
         // The arrowhead has to carry the same colour as its line, or a graph
         // of coloured edges ends in a row of grey points.
         markerEnd: {
@@ -478,7 +539,15 @@ function CanvasInner({
       })
     }
     return out
-  }, [visibleEdges, edgeKinds, boxes, project.moduleEdges, project.modules, openScreens])
+  }, [
+    visibleEdges,
+    edgeKinds,
+    routes,
+    labelPoints,
+    project.moduleEdges,
+    project.modules,
+    openScreens,
+  ])
 
   const kindCounts = useMemo(() => {
     const counts: Partial<Record<CanvasEdgeKind, number>> = {}
@@ -665,6 +734,8 @@ function CanvasInner({
       onNodesDelete={onNodesDelete}
       onEdgesDelete={onEdgesDelete}
       onConnect={onConnect}
+      onNodeDragStart={() => setDragging(true)}
+      onNodeDragStop={() => setDragging(false)}
       onPaneClick={() => select(null)}
       onNodeClick={(_, node) => select(node.id)}
       onDrop={(event) => {

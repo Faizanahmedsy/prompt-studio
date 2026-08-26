@@ -17,7 +17,10 @@ import {
   updateModuleEdge,
 } from "@/features/builder/utils/actions"
 import { edgeKindMeta, edgeKindOf } from "@/features/builder/utils/edge-kinds"
-import { lanePath } from "@/features/builder/utils/edge-lanes"
+import {
+  type Point,
+  pathFromPoints,
+} from "@/features/builder/utils/edge-routing"
 import { cn } from "@/lib/utils"
 
 /**
@@ -58,12 +61,12 @@ export function FlowEdge({
    * lane the nodes are in, which is why it stops crossing them.
    */
   const curved = kind === "back" || kind === "jump"
-  // A lane is only present when the canvas found something in the way — see
-  // `laneFor`. Without one, a jump and a loop are drawn as gentle arcs.
-  const lane = typeof data?.lane === "number" ? data.lane : null
+  // The canvas routes a connection only when the direct path would cross a
+  // card — see `routeAround`. Everything else keeps the shape it always had.
+  const routed = Array.isArray(data?.points) ? (data.points as Point[]) : null
 
-  const [edgePath, labelX, labelY] = lane !== null
-    ? lanePath(sourceX, sourceY, targetX, targetY, lane)
+  const [edgePath, pathLabelX, pathLabelY] = routed
+    ? pathFromPoints(routed)
     : curved
     ? getBezierPath({
         sourceX,
@@ -83,6 +86,13 @@ export function FlowEdge({
         targetPosition,
         borderRadius: 10,
       })
+
+  // The canvas places labels for the whole graph at once so two arriving at the
+  // same port do not print over each other; it falls back to the path's own
+  // midpoint for anything it did not place.
+  const placed = data?.labelPoint as Point | undefined
+  const labelX = placed?.x ?? pathLabelX
+  const labelY = placed?.y ?? pathLabelY
 
   const commit = () => {
     rename(id, draft.trim())

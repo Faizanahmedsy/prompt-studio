@@ -8,7 +8,10 @@ import {
 } from "@xyflow/react"
 import { X } from "lucide-react"
 
-import { lanePath } from "@/features/builder/utils/edge-lanes"
+import {
+  type Point,
+  pathFromPoints,
+} from "@/features/builder/utils/edge-routing"
 import { deleteRelation } from "@/features/data/utils/actions"
 import {
   relationKindMeta,
@@ -37,14 +40,13 @@ export function RelationEdge({
   const meta = relationKindMeta[kind]
   const label = typeof data?.label === "string" ? data.label : ""
 
-  // A lane is present when the canvas found a table standing between these
-  // two columns — see `laneFor`. A relation drawn straight through a third
+  // A routed path is present when the canvas found a table standing between
+  // these two — see `routeAround`. A relation drawn straight through a third
   // table is the same unreadable line the flow canvas used to have.
-  const lane = typeof data?.lane === "number" ? data.lane : null
-  const [edgePath, labelX, labelY] =
-    lane !== null
-      ? lanePath(sourceX, sourceY, targetX, targetY, lane)
-      : getSmoothStepPath({
+  const routed = Array.isArray(data?.points) ? (data.points as Point[]) : null
+  const [edgePath, labelX, labelY] = routed
+    ? pathFromPoints(routed)
+    : getSmoothStepPath({
           sourceX,
           sourceY,
           targetX,

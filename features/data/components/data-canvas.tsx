@@ -17,12 +17,17 @@ import {
 } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { Database, LayoutGrid, Plus } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { EmptyState } from "@/components/shared/feedback"
 import { Button } from "@/components/ui/button"
-import { laneFor, type NodeBox } from "@/features/builder/utils/edge-lanes"
+import {
+  type Box,
+  type Point,
+  pathIsClear,
+  routeAround,
+} from "@/features/builder/utils/edge-routing"
 import { overlapping } from "@/features/builder/utils/graph"
 import {
   addEntity,
@@ -57,6 +62,7 @@ function DataCanvasInner({ project }: { project: Project }) {
   const select = useUiStore((s) => s.select)
   const selectedId = useUiStore((s) => s.selectedId)
   const { fitView } = useReactFlow()
+  const [dragging, setDragging] = useState(false)
   const nodesInitialized = useNodesInitialized()
   const hasFitted = useRef(false)
 
@@ -125,7 +131,7 @@ function DataCanvasInner({ project }: { project: Project }) {
   )
 
   const boxes = useMemo(() => {
-    const map = new Map<string, NodeBox>()
+    const map = new Map<string, Box>()
     for (const entity of project.entities) {
       map.set(entity.id, {
         x: entity.x,
@@ -137,6 +143,29 @@ function DataCanvasInner({ project }: { project: Project }) {
     return map
   }, [project.entities])
 
+  /** Paths around the tables, for relations that would otherwise cross one. */
+  const routesRef = useRef<Map<string, Point[]>>(new Map())
+  const routes = useMemo(() => {
+    if (dragging) return routesRef.current
+    const next = new Map<string, Point[]>()
+    const all = [...boxes.entries()]
+    const until = performance.now() + 220
+    for (const relation of project.relations) {
+      if (performance.now() > until) break
+      const from = boxes.get(relation.from)
+      const to = boxes.get(relation.to)
+      if (!from || !to || relation.from === relation.to) continue
+      const others = all
+        .filter(([id]) => id !== relation.from && id !== relation.to)
+        .map(([, box]) => box)
+      if (pathIsClear(from, to, others)) continue
+      const points = routeAround(from, to, others)
+      if (points) next.set(relation.id, points)
+    }
+    routesRef.current = next
+    return next
+  }, [project.relations, boxes, dragging])
+
   const edges: Edge[] = useMemo(
     () =>
       project.relations.map((relation) => {
@@ -147,18 +176,6 @@ function DataCanvasInner({ project }: { project: Project }) {
           from?.fields.find((f) => f.name === relation.fromField)?.id ?? null
         const targetHandle =
           to?.fields.find((f) => f.name === relation.toField)?.id ?? null
-        const fromBox = boxes.get(relation.from)
-        const toBox = boxes.get(relation.to)
-        const lane =
-          fromBox && toBox
-            ? laneFor(
-                fromBox,
-                toBox,
-                [...boxes.entries()]
-                  .filter(([id]) => id !== relation.from && id !== relation.to)
-                  .map(([, box]) => box)
-              )
-            : null
         return {
           id: relation.id,
           source: relation.from,
@@ -169,7 +186,11 @@ function DataCanvasInner({ project }: { project: Project }) {
           targetHandle,
           type: "relation",
           selected: relation.id === selectedId,
-          data: { kind: relation.kind, label: relation.label, lane },
+          data: {
+            kind: relation.kind,
+            label: relation.label,
+            points: routes.get(relation.id),
+          },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 16,
@@ -178,7 +199,7 @@ function DataCanvasInner({ project }: { project: Project }) {
           },
         }
       }),
-    [project.relations, project.entities, boxes, selectedId]
+    [project.relations, project.entities, routes, selectedId]
   )
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
@@ -253,6 +274,8 @@ function DataCanvasInner({ project }: { project: Project }) {
       onNodesDelete={onNodesDelete}
       onEdgesDelete={onEdgesDelete}
       onConnect={onConnect}
+      onNodeDragStart={() => setDragging(true)}
+      onNodeDragStop={() => setDragging(false)}
       onPaneClick={() => select(null)}
       onNodeClick={(_, node) => select(node.id)}
       onEdgeClick={(_, edge) => select(edge.id)}
