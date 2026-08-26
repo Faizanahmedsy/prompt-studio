@@ -37,6 +37,7 @@ import {
 } from "@/features/theme/data/typography"
 import type { ProjectDoc, Surface, UserStory } from "@/types/project"
 
+import { BOILERPLATE, cloneLines } from "./boilerplate"
 import { type BlockId, getTarget } from "./targets"
 
 export type PromptBlock = { id: BlockId; title: string; body: string }
@@ -488,6 +489,15 @@ function designBlock(doc: ProjectDoc): string {
 
 function stackBlock(doc: ProjectDoc, detail: "full" | "condensed"): string {
   const lines: string[] = []
+  // The clone's `package.json` pins the versions, so the list is only worth
+  // printing for what it adds beyond it — and anything it contradicts is a
+  // decision the agent has to be told to make deliberately.
+  if (fromBoilerplate(doc)) {
+    const extras = doc.stack.extras.map((extra) => extra.trim()).filter(Boolean)
+    const head =
+      "The cloned repository pins the stack in its `package.json`. Add a dependency only where this product genuinely needs one, and say why."
+    return extras.length ? `${head}\n\n${list(extras)}` : head
+  }
   for (const group of stackGroups) {
     const value = doc.stack[group.key]
     const option = findStackOption(group.key, value)
@@ -506,7 +516,25 @@ function stackBlock(doc: ProjectDoc, detail: "full" | "condensed"): string {
   return list(lines)
 }
 
+/**
+ * True when the folder tree, the conventions and the pinned dependencies are
+ * already in the cloned repository, so restating them here is dead weight the
+ * agent has to read past — and, worse, a second source of truth that can
+ * disagree with `CLAUDE.md`.
+ */
+function fromBoilerplate(doc: ProjectDoc): boolean {
+  return doc.startFrom === "boilerplate"
+}
+
 function structureBlock(doc: ProjectDoc): string {
+  // The tree is the clone. Printing it again invites the agent to reconcile two
+  // copies of the same thing, and it is the copy in the repo that is true.
+  if (fromBoilerplate(doc)) {
+    const custom = doc.structure.preset === "custom" ? doc.structure.customTree.trim() : ""
+    return custom
+      ? `The cloned repository sets the folder structure. This product deviates from it as follows:\n\n\`\`\`\n${custom}\n\`\`\``
+      : ""
+  }
   const preset = structureMap[doc.structure.preset]
   const tree =
     doc.structure.preset === "custom" || !preset?.tree
@@ -541,6 +569,16 @@ function conventionsBlock(doc: ProjectDoc): string {
     .map((id) => overrides[id] ?? conventionMap[id]?.line ?? id)
     .filter(Boolean)
   const custom = doc.conventions.custom.trim()
+
+  // `CLAUDE.md` in the clone carries these, generated from the same catalogue,
+  // so repeating them is a second source of truth that can drift. What cannot
+  // be in the repo is whatever this project added by hand.
+  if (fromBoilerplate(doc)) {
+    const head =
+      "The conventions are in `CLAUDE.md` at the root of the cloned repository. Read it before writing code; it is not repeated here."
+    return custom ? `${head}\n\nThis product adds:\n\n${custom}` : head
+  }
+
   if (!lines.length && !custom) return ""
   return [list(lines), custom ? `\n${custom}` : ""].filter(Boolean).join("\n")
 }
@@ -554,6 +592,36 @@ function requirementsBlock(doc: ProjectDoc): string {
     if (snippet) lines.push(...snippet.lines)
   }
   return list(Array.from(new Set(lines)))
+}
+
+/**
+ * Start from the shared repository rather than an empty folder.
+ *
+ * Empty when the project has not opted in, which is what keeps every existing
+ * brief generating exactly what it generated before.
+ *
+ * The instruction to read `CLAUDE.md` is explicit even though Claude Code picks
+ * it up on its own: the prompt is also pasted into tools that do not, and a
+ * brief whose conventions only apply in one client is worse than one that
+ * repeats itself.
+ */
+function boilerplateBlock(doc: ProjectDoc): string {
+  if (doc.startFrom !== "boilerplate") return ""
+  return [
+    "**Do not scaffold this project from scratch.** Clone the starting point, drop its history, and build on top of it:",
+    "",
+    cloneLines(doc.name),
+    "",
+    `Pinned to commit \`${BOILERPLATE.commit.slice(0, 12)}\` — use that commit, not \`main\`, so this brief builds the same thing whenever it is run. Source: ${BOILERPLATE.url}`,
+    "",
+    "It already provides, and none of it is to be rebuilt — `CLAUDE.md` lists every file and what it is for:",
+    "",
+    list([...BOILERPLATE.provides]),
+    "",
+    "Read `CLAUDE.md` at the repository root before writing any code — it carries the conventions this brief expects and they are not repeated below. Where it and this brief disagree, this brief wins: it was written for this product.",
+    "",
+    "Delete `features/example/` once a real feature follows its shape, and replace the placeholder name, metadata and navigation with this product's.",
+  ].join("\n")
 }
 
 function additionalBlock(doc: ProjectDoc): string {
@@ -579,6 +647,7 @@ function deliveryBlock(doc: ProjectDoc): string {
 
 const titles: Record<BlockId, string> = {
   overview: "Overview",
+  boilerplate: "Start From The Boilerplate",
   flows: "User Journeys & Stories",
   screens: "Screens",
   navigation: "Navigation & Flow",
@@ -642,6 +711,7 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
   const target = getTarget(doc.target)
   const bodies: Record<BlockId, string> = {
     overview: overviewBlock(doc),
+    boilerplate: boilerplateBlock(doc),
     flows: flowsBlock(doc),
     screens: screensBlock(doc),
     navigation: navigationBlock(doc),

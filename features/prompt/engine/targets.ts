@@ -1,5 +1,6 @@
 export type BlockId =
   | "overview"
+  | "boilerplate"
   | "flows"
   | "screens"
   | "navigation"
@@ -43,6 +44,7 @@ export const promptTargets: PromptTarget[] = [
     format: "xml",
     order: [
       "overview",
+      "boilerplate",
       "stack",
       "structure",
       "conventions",
@@ -70,6 +72,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "boilerplate",
       "flows",
       "screens",
       "navigation",
@@ -96,6 +99,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "boilerplate",
       "stack",
       "structure",
       "conventions",
@@ -123,6 +127,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "boilerplate",
       "flows",
       "screens",
       "navigation",
@@ -149,6 +154,7 @@ export const promptTargets: PromptTarget[] = [
     format: "markdown",
     order: [
       "overview",
+      "boilerplate",
       "stack",
       "structure",
       "conventions",

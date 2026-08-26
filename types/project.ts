@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 export const borderRadiusValues = [
   "none",
@@ -289,6 +289,15 @@ const backendSurfaceDefaults = {
 
 export const projectDocSchema = z.object({
   name: z.string().default("Untitled project"),
+  /**
+   * Whether the build starts from the shared boilerplate repository or from an
+   * empty folder.
+   *
+   * Defaults to "scratch" so no existing project changes shape underneath
+   * anyone: a brief that has been handed to a developer must keep generating
+   * what it generated yesterday.
+   */
+  startFrom: z.enum(["scratch", "boilerplate"]).default("scratch"),
   target: z.string().default("claude-code"),
   creativity: z.number().min(0).max(10).default(5),
   views: z.array(viewSchema).default([]),

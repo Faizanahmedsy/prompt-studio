@@ -29,6 +29,18 @@ export function RequirementsPanel({ project }: { project: Project }) {
         options={promptTargets.map((t) => ({ value: t.id, label: t.name }))}
       />
 
+      <ToggleRow
+        variant="switch"
+        title="Start from the boilerplate"
+        description="The agent clones a pinned starter repo — folder structure, design tokens, http instance, CLAUDE.md — instead of scaffolding one. The stack, structure and convention sections shrink to what this product adds on top."
+        checked={project.startFrom === "boilerplate"}
+        onCheckedChange={(on) =>
+          update((doc) => {
+            doc.startFrom = on ? "boilerplate" : "scratch"
+          })
+        }
+      />
+
       <TextAreaField
         label="Additional requirements"
         hint="Business rules, integrations, edge cases — anything the diagram cannot express."
