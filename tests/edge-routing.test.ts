@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   type Box,
+  type Point,
   pathFromPoints,
   pathIsClear,
-  type Point,
   routeAround,
 } from "@/features/builder/utils/edge-routing"
 

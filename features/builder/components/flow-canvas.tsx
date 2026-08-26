@@ -47,7 +47,6 @@ import {
   type LabelRequest,
   labelWidth,
   type Point,
-  pathIsClear,
   placeLabelsOnPaths,
   routeAround,
   stepPolyline,
