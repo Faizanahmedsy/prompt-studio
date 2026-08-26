@@ -39,6 +39,7 @@ function denseFlow() {
     "",
   ]
   const screens = []
+  lines.push('screen hub "Everything" { template detail; layout detail-with-hero; flows [buckets] }')
   for (const group of groups) {
     for (let i = 0; i < 6; i += 1) {
       const key = `${group}_${i}`
@@ -71,6 +72,12 @@ function denseFlow() {
     lines.push(`  ${groups[i]}_5 -> ${groups[i + 1]}_0 : "on to ${groups[i + 1]}"`)
   }
   lines.push(`  ${groups[groups.length - 1]}_5 -> ${groups[0]}_0 : "sign out"`)
+  // The shape that broke it worst: many journeys converging on one screen, each
+  // arriving with its own label, and the hub pointing back out again.
+  for (const group of groups) {
+    lines.push(`  ${group}_2 -> hub : "click a ${group} item"`)
+    lines.push(`  hub -> ${group}_3 : "open the ${group} it belongs to"`)
+  }
   lines.push("}")
   return lines.join("\n")
 }
@@ -121,14 +128,50 @@ const geometry = `
     }
   }
 
+  // Every drawn path, sampled, in screen coordinates — used to check that no
+  // line is drawn across a label chip.
+  const samples = [];
+  for (const group of document.querySelectorAll(".react-flow__edge")) {
+    const path = group.querySelector("path.react-flow__edge-path");
+    const id = group.getAttribute("data-id");
+    if (!path || !id) continue;
+    const length = path.getTotalLength();
+    for (let at = 0; at <= length; at += 8) {
+      const raw = path.getPointAtLength(at);
+      const point = new DOMPoint(raw.x, raw.y).matrixTransform(path.getScreenCTM());
+      samples.push({ id, x: point.x, y: point.y });
+    }
+  }
+
   const labels = [...document.querySelectorAll(".react-flow__edgelabel-renderer > div")]
     .map((n) => {
       const r = n.getBoundingClientRect();
-      return { text: (n.innerText || "").trim(), x: r.x, y: r.y, w: r.width, h: r.height };
+      return {
+        id: n.getAttribute("data-edge-id") || "",
+        text: (n.innerText || "").trim(),
+        x: r.x,
+        y: r.y,
+        w: r.width,
+        h: r.height,
+      };
     })
     .filter((l) => l.w > 0 && l.h > 0);
 
-  return { nodes, crossings: [...new Set(crossings)], labels };`
+  const struck = [];
+  for (const label of labels) {
+    for (const sample of samples) {
+      if (label.id && sample.id === label.id) continue;
+      if (
+        sample.x > label.x + 2 && sample.x < label.x + label.w - 2 &&
+        sample.y > label.y + 2 && sample.y < label.y + label.h - 2
+      ) {
+        struck.push((label.text || "?") + " crossed by " + sample.id);
+        break;
+      }
+    }
+  }
+
+  return { nodes, crossings: [...new Set(crossings)], labels, struck };`
 
 function anyOverlap(boxes) {
   const pad = 3
@@ -168,7 +211,7 @@ async function main() {
     })
     await new Promise((r) => setTimeout(r, 2500))
 
-    console.log("\n== paste 48 screens in 8 journeys ==")
+    console.log("\n== paste 49 screens in 8 journeys, all converging on one ==")
     await page.evaluate(clickText("Paste Flow"))
     await page.waitFor(`document.querySelector("[role=dialog] textarea") !== null`, {
       label: "the paste dialog",
@@ -179,7 +222,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 3500))
 
     const first = await page.evaluate(geometry)
-    check("every screen is drawn", first.nodes.length === 48, `${first.nodes.length}`)
+    check("every screen is drawn", first.nodes.length === 49, `${first.nodes.length}`)
     check("no card sits on another", !anyOverlap(first.nodes), anyOverlap(first.nodes))
     check(
       "no connection is drawn through a card",
@@ -190,6 +233,11 @@ async function main() {
       "no two labels print over each other",
       !anyOverlap(first.labels),
       anyOverlap(first.labels)
+    )
+    check(
+      "no line is drawn across a label",
+      first.struck.length === 0,
+      `${first.struck.length}: ${first.struck.slice(0, 3).join(", ")}`
     )
 
     console.log("\n== after auto-arrange ==")
@@ -203,6 +251,11 @@ async function main() {
       `${after.crossings.length}: ${after.crossings.slice(0, 3).join(", ")}`
     )
     check("still no label on a label", !anyOverlap(after.labels), anyOverlap(after.labels))
+    check(
+      "still no line across a label",
+      after.struck.length === 0,
+      `${after.struck.length}: ${after.struck.slice(0, 3).join(", ")}`
+    )
 
     console.log("\n== with every screen expanded ==")
     await page.evaluate(clickText("Expand all"))

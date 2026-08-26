@@ -91,8 +91,16 @@ export function FlowEdge({
   // same port do not print over each other; it falls back to the path's own
   // midpoint for anything it did not place.
   const placed = data?.labelPoint as Point | undefined
+  const anchor = data?.labelAnchor as Point | undefined
   const labelX = placed?.x ?? pathLabelX
   const labelY = placed?.y ?? pathLabelY
+
+  // A label that had to move well clear of the traffic needs to say which line
+  // it belongs to; one sitting on its own line does not.
+  const leader =
+    placed && anchor && Math.hypot(placed.x - anchor.x, placed.y - anchor.y) > 26
+      ? `M ${anchor.x},${anchor.y} L ${placed.x},${placed.y}`
+      : null
 
   const commit = () => {
     rename(id, draft.trim())
@@ -118,11 +126,23 @@ export function FlowEdge({
         }}
       />
 
+      {leader && (
+        <path
+          d={leader}
+          fill="none"
+          stroke={selected ? "var(--primary)" : meta.color}
+          strokeWidth={1}
+          strokeDasharray="3 3"
+          opacity={0.5}
+        />
+      )}
+
       <EdgeLabelRenderer>
         <div
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
           }}
+          data-edge-id={id}
           className="nodrag nopan group pointer-events-auto absolute flex items-center gap-0.5"
         >
           {editing ? (

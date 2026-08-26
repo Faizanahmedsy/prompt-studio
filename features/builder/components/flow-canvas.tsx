@@ -44,13 +44,13 @@ import {
 } from "@/features/builder/utils/edge-kinds"
 import {
   type Box,
+  type LabelRequest,
   labelWidth,
   type Point,
-  pathFromPoints,
   pathIsClear,
-  placeLabels,
+  placeLabelsOnPaths,
   routeAround,
-  stepLabelPoint,
+  stepPolyline,
 } from "@/features/builder/utils/edge-routing"
 import { inFlow } from "@/features/builder/utils/flows"
 import {
@@ -103,7 +103,7 @@ const FIT = { padding: FIT_PADDING, maxZoom: 1, minZoom: 0.15 } as const
 /** Above this many connections, routing every one costs more than it returns. */
 const ROUTE_LIMIT = 400
 /** And within that, this is all the time one pass may spend. */
-const ROUTE_BUDGET_MS = 220
+const ROUTE_BUDGET_MS = 600
 
 function CanvasInner({
   project,
@@ -451,9 +451,19 @@ function CanvasInner({
         const others = all
           .filter(([id]) => id !== edge.from && id !== edge.to)
           .map(([, box]) => box)
-        if (pathIsClear(from, to, others)) continue
-        const points = routeAround(from, to, others)
-        if (points) next.set(edge.id, points)
+        // Every connection is routed, not only the ones in trouble. Two
+        // reasons: a loop drawn as a curve sweeps diagonally across everything
+        // between its ends, and — less obviously — the label maths can only be
+        // exact about a path this canvas drew itself. Approximating the
+        // library's own path put labels a few pixels off, which on a screen
+        // where eight journeys converge is the difference between a readable
+        // chip and one with a line through it.
+        // When routing cannot finish — a graph too large for the search, or a
+        // budget spent — the fallback is the step path *this canvas* computed,
+        // not the library's own. They are nearly the same shape, and "nearly"
+        // is what put a curve through a label that the label maths had been
+        // told was clear.
+        next.set(edge.id, routeAround(from, to, others) ?? stepPolyline(from, to))
       }
     }
     routesRef.current = next
@@ -461,27 +471,23 @@ function CanvasInner({
   }, [visibleEdges, boxes, dragging])
 
   /**
-   * Label positions for every connection at once, nudged apart where two would
-   * print over each other.
+   * Where each label goes — worked out for the whole graph at once, because a
+   * label only knows whether its spot is free by looking at every other line,
+   * card and label on the canvas.
    */
   const labelPoints = useMemo(() => {
-    const wanted: Array<{ id: string; x: number; y: number; width: number }> = []
+    const requests: LabelRequest[] = []
     for (const edge of visibleEdges) {
       const from = boxes.get(edge.from)
       const to = boxes.get(edge.to)
       if (!from || !to) continue
-      const routed = routes.get(edge.id)
-      const point = routed
-        ? { x: pathFromPoints(routed)[1], y: pathFromPoints(routed)[2] }
-        : stepLabelPoint(from, to)
-      wanted.push({
+      requests.push({
         id: edge.id,
-        x: point.x,
-        y: point.y,
+        points: routes.get(edge.id) ?? stepPolyline(from, to),
         width: labelWidth(edge.trigger || "label"),
       })
     }
-    return placeLabels(wanted)
+    return placeLabelsOnPaths(requests, [...boxes.values()])
   }, [visibleEdges, boxes, routes])
 
   const edges: Edge[] = useMemo(() => {
@@ -497,7 +503,8 @@ function CanvasInner({
         data: {
           kind,
           points: routes.get(edge.id),
-          labelPoint: labelPoints.get(edge.id),
+          labelPoint: labelPoints.get(edge.id)?.point,
+          labelAnchor: labelPoints.get(edge.id)?.anchor,
         },
         // The arrowhead has to carry the same colour as its line, or a graph
         // of coloured edges ends in a row of grey points.
@@ -507,9 +514,9 @@ function CanvasInner({
           height: 18,
           color: edgeKindMeta[kind].color,
         },
-        // Loops arc away from the lane the cards sit in, so they are drawn
-        // first and left underneath everything that goes forward.
-        zIndex: kind === "back" ? 0 : 1,
+        // No `zIndex`. Setting one moves an edge into its own layer, and that
+        // layer renders *above* the label renderer — which is why every label
+        // had its own line drawn straight through the middle of it.
       }
     })
 

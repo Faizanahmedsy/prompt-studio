@@ -336,60 +336,231 @@ export function pathFromPoints(
   return [path, best.x, best.y]
 }
 
+
+
+/** The polyline the library draws for a plain step edge, for collision maths. */
+export function stepPolyline(from: Box, to: Box): Point[] {
+  const { source, target } = portsOf(from, to)
+  const mid = (source.x + target.x) / 2
+  return simplify([
+    source,
+    { x: mid, y: source.y },
+    { x: mid, y: target.y },
+    target,
+  ])
+}
+
+export type LabelRequest = { id: string; points: Point[]; width: number }
+
 /**
- * Where each connection's label goes, moved apart when two would land on top
- * of each other.
+ * Put each label somewhere on its own line where nothing else already is.
  *
- * Labels are placed by the graph library at the middle of each path, and two
- * connections arriving at the same port have their middles in almost the same
- * place — which is how "click the subscriber" ended up printed over "click the
- * recipient". Knowing every label at once is the only way to separate them, and
- * only the canvas knows that, so it is worked out here and handed to each edge.
+ * A midpoint is where a label belongs right up until the midpoint is where
+ * another line crosses, or where the card behind it starts — and on a real
+ * diagram that is most of them. So each label walks its own path outward from
+ * the middle looking for a clear spot, and only settles for the middle when
+ * there is none.
+ *
+ * Everything is checked against everything: the cards, every other connection's
+ * path, and the labels already placed.
  */
-export function placeLabels(
-  wanted: Array<{ id: string; x: number; y: number; width: number }>,
-  { height = 20, step = 22, tries = 6 } = {}
-): Map<string, Point> {
-  const taken: Array<{ x: number; y: number; width: number }> = []
-  const out = new Map<string, Point>()
+export type LabelPlacement = {
+  /** where the chip goes */
+  point: Point
+  /** the spot on its own line the chip belongs to, for the leader */
+  anchor: Point
+}
 
-  const clashes = (x: number, y: number, width: number) =>
-    taken.some(
-      (box) =>
-        Math.abs(box.y - y) < height &&
-        Math.abs(box.x - x) < (box.width + width) / 2
-    )
+export function placeLabelsOnPaths(
+  requests: LabelRequest[],
+  nodes: Box[],
+  { height = 20 } = {}
+): Map<string, LabelPlacement> {
+  const out = new Map<string, LabelPlacement>()
+  const cards = nodes.map((box) => grow(box, 3))
+  // Outward from the middle, then a little off the line either side.
+  const fractions = [
+    0.5, 0.44, 0.56, 0.38, 0.62, 0.3, 0.7, 0.22, 0.78, 0.14, 0.86,
+  ]
+  // Escalating, because a short connection into a screen that eight journeys
+  // converge on has its whole length inside the crowd: the only clear spot is
+  // some way off the line, and a label that may only move a few pixels has
+  // nowhere to go.
+  const offsets = [
+    0, -17, 17, -32, 32, -48, 48, -64, 64, -88, 88, -116, 116, -148, 148, -184,
+    184,
+  ]
+  const sideways = [0, -46, 46, -92, 92, -150, 150, -210, 210]
 
-  // Stable order, so the same graph always separates the same way.
-  for (const label of [...wanted].sort((a, b) => a.id.localeCompare(b.id))) {
-    let placed = { x: label.x, y: label.y }
-    for (let attempt = 0; attempt <= tries; attempt += 1) {
-      // Alternate above and below the line, widening each time.
-      const offset =
-        attempt === 0
-          ? 0
-          : (attempt % 2 === 1 ? -1 : 1) * step * Math.ceil(attempt / 2)
-      const y = label.y + offset
-      if (!clashes(label.x, y, label.width)) {
-        placed = { x: label.x, y }
-        break
+  /**
+   * Segments and cards, bucketed by position.
+   *
+   * Checking every candidate against every segment is quadratic in the size of
+   * the diagram, and on a screen where eight journeys converge it ran out of
+   * time and fell back to the plain midpoint — which is exactly where the eight
+   * lines leaving that screen all are. Looking only at what is nearby makes the
+   * search cheap enough to always finish.
+   */
+  const index = new SegmentIndex()
+  for (const request of requests) {
+    for (let i = 0; i < request.points.length - 1; i += 1) {
+      index.add(request.id, request.points[i], request.points[i + 1])
+    }
+  }
+
+  const placed: Box[] = []
+
+  // Stable order so the same diagram always resolves the same way.
+  for (const request of [...requests].sort((a, b) => a.id.localeCompare(b.id))) {
+    const middle = pointAt(request.points, 0.5)
+    if (!middle) continue
+
+    // Every candidate is scored rather than accepted or rejected, so a label
+    // with nowhere clean to go still lands on the least crowded spot instead
+    // of falling back to the middle — which, at a hub, is the one place every
+    // other line passes through.
+    let best: { point: Point; anchor: Point; score: number } | null = null
+    search: for (const fraction of fractions) {
+      const base = pointAt(request.points, fraction)
+      if (!base) continue
+      for (const offset of offsets) {
+        for (const shift of sideways) {
+          const candidate = { x: base.x + shift, y: base.y + offset }
+          const rect: Box = {
+            x: candidate.x - request.width / 2,
+            y: candidate.y - height / 2,
+            width: request.width,
+            height,
+          }
+          // A label over a card, or over another label, is never acceptable —
+          // those are the two that read as broken.
+          if (hitsAny(rect, cards)) continue
+          if (hitsAny(rect, placed)) continue
+          const score =
+            index.crossings(rect, request.id) +
+            // Being far from its own line is a cost too, so a label only
+            // wanders when staying put would put a line through it.
+            Math.abs(offset) / 200 +
+            Math.abs(shift) / 200
+          if (score < 0.001) {
+            best = { point: candidate, anchor: base, score: 0 }
+            break search
+          }
+          if (!best || score < best.score) {
+            best = { point: candidate, anchor: base, score }
+          }
+        }
       }
     }
-    taken.push({ x: placed.x, y: placed.y, width: label.width })
-    out.set(label.id, placed)
+
+    const point = best?.point ?? middle
+    const rect: Box = {
+      x: point.x - request.width / 2,
+      y: point.y - height / 2,
+      width: request.width,
+      height,
+    }
+    placed.push(rect)
+    out.set(request.id, { point, anchor: best?.anchor ?? middle })
   }
   return out
 }
 
-/** Roughly how wide a label chip renders, for the collision check above. */
+/** Segments bucketed into fixed cells, so a lookup only sees what is near. */
+class SegmentIndex {
+  private readonly cell = 180
+  private readonly buckets = new Map<string, Array<{ id: string; a: Point; b: Point }>>()
+
+  add(id: string, a: Point, b: Point) {
+    const entry = { id, a, b }
+    const minX = Math.floor(Math.min(a.x, b.x) / this.cell)
+    const maxX = Math.floor(Math.max(a.x, b.x) / this.cell)
+    const minY = Math.floor(Math.min(a.y, b.y) / this.cell)
+    const maxY = Math.floor(Math.max(a.y, b.y) / this.cell)
+    for (let x = minX; x <= maxX; x += 1) {
+      for (let y = minY; y <= maxY; y += 1) {
+        const key = `${x},${y}`
+        const list = this.buckets.get(key)
+        if (list) list.push(entry)
+        else this.buckets.set(key, [entry])
+      }
+    }
+  }
+
+  /** How many things other than `ignore` pass through this rectangle. */
+  crossings(rect: Box, ignore: string) {
+    const minX = Math.floor(rect.x / this.cell)
+    const maxX = Math.floor((rect.x + rect.width) / this.cell)
+    const minY = Math.floor(rect.y / this.cell)
+    const maxY = Math.floor((rect.y + rect.height) / this.cell)
+    const seen = new Set<string>()
+    for (let x = minX; x <= maxX; x += 1) {
+      for (let y = minY; y <= maxY; y += 1) {
+        for (const entry of this.buckets.get(`${x},${y}`) ?? []) {
+          if (entry.id === ignore || seen.has(entry.id)) continue
+          if (segmentCrossesRect(entry.a, entry.b, rect)) seen.add(entry.id)
+        }
+      }
+    }
+    return seen.size
+  }
+}
+
+/** Roughly how wide a label chip renders. */
 export function labelWidth(text: string) {
-  // 5.6px per character at the chip's font size, plus its padding, capped the
-  // same way the chip itself is capped.
   return Math.min(text.length * 5.6 + 22, 172)
 }
 
-/** Where the library would put a step path's label, without drawing one. */
-export function stepLabelPoint(from: Box, to: Box): Point {
-  const { source, target } = portsOf(from, to)
-  return { x: (source.x + target.x) / 2, y: (source.y + target.y) / 2 }
+function hitsAny(rect: Box, boxes: Box[]) {
+  for (const box of boxes) {
+    if (
+      rect.x < box.x + box.width &&
+      box.x < rect.x + rect.width &&
+      rect.y < box.y + box.height &&
+      box.y < rect.y + rect.height
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+function segmentCrossesRect(a: Point, b: Point, rect: Box) {
+  // Both ends are axis-aligned in every path this canvas draws, so the
+  // segment's own bounding box is the segment.
+  return (
+    Math.max(a.x, b.x) > rect.x &&
+    Math.min(a.x, b.x) < rect.x + rect.width &&
+    Math.max(a.y, b.y) > rect.y &&
+    Math.min(a.y, b.y) < rect.y + rect.height
+  )
+}
+
+/** The point a given fraction along a polyline. */
+function pointAt(points: Point[], fraction: number): Point | null {
+  if (points.length < 2) return points[0] ?? null
+  let total = 0
+  const lengths: number[] = []
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const length = Math.hypot(
+      points[i + 1].x - points[i].x,
+      points[i + 1].y - points[i].y
+    )
+    lengths.push(length)
+    total += length
+  }
+  if (total === 0) return points[0]
+  let target = total * fraction
+  for (let i = 0; i < lengths.length; i += 1) {
+    if (target > lengths[i]) {
+      target -= lengths[i]
+      continue
+    }
+    const ratio = lengths[i] === 0 ? 0 : target / lengths[i]
+    return {
+      x: points[i].x + (points[i + 1].x - points[i].x) * ratio,
+      y: points[i].y + (points[i + 1].y - points[i].y) * ratio,
+    }
+  }
+  return points[points.length - 1]
 }
