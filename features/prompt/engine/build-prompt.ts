@@ -773,6 +773,10 @@ export function collectWarnings(doc: ProjectDoc): string[] {
 
   const { unreachable, cycles, danglingEdges } = analyseGraph(doc.screens, doc.edges)
   for (const screen of unreachable) {
+    // A service area is reached by an HTTP call, not by a transition. Flagging
+    // one as unconnected reports the normal case as a problem, and a project
+    // whose clients are fully wired was being told its flow was broken.
+    if (screen.surface === "backend") continue
     warnings.push(`"${screen.title}" is not connected to any other screen.`)
   }
   if (doc.screens.length > 1 && !doc.edges.length) {

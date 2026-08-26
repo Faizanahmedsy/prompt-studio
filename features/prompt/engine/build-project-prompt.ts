@@ -3,7 +3,7 @@ import { findStackOption } from "@/features/stack/data/stack-catalogue"
 import type { ProjectDoc, Surface } from "@/types/project"
 
 import { BOILERPLATE } from "./boilerplate"
-import { type BuiltPrompt, buildPrompt } from "./build-prompt"
+import { type BuiltPrompt, buildPrompt, collectWarnings } from "./build-prompt"
 import { buildFolder, repoTree, selectedSurfaces } from "./monorepo"
 import { getTarget, type ProjectBlockId } from "./targets"
 
@@ -95,9 +95,14 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
   return {
     text,
     blocks,
-    warnings: Array.from(new Set(perSurface.flatMap(({ built }) => built.warnings))).concat(
-      projectWarnings(doc, surfaces)
-    ),
+    // Checked against the whole document, not gathered from each build.
+    //
+    // Aggregating per-surface warnings reported things that are true of one
+    // build and false of the project: the service has no transitions between
+    // its endpoint groups, so every three-build project was told "no
+    // connections yet" while its clients were fully wired, and a role tagged
+    // only on web screens was reported as tagged nowhere.
+    warnings: [...collectWarnings(doc), ...projectWarnings(doc, surfaces)],
   }
 }
 

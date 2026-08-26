@@ -23,6 +23,210 @@ export const starters: Starter[] = [
 }`,
   },
   {
+    id: "full-system",
+    name: "Web + mobile + API",
+    description: "One product, three builds, wired together and tested end to end.",
+    source: `app "Field Service" {
+  target claude-code
+  creativity 5
+  builds web, mobile, backend
+  theme { design modern-soft; primary #0891b2; secondary #f97316; radius large }
+}
+
+views { dispatcher "Dispatcher"; engineer "Field Engineer" }
+
+flows {
+  flow access "Signing in" {
+    story {
+      as     "anyone on the team"
+      want   "sign in on whichever device I am holding"
+      so     "I can start work without finding a laptop"
+      accept [
+        "the same account works on the phone and in the console"
+        "a wrong password does not say whether the address is registered"
+        "signing out on one device does not sign me out of the other"
+      ]
+    }
+  }
+  flow dispatching "Assigning work" {
+    story {
+      as     "a dispatcher"
+      want   "see the day's jobs and give each one to an engineer"
+      so     "nobody is idle and nothing is double-booked"
+      accept [
+        "a job assigned to someone already busy is refused, and says who has them"
+        "the board reflects an engineer's update without a refresh"
+      ]
+    }
+  }
+  flow on_site "Working a job" {
+    story {
+      as     "an engineer in the field"
+      want   "open my next job, record what I did, and move on"
+      so     "the office knows where things stand without me phoning in"
+      accept [
+        "an update made with no signal is sent when the network returns"
+        "the same update arriving twice leaves one record, not two"
+        "the job I am on survives closing and reopening the app"
+      ]
+    }
+  }
+}
+
+# ---- web console ----
+screen login "Sign In" {
+  template auth
+  layout   auth-split
+  flows    [access]
+}
+
+screen board "Dispatch Board" {
+  template dashboard
+  layout   dashboard-sidebar
+  in       [dispatcher]
+  flows    [dispatching]
+  story {
+    as     "a dispatcher starting the day"
+    want   "see every job and who is on it"
+    so     "I can fix a gap before a customer notices it"
+    accept [
+      "an unassigned job is visible without filtering for it"
+      "assigning from here reaches the engineer's phone"
+    ]
+  }
+  module queue  "Unassigned"   { kind list }
+  module people "Engineers"    { kind list }
+  module assign "Assign"       { kind modal; on "drag a job onto an engineer" }
+  inner {
+    queue  -> assign : "drag a job onto an engineer"
+    assign -> people : "on assigned, their column updates"
+  }
+}
+
+screen jobs "All Jobs" {
+  template table
+  layout   table-advanced
+  in       [dispatcher]
+  flows    [dispatching]
+}
+
+# ---- phone app ----
+screen app_signin "Sign In" {
+  template auth
+  layout   mobile-auth
+  surface  mobile
+  flows    [access]
+}
+
+screen app_today "Today" {
+  template dashboard
+  layout   mobile-tabs
+  surface  mobile
+  in       [engineer]
+  flows    [on_site]
+  story {
+    as     "an engineer between jobs"
+    want   "see what is next without hunting for it"
+    so     "I can drive straight there"
+    accept [
+      "the list is readable in sunlight and usable with gloves on"
+      "it opens to something useful with no signal"
+    ]
+  }
+}
+
+screen app_job "Job" {
+  template detail
+  layout   mobile-detail
+  surface  mobile
+  in       [engineer]
+  flows    [on_site]
+  module status "Update status" { kind action }
+  module photo  "Add photo"     { kind camera; on "tap Add photo" }
+  module perms  "Camera access" { kind permission; on "camera not granted yet" }
+  inner {
+    photo -> perms : "permission not granted yet"
+  }
+}
+
+# ---- the service both call ----
+screen api_auth "Auth" {
+  template admin
+  surface  backend
+  flows    [access]
+  story {
+    as     "either client app"
+    want   "exchange credentials for a token and refresh it without asking again"
+    so     "an engineer is not signed out halfway through a job"
+    accept [
+      "a wrong password answers 401 without saying which field was wrong"
+      "a refresh token is single-use; reusing an old one revokes the session"
+      "signing out on one device leaves the other signed in"
+    ]
+  }
+  module login   "POST /auth/login"   { kind action }
+  module refresh "POST /auth/refresh" { kind action }
+}
+
+screen api_jobs "Jobs" {
+  template admin
+  surface  backend
+  flows    [dispatching, on_site]
+  story {
+    as     "the console and the phone app"
+    want   "read the jobs a person may see and record what happened on them"
+    so     "the board and the device never disagree"
+    accept [
+      "an engineer only ever receives their own jobs, enforced on the server"
+      "the same status update sent twice leaves one record — the phone retries after a dropped connection"
+      "a job already assigned cannot be assigned again without releasing it first"
+      "lists are paginated and filtered in the query, never in the client"
+    ]
+  }
+  module list   "GET /jobs"              { kind action }
+  module detail "GET /jobs/{id}"         { kind action }
+  module assign "POST /jobs/{id}/assign" { kind action }
+  module status "POST /jobs/{id}/status" { kind action }
+}
+
+flow {
+  login      -> board     : "on successful sign in" @dispatcher
+  board      -> jobs      : "click All jobs"
+  app_signin -> app_today : "on successful sign in" @engineer
+  app_today  -> app_job   : "tap a job"
+}
+
+stack { framework next-16; styling tailwind4-shadcn; state tanstack-zustand; forms rhf-zod }
+structure feature-based
+
+stack mobile {
+  framework expo-router
+  styling   nativewind
+  state     rn-query-zustand
+  testing   rn-testing-library
+}
+structure mobile expo-feature-based
+
+stack backend {
+  framework fastapi
+  language  python
+  database  postgres
+  orm       sqlalchemy
+  apiStyle  rest-openapi
+  apiAuth   jwt-refresh
+  testing   pytest
+  tooling   ruff-mypy
+  packageManager uv
+}
+structure backend src-layered
+
+requirements """
+Three builds, one product. Engineers work offline in poor signal, so every write
+endpoint has to tolerate the same request arriving twice. Neither client talks to
+the database — both go through the API.
+"""`,
+  },
+  {
     id: "saas-dashboard",
     name: "SaaS dashboard",
     description: "Auth, dashboard, records, detail, settings.",

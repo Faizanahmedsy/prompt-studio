@@ -569,6 +569,11 @@ export function stackWarnings(stack: Stack): string[] {
     string,
   ][]
   for (const [groupKey, value] of selected) {
+    // Blank is a legitimate answer, not an unknown one: a service has no icon
+    // set and a web app has no database. Warning about both directions meant
+    // every project carried four complaints about fields nobody was asked to
+    // fill in.
+    if (!value.trim()) continue
     const option = findStackOption(groupKey, value)
     if (!option) {
       warnings.push(`Unknown ${groupKey} option "${value}" — it will be passed through as free text.`)
@@ -617,6 +622,49 @@ export function stackWarnings(stack: Stack): string[] {
 
   if (stack.styling === "tailwind4-shadcn" && stack.framework === "next-pages") {
     warnings.push("Tailwind v4 + shadcn assumes the App Router conventions; double-check with the Pages Router.")
+  }
+
+  // Service combinations. These are easy to reach by changing the framework and
+  // leaving the rest, and each one produces a brief that contradicts itself —
+  // a Python service told to use Prisma, or a Django project with no Django ORM.
+  if (platform === "server") {
+    const ormLanguage: Record<string, "python" | "ts"> = {
+      sqlalchemy: "python",
+      "django-orm": "python",
+      prisma: "ts",
+      drizzle: "ts",
+    }
+    const frameworkLanguage: Record<string, "python" | "ts"> = {
+      fastapi: "python",
+      "django-drf": "python",
+      nestjs: "ts",
+      "express-drizzle": "ts",
+    }
+    const wanted = frameworkLanguage[stack.framework]
+    const chosen = ormLanguage[stack.orm]
+    if (wanted && chosen && wanted !== chosen) {
+      warnings.push(
+        `${findStackOption("orm", stack.orm)?.label ?? stack.orm} is a ${
+          chosen === "python" ? "Python" : "TypeScript"
+        } library — it cannot be used from ${
+          findStackOption("framework", stack.framework)?.label ?? stack.framework
+        }.`
+      )
+    }
+    if (stack.framework === "django-drf" && stack.orm && stack.orm !== "django-orm") {
+      warnings.push("Django REST Framework is built on the Django ORM; another data layer fights the framework.")
+    }
+    if (stack.apiStyle === "trpc" && wanted === "python") {
+      warnings.push("tRPC is a TypeScript contract — a Python service cannot expose one.")
+    }
+    if (stack.database === "mongodb" && ["sqlalchemy", "drizzle", "django-orm"].includes(stack.orm)) {
+      warnings.push(
+        `${findStackOption("orm", stack.orm)?.label ?? stack.orm} talks to a SQL database — MongoDB needs a document mapper.`
+      )
+    }
+    if (stack.language && !stack.language.startsWith("ts") && stack.language !== "python" && wanted) {
+      warnings.push("The service's language does not match its framework.")
+    }
   }
   return warnings
 }

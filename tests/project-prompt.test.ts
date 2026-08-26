@@ -191,3 +191,38 @@ describe("a service is not a screen", () => {
     expect(warnings).not.toContain("have no layout chosen")
   })
 })
+
+describe("what the checks say about a system", () => {
+  it("has nothing to complain about when the project is well formed", () => {
+    // The starter is the worked example of this whole feature. If it cannot
+    // pass its own checks, nothing built from it will either.
+    expect(buildProjectPrompt(starterDoc("full-system")!).warnings).toEqual([])
+  })
+
+  it("does not report a service area as an unconnected screen", () => {
+    // A service is reached by an HTTP call, not by a transition — every
+    // three-build project was being told its flow was broken.
+    const doc = starterDoc("full-system")!
+    expect(doc.screens.some((screen) => screen.surface === "backend")).toBe(true)
+    expect(buildProjectPrompt(doc).warnings.join(" ")).not.toContain("not connected")
+  })
+
+  it("judges roles and connections against the project, not one build at a time", () => {
+    const doc = starterDoc("full-system")!
+    const warnings = buildProjectPrompt(doc).warnings.join(" ")
+    // Both roles are tagged on web screens and on none of the backend ones.
+    expect(warnings).not.toContain("No screen is tagged")
+    expect(warnings).not.toContain("No connections yet")
+  })
+
+  it("still says so when a build really has nothing in it", () => {
+    const doc = starterDoc("full-system")!
+    const withoutMobile = {
+      ...doc,
+      screens: doc.screens.filter((screen) => screen.surface !== "mobile"),
+    }
+    expect(buildProjectPrompt(withoutMobile).warnings.join(" ")).toContain(
+      "no screen is tagged `surface mobile`"
+    )
+  })
+})
