@@ -122,3 +122,72 @@ describe("one prompt for a system of builds", () => {
     )
   })
 })
+
+describe("the boilerplate inside a repository of builds", () => {
+  const withRepo = (builds: Partial<ProjectDoc["builds"]>) => {
+    const base = system()
+    return buildProjectPrompt({
+      ...base,
+      startFrom: "boilerplate",
+      builds: { ...base.builds, ...builds },
+    })
+  }
+
+  it("does not vanish when the project ships more than one build", () => {
+    // It is excluded from the per-build sections, so unless the composer
+    // restates it the clone instruction disappears and the web app is
+    // scaffolded from scratch without anybody being told.
+    expect(withRepo({}).text).toContain("git clone")
+  })
+
+  it("clones into the web build's folder, not over the whole repository", () => {
+    const text = withRepo({}).text
+    expect(text).toContain("apps/web")
+    expect(text).toContain("git clone --no-checkout")
+    // Cloning as the root would put the web app's files where the service goes.
+    expect(text).not.toMatch(/git clone[^\n]*\.git\s*$/m)
+  })
+
+  it("says what changes about the boilerplate once it lives in a repository", () => {
+    const text = withRepo({}).text
+    expect(text).toContain("workspace member")
+    expect(text).toContain("generated client from `packages/shared`")
+  })
+
+  it("admits there is no boilerplate for the other builds", () => {
+    expect(withRepo({}).text).toContain("The other builds have no boilerplate")
+  })
+
+  it("says so plainly when the project ships no web build at all", () => {
+    const text = withRepo({ web: false }).text
+    expect(text).toContain("this project does not ship one")
+    expect(text).not.toContain("git clone")
+  })
+
+  it("stays silent when the project never asked for it", () => {
+    expect(buildProjectPrompt(system()).text).not.toContain("git clone")
+  })
+})
+
+describe("a service is not a screen", () => {
+  it("does not describe a layout for something with no UI", () => {
+    const doc = system()
+    const built = buildProjectPrompt(doc)
+    const backend = built.blocks.find((block) => block.id === "build_backend")?.body ?? ""
+    const web = built.blocks.find((block) => block.id === "build_web")?.body ?? ""
+    expect(web).toContain("Layout:")
+    expect(backend).not.toContain("Layout:")
+  })
+
+  it("does not complain that a service has no layout chosen", () => {
+    const doc = system()
+    const stripped = {
+      ...doc,
+      screens: doc.screens.map((screen) =>
+        screen.surface === "backend" ? { ...screen, layout: "" } : screen
+      ),
+    }
+    const warnings = buildProjectPrompt(stripped).warnings.join(" ")
+    expect(warnings).not.toContain("have no layout chosen")
+  })
+})

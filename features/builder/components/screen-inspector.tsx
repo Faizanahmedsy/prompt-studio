@@ -83,32 +83,36 @@ export function ScreenInspector({
         options={screenTemplates.map((t) => ({ value: t.id, label: t.name }))}
       />
 
-      <div className="space-y-1.5">
-        <SectionLabel>Layout</SectionLabel>
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          className="group w-full rounded-lg border border-border bg-surface p-2 text-left transition-colors hover:border-primary/50"
-        >
-          {screen.layout ? (
-            <LayoutThumb
-              wire={layout.wire}
-              size="md"
-              accent={project.theme.primaryColor}
-              shape={screen.surface === "mobile" ? "phone" : "wide"}
-              interactive
-            />
-          ) : (
-            <div className="flex aspect-[16/10] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
-              Choose a layout
-            </div>
-          )}
-          <span className="mt-2 block text-xs font-medium">{layout.name}</span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            {layout.description}
-          </span>
-        </button>
-      </div>
+      {/* A service area has nothing to lay out, so the picker would be
+          offering a choice that never reaches the prompt. */}
+      {screen.surface !== "backend" && (
+        <div className="space-y-1.5">
+          <SectionLabel>Layout</SectionLabel>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="group w-full rounded-lg border border-border bg-surface p-2 text-left transition-colors hover:border-primary/50"
+          >
+            {screen.layout ? (
+              <LayoutThumb
+                wire={layout.wire}
+                size="md"
+                accent={project.theme.primaryColor}
+                shape={screen.surface === "mobile" ? "phone" : "wide"}
+                interactive
+              />
+            ) : (
+              <div className="flex aspect-[16/10] items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+                Choose a layout
+              </div>
+            )}
+            <span className="mt-2 block text-xs font-medium">{layout.name}</span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              {layout.description}
+            </span>
+          </button>
+        </div>
+      )}
 
       <StoryEditor
         ownerId={screen.id}

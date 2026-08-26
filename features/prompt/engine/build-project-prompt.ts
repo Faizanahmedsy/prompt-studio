@@ -2,6 +2,7 @@ import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { findStackOption } from "@/features/stack/data/stack-catalogue"
 import type { ProjectDoc, Surface } from "@/types/project"
 
+import { BOILERPLATE } from "./boilerplate"
 import { type BuiltPrompt, buildPrompt } from "./build-prompt"
 import { buildFolder, repoTree, selectedSurfaces } from "./monorepo"
 import { getTarget, type ProjectBlockId } from "./targets"
@@ -51,6 +52,10 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
 
   push("overview", "Overview", overview(doc, surfaces))
   push("repository", "One Repository", repository(doc, surfaces))
+  // Excluded from the per-build sections below, so it has to be stated here or
+  // a project with the boilerplate switched on gets no clone instruction at
+  // all — it would silently scaffold the web app from scratch.
+  push("boilerplate", "Start From The Boilerplate", boilerplate(doc, surfaces))
 
   // Each build keeps its own screens, journeys, stack and structure. The
   // shared blocks — overview, design, conventions, delivery — are lifted out
@@ -136,6 +141,43 @@ function repository(doc: ProjectDoc, surfaces: Surface[]): string {
     "One lockfile at the root and one command each to install, run and test. Say in the README what those commands are.",
   )
   return lines.concat(rules.map((rule) => `- ${rule}`)).join("\n")
+}
+
+/**
+ * The boilerplate, reworded for a repository that holds more than one build.
+ *
+ * The repo is a web app, not a monorepo, so cloning it as the root would put
+ * `apps/web`'s files at the top level and leave nowhere for the service. It
+ * seeds one folder; the rest is scaffolded around it.
+ */
+function boilerplate(doc: ProjectDoc, surfaces: Surface[]): string {
+  if (doc.startFrom !== "boilerplate") return ""
+  if (!surfaces.includes("web")) {
+    return "The shared boilerplate is a web app, and this project does not ship one — scaffold each build from scratch, following the structure above."
+  }
+  return [
+    `The web build starts from the shared boilerplate rather than being scaffolded. Clone it into \`${buildFolder.web}\`, drop its history, and build the rest of the repository around it:`,
+    "",
+    "```bash",
+    `git clone --no-checkout ${BOILERPLATE.url}.git ${buildFolder.web}`,
+    `cd ${buildFolder.web}`,
+    `git checkout ${BOILERPLATE.commit}`,
+    "rm -rf .git",
+    "```",
+    "",
+    `Pinned to \`${BOILERPLATE.commit.slice(0, 12)}\` — that commit, not \`main\`, so this brief builds the same thing whenever it is run.`,
+    "",
+    "It brings the folder structure, TypeScript strict, the design tokens, one http instance with auth and error handling, the three feedback states, and a `CLAUDE.md` carrying the conventions — read it, and do not rebuild any of it. Two adjustments for living in a repository rather than being one:",
+    "",
+    "- Its `package.json` becomes a workspace member; the lockfile and the shared scripts live at the root.",
+    "- Its http instance is replaced by the generated client from `packages/shared` — the contract is the service's, not the boilerplate's placeholder endpoint catalogue.",
+    "",
+    surfaces.filter((surface) => surface !== "web").length
+      ? "The other builds have no boilerplate — scaffold them normally, following the conventions above."
+      : "",
+  ]
+    .filter((line) => line !== "")
+    .join("\n")
 }
 
 function integration(doc: ProjectDoc, surfaces: Surface[]): string {

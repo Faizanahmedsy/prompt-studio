@@ -227,7 +227,12 @@ function screensBlock(doc: ProjectDoc): string {
         `${index + 1}. **${screen.title}** \`${screen.key}\`${template ? ` — ${template.name}` : ""}`,
       ]
       if (template) lines.push(`   Purpose: ${template.promptDetails}.`)
-      lines.push(`   Layout: ${layout.name} — ${layout.promptDetails}`)
+      // A service area has no layout — there is nothing to lay out. Printing
+      // "Layout: Advanced Data Table" under an endpoint group is the kind of
+      // filler that teaches a reader these lines can be skimmed.
+      if (screen.surface !== "backend") {
+        lines.push(`   Layout: ${layout.name} — ${layout.promptDetails}`)
+      }
       lines.push(...storyLines(screen.story, "   "))
       if (doc.flows.length) {
         const journeys = doc.flows
@@ -806,7 +811,9 @@ export function collectWarnings(doc: ProjectDoc): string[] {
     }
   }
 
-  const missingLayout = doc.screens.filter((s) => !s.layout).length
+  const missingLayout = doc.screens.filter(
+    (s) => !s.layout && s.surface !== "backend"
+  ).length
   if (missingLayout) {
     warnings.push(
       `${missingLayout} screen(s) have no layout chosen — the prompt will fall back to a generic description.`
