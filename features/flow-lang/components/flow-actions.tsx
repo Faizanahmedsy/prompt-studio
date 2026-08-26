@@ -71,7 +71,7 @@ export function FlowActions() {
               onSelect={() =>
                 copy(
                   "Diagram-syntax prompt",
-                  buildAuthoringPrompt(),
+                  buildAuthoringPrompt(project),
                   "Paste it into ChatGPT with the client requirements."
                 )
               }

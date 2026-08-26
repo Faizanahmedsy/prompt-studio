@@ -91,7 +91,7 @@ export function CommandPalette({ project }: { project: Project }) {
             <CommandItem
               onSelect={() =>
                 run(() => {
-                  copyText(buildAuthoringPrompt())
+                  copyText(buildAuthoringPrompt(project))
                   toast.success("Diagram-syntax prompt copied")
                 })
               }

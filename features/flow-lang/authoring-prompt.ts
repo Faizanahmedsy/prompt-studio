@@ -9,6 +9,7 @@ import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
 import { designLanguages } from "@/features/theme/data/design-languages"
+import type { ProjectDoc } from "@/types/project"
 import {
   bodyFontValues,
   colorSchemeValues,
@@ -24,7 +25,60 @@ import {
  * requirements. It is generated from the same catalogues the app uses, so the
  * list of valid ids can never drift from the code.
  */
-export function buildAuthoringPrompt(): string {
+/**
+ * The decisions already made, written as constraints rather than questions.
+ *
+ * Rule 10 asks the model to work out which builds a product needs, which is
+ * the right instruction for a blank page and the wrong one once somebody has
+ * chosen in the app. A model told to decide will decide — and a file saying
+ * `builds web` then lands in a project that ships three of them.
+ */
+function decidedBuilds(doc: ProjectDoc): string {
+  const chosen = (["web", "mobile", "backend"] as const).filter(
+    (surface) => doc.builds[surface]
+  )
+  if (!chosen.length) return ""
+
+  const lines = [
+    "# Already decided — do not choose these for yourself",
+    "",
+    `This product ships **${chosen.length} build${chosen.length === 1 ? "" : "s"}**: ${chosen.join(", ")}. Put exactly that in the \`app\` block:`,
+    "",
+    "```",
+    `builds ${chosen.join(", ")}`,
+    "```",
+    "",
+    "Rule 10 below explains how to decide which builds a product needs. It does not apply here — the decision is made. Tag every screen to one of these builds, and add no build beyond them.",
+  ]
+
+  if (chosen.includes("backend")) {
+    const stack = doc.surfaces.backend.stack
+    const parts = [
+      stack.framework && `framework  ${stack.framework}`,
+      stack.language && `language   ${stack.language}`,
+      stack.database && `database   ${stack.database}`,
+      stack.orm && `orm        ${stack.orm}`,
+      stack.apiStyle && `apiStyle   ${stack.apiStyle}`,
+      stack.apiAuth && `apiAuth    ${stack.apiAuth}`,
+    ].filter(Boolean) as string[]
+    if (parts.length) {
+      lines.push(
+        "",
+        "The service's technology is chosen too. Write it back verbatim — do not substitute something you would have picked instead:",
+        "",
+        "```",
+        "stack backend {",
+        ...parts.map((part) => `  ${part}`),
+        "}",
+        "```"
+      )
+    }
+  }
+
+  return `${lines.join("\n")}\n\n`
+}
+
+export function buildAuthoringPrompt(doc?: ProjectDoc): string {
   // Grouped, and with the one-line description the picker shows.
   //
   // The list used to be bare ids with the display name in brackets, which asks
@@ -46,6 +100,9 @@ export function buildAuthoringPrompt(): string {
   const stackLines = stackGroups.map(
     (group) => `- ${group.key}: ${group.options.map((o) => o.id).join(", ")}`
   )
+
+  // What the person already chose in the app, stated as settled.
+  const decided = doc ? decidedBuilds(doc) : ""
 
   return `# Task
 
@@ -73,7 +130,7 @@ code for that tool.
 Alongside this prompt you will be given the client's requirements. Read them,
 decide what screens the product needs, and write the Flow file.
 
-# Output rules
+${decided}# Output rules
 
 1. Output **one fenced code block** and nothing else. No preamble, no
    explanation, no bullet summary.

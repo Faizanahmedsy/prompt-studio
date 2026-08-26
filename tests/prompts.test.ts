@@ -402,3 +402,43 @@ describe("the merge prompt knows what the project ships", () => {
     expect(withBuilds({})).toContain("Do not touch the stack")
   })
 })
+
+describe("the requirements prompt knows what was already chosen", () => {
+  it("still asks the model to decide when nothing is known", () => {
+    // Copied from a blank slate — there is no project to defer to.
+    const prompt = buildAuthoringPrompt()
+    expect(prompt).not.toContain("Already decided")
+    expect(prompt).toContain("Decide which builds the product needs")
+  })
+
+  it("states the chosen builds as settled, and overrides the rule that asks", () => {
+    const doc = starterDoc("full-system")!
+    const prompt = buildAuthoringPrompt(doc)
+    expect(prompt).toContain("Already decided")
+    expect(prompt).toContain("builds web, mobile, backend")
+    // A model told to decide will decide, and hand back a file that disagrees
+    // with the project it is being pasted into.
+    expect(prompt).toContain("It does not apply here — the decision is made")
+  })
+
+  it("hands back the service's technology verbatim rather than a suggestion", () => {
+    const prompt = buildAuthoringPrompt(starterDoc("full-system")!)
+    expect(prompt).toContain("stack backend {")
+    expect(prompt).toContain("framework  fastapi")
+    expect(prompt).toContain("database   postgres")
+    expect(prompt).toContain("apiStyle   rest-openapi")
+    expect(prompt).toContain("do not substitute something you would have picked instead")
+  })
+
+  it("says nothing about a service when the project does not ship one", () => {
+    const prompt = buildAuthoringPrompt(starterDoc("saas-dashboard")!)
+    // Scoped to the decided section: the grammar reference further down still
+    // shows a `stack backend` block, and should — it is teaching the syntax.
+    const decided = prompt.slice(
+      prompt.indexOf("# Already decided"),
+      prompt.indexOf("# Output rules")
+    )
+    expect(decided).toContain("builds web")
+    expect(decided).not.toContain("stack backend")
+  })
+})
