@@ -382,15 +382,17 @@ export function placeLabelsOnPaths(
   const fractions = [
     0.5, 0.44, 0.56, 0.38, 0.62, 0.3, 0.7, 0.22, 0.78, 0.14, 0.86,
   ]
-  // Escalating, because a short connection into a screen that eight journeys
-  // converge on has its whole length inside the crowd: the only clear spot is
-  // some way off the line, and a label that may only move a few pixels has
-  // nowhere to go.
-  const offsets = [
-    0, -17, 17, -32, 32, -48, 48, -64, 64, -88, 88, -116, 116, -148, 148, -184,
-    184,
-  ]
-  const sideways = [0, -46, 46, -92, 92, -150, 150, -210, 210]
+  // Deliberately short. A label belongs *on* its connection: chased far enough
+  // to find empty space it stops reading as that connection's label at all,
+  // which is worse than the crowding it was running from. It moves enough to
+  // clear a card or another label, and no further.
+  const offsets = [0, -18, 18, -34, 34, -52, 52]
+  const sideways = [0, -44, 44]
+  // Only used when the tight ones all land on a card or another label — better
+  // a chip that moved further, with a leader saying where it belongs, than one
+  // printed over a screen's own name.
+  const wideOffsets = [-70, 70, -92, 92, -118, 118, -146, 146]
+  const wideSideways = [0, -66, 66, -110, 110]
 
   /**
    * Segments and cards, bucketed by position.
@@ -419,41 +421,52 @@ export function placeLabelsOnPaths(
     // with nowhere clean to go still lands on the least crowded spot instead
     // of falling back to the middle — which, at a hub, is the one place every
     // other line passes through.
-    let best: { point: Point; anchor: Point; score: number } | null = null
-    search: for (const fraction of fractions) {
-      const base = pointAt(request.points, fraction)
-      if (!base) continue
-      for (const offset of offsets) {
-        for (const shift of sideways) {
-          const candidate = { x: base.x + shift, y: base.y + offset }
-          const rect: Box = {
-            x: candidate.x - request.width / 2,
-            y: candidate.y - height / 2,
-            width: request.width,
-            height,
-          }
-          // A label over a card, or over another label, is never acceptable —
-          // those are the two that read as broken.
-          if (hitsAny(rect, cards)) continue
-          if (hitsAny(rect, placed)) continue
-          const score =
-            index.crossings(rect, request.id) +
-            // Being far from its own line is a cost too, so a label only
-            // wanders when staying put would put a line through it.
-            Math.abs(offset) / 200 +
-            Math.abs(shift) / 200
-          if (score < 0.001) {
-            best = { point: candidate, anchor: base, score: 0 }
-            break search
-          }
-          if (!best || score < best.score) {
-            best = { point: candidate, anchor: base, score }
+    type Candidate = { point: Point; anchor: Point; score: number }
+    // Held in an object rather than a `let`: the search below writes it from
+    // inside a closure, which the compiler cannot follow.
+    const found: { best: Candidate | null } = { best: null }
+    const attempt = (verticals: number[], horizontals: number[]) => {
+      search: for (const fraction of fractions) {
+        const base = pointAt(request.points, fraction)
+        if (!base) continue
+        for (const offset of verticals) {
+          for (const shift of horizontals) {
+            const candidate = { x: base.x + shift, y: base.y + offset }
+            const rect: Box = {
+              x: candidate.x - request.width / 2,
+              y: candidate.y - height / 2,
+              width: request.width,
+              height,
+            }
+            // A label over a card, or over another label, is never acceptable —
+            // those are the two that read as broken.
+            if (hitsAny(rect, cards)) continue
+            if (hitsAny(rect, placed)) continue
+            // A line passing behind a label is not a defect: the chip is
+            // opaque and drawn above the connections, so the line simply
+            // disappears under it. It breaks ties, nothing more. What actually
+            // has to be avoided — a label over a card, or over another label —
+            // is rejected outright above.
+            const score =
+              index.crossings(rect, request.id) * 0.12 +
+              Math.abs(offset) / 60 +
+              Math.abs(shift) / 60
+            if (score < 0.001) {
+              found.best = { point: candidate, anchor: base, score: 0 }
+              break search
+            }
+            if (!found.best || score < found.best.score) {
+              found.best = { point: candidate, anchor: base, score }
+            }
           }
         }
       }
     }
 
-    const point = best?.point ?? middle
+    attempt(offsets, sideways)
+    if (!found.best) attempt(wideOffsets, wideSideways)
+
+    const point = found.best?.point ?? middle
     const rect: Box = {
       x: point.x - request.width / 2,
       y: point.y - height / 2,
@@ -461,7 +474,7 @@ export function placeLabelsOnPaths(
       height,
     }
     placed.push(rect)
-    out.set(request.id, { point, anchor: best?.anchor ?? middle })
+    out.set(request.id, { point, anchor: found.best?.anchor ?? middle })
   }
   return out
 }
@@ -508,7 +521,10 @@ class SegmentIndex {
 
 /** Roughly how wide a label chip renders. */
 export function labelWidth(text: string) {
-  return Math.min(text.length * 5.6 + 22, 172)
+  // Measured against the rendered chip: text, its padding, and the delete
+  // button that sits beside it. Guessing low is what let two chips be placed
+  // where only one fits.
+  return Math.min(text.length * 6.2 + 34, 190)
 }
 
 function hitsAny(rect: Box, boxes: Box[]) {

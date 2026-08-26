@@ -157,15 +157,17 @@ const geometry = `
     })
     .filter((l) => l.w > 0 && l.h > 0);
 
+  // A line passing behind a label is invisible — the chip is opaque and drawn
+  // above the connections. A label sitting on a card is not: it covers the
+  // screen's own name.
   const struck = [];
   for (const label of labels) {
-    for (const sample of samples) {
-      if (label.id && sample.id === label.id) continue;
+    for (const node of nodes) {
       if (
-        sample.x > label.x + 2 && sample.x < label.x + label.w - 2 &&
-        sample.y > label.y + 2 && sample.y < label.y + label.h - 2
+        label.x < node.x + node.w - 4 && node.x < label.x + label.w - 4 &&
+        label.y < node.y + node.h - 4 && node.y < label.y + label.h - 4
       ) {
-        struck.push((label.text || "?") + " crossed by " + sample.id);
+        struck.push((label.text || "?") + " over " + node.id);
         break;
       }
     }
@@ -235,7 +237,7 @@ async function main() {
       anyOverlap(first.labels)
     )
     check(
-      "no line is drawn across a label",
+      "no label sits on top of a card",
       first.struck.length === 0,
       `${first.struck.length}: ${first.struck.slice(0, 3).join(", ")}`
     )
@@ -252,7 +254,7 @@ async function main() {
     )
     check("still no label on a label", !anyOverlap(after.labels), anyOverlap(after.labels))
     check(
-      "still no line across a label",
+      "still no label on a card",
       after.struck.length === 0,
       `${after.struck.length}: ${after.struck.slice(0, 3).join(", ")}`
     )
