@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FlowInspector } from "@/features/builder/components/flow-inspector"
 import { ModuleInspector } from "@/features/builder/components/module-inspector"
 import { ScreenInspector } from "@/features/builder/components/screen-inspector"
+import { EntityInspector } from "@/features/data/components/entity-inspector"
 import { SectionInspector } from "@/features/landing/components/section-inspector"
 import { RequirementsPanel } from "@/features/prompt/components/requirements-panel"
 import { StackPanel } from "@/features/stack/components/stack-panel"
@@ -29,8 +30,15 @@ export function Inspector({
   const module = project.modules.find((m) => m.id === selectedId)
   const section = project.sections.find((s) => s.id === selectedId)
   const flow = project.flows.find((f) => f.id === selectedId)
+  // A column selects its table: a column on its own has nothing to show that
+  // the table's own list does not show better.
+  const entity =
+    project.entities.find((e) => e.id === selectedId) ??
+    project.entities.find((e) => e.fields.some((f) => f.id === selectedId))
 
-  const selection = screen ? (
+  const selection = entity ? (
+    <EntityInspector project={project} entity={entity} />
+  ) : screen ? (
     <ScreenInspector project={project} screen={screen} />
   ) : flow ? (
     <FlowInspector project={project} flow={flow} />
@@ -42,7 +50,7 @@ export function Inspector({
     <EmptyState
       icon={<MousePointerSquareDashed />}
       title="Nothing selected"
-      description="Pick a screen on the canvas or a section in the page preview to edit it here."
+      description="Pick a screen on the canvas, a table on the data model, or a section in the page preview to edit it here."
     />
   )
 
@@ -51,13 +59,15 @@ export function Inspector({
       <div className="flex h-full flex-col">
         <PanelHeader
           title={
-            section
-              ? "Section"
-              : flow
-                ? "Journey"
-                : module
-                  ? "Module"
-                  : "Screen"
+            entity
+              ? "Table"
+              : section
+                ? "Section"
+                : flow
+                  ? "Journey"
+                  : module
+                    ? "Module"
+                    : "Screen"
           }
         />
         <PanelBody>{selection}</PanelBody>

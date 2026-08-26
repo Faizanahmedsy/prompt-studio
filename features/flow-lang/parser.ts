@@ -1,4 +1,5 @@
 import { autoLayout } from "@/features/builder/utils/graph"
+import { ENTITY_WIDTH, entityHeight } from "@/features/data/utils/geometry"
 import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
 import { sectionTypes } from "@/features/library/data/section-types"
@@ -13,16 +14,22 @@ import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
   bodyFontValues,
   colorSchemeValues,
+  type Entity,
+  type EntityField,
   elevationValues,
   type FlowEdge,
   type FlowGroup,
   type FlowView,
+  fieldKindValues,
   fontCharacterValues,
   iconStyleValues,
   type ModuleEdge,
   motionValues,
   type ProjectDoc,
   projectDocSchema,
+  type Relation,
+  type RelationKind,
+  relationKindValues,
   type Screen,
   type ScreenModule,
   type Section,
@@ -115,6 +122,8 @@ type Ctx =
    */
   | { kind: "story"; story: UserStory; collecting: boolean }
   | { kind: "landing" }
+  | { kind: "data" }
+  | { kind: "table"; id: string }
   | { kind: "stack"; surface: Surface }
   | { kind: "unknown" }
 
@@ -138,6 +147,13 @@ export function parseFlow(source: string): ParseResult {
   const sections: Section[] = []
   const views: FlowView[] = []
   const flows: FlowGroup[] = []
+  const entities: Entity[] = []
+  /**
+   * Relations are collected as written and resolved once every table is known:
+   * a file may join `orders` to `users` before `users` is declared, and
+   * refusing that would make the format order-dependent for no reason.
+   */
+  const relationDrafts: RelationDraft[] = []
   const byKey = new Map<string, Screen>()
   let profile: string | undefined
 
@@ -249,6 +265,32 @@ export function parseFlow(source: string): ParseResult {
     return flow
   }
 
+  /**
+   * Tables, like screens, may be referenced before they are declared — a
+   * relation naming `users` in a file whose `table users` block comes later,
+   * or never. Creating it is the same tolerance the rest of the format has.
+   */
+  const ensureEntity = (rawKey: string, name?: string) => {
+    const key = slugify(rawKey).replace(/-/g, "_")
+    if (!key) return null
+    const existing = entities.find((entity) => entity.key === key)
+    if (existing) {
+      if (name) existing.name = name
+      return existing
+    }
+    const entity: Entity = {
+      id: uid("ent"),
+      key,
+      name: name || titleFromKey(key),
+      note: "",
+      fields: [],
+      x: 0,
+      y: 0,
+    }
+    entities.push(entity)
+    return entity
+  }
+
   /** `@super_admin @admin` anywhere on a line — the view tags for a transition. */
   const readViewTags = (text: string) => {
     const ids: string[] = []
@@ -344,6 +386,88 @@ export function parseFlow(source: string): ParseResult {
           from: from.id,
           to: to.id,
           trigger: i === 0 ? trigger : "",
+        })
+      }
+      continue
+    }
+
+    // ----------------------------------------------------------- data block
+    // Ahead of the arrow test below, which would otherwise read `rel
+    // orders.user_id -> users.id` as a screen transition and invent two
+    // screens named after columns.
+    if (current.kind === "data" || current.kind === "table") {
+      // A relation line, wherever it appears in the block.
+      if (
+        keyword === "rel" ||
+        keyword === "relation" ||
+        keyword === "ref" ||
+        keyword === "references" ||
+        (current.kind === "data" && /(->|<->|=>|→|↔)/.test(rest))
+      ) {
+        const draft = readRelation(rest, quoted, line, warnings)
+        if (draft) relationDrafts.push(draft)
+        else errors.push({ line, message: `Could not read relation: "${raw}".` })
+        continue
+      }
+
+      if (current.kind === "data") {
+        const declares =
+          keyword === "table" || keyword === "entity" || keyword === "model"
+        const key = declares ? (words[1] ?? "") : (words[0] ?? "")
+        const entity = ensureEntity(key, quoted[0])
+        if (!entity) {
+          errors.push({ line, message: `Could not read table: "${raw}".` })
+          continue
+        }
+        if (quoted[1]) entity.note = quoted[1]
+        pending = { kind: "table", id: entity.id }
+        continue
+      }
+
+      // Inside a table: a property, or a column.
+      const entity = entities.find((e) => e.id === current.id)
+      if (!entity) continue
+      // `note` and `name` are also perfectly ordinary column names, so they
+      // are a property of the table only when written as one: the keyword
+      // alone, followed by a quoted value. `name text` is a column.
+      const isProperty = words.length === 1 && quoted.length > 0
+      if (isProperty && (keyword === "note" || keyword === "description")) {
+        entity.note = resolveHeredoc(quoted[0] ?? "", heredocs).trim()
+        continue
+      }
+      if (isProperty && (keyword === "name" || keyword === "title")) {
+        const value = (quoted[0] ?? "").trim()
+        if (value) entity.name = value
+        continue
+      }
+
+      const column = readColumn(rest, quoted, line, warnings)
+      if (!column) {
+        errors.push({ line, message: `Could not read column: "${raw}".` })
+        continue
+      }
+      const duplicate = entity.fields.find((f) => f.name === column.field.name)
+      if (duplicate) {
+        warnings.push({
+          line,
+          message: `\`${entity.key}.${column.field.name}\` is declared twice — the second one wins.`,
+        })
+        Object.assign(duplicate, column.field, { id: duplicate.id })
+      } else {
+        entity.fields.push(column.field)
+      }
+      // `user_id uuid ref users.id` — the join written on the column itself.
+      if (column.ref) {
+        relationDrafts.push({
+          from: entity.key,
+          fromField: column.field.name,
+          to: column.ref.table,
+          toField: column.ref.field,
+          kind: column.field.unique ? "one-to-one" : "many-to-one",
+          label: "",
+          onDelete: column.ref.onDelete ?? "restrict",
+          through: "",
+          line,
         })
       }
       continue
@@ -786,6 +910,16 @@ export function parseFlow(source: string): ParseResult {
         pending = { kind: "landing" }
         continue
       }
+      case "data":
+      case "schema":
+      case "tables":
+      case "database":
+      case "model": {
+        // The data model: what every build reads and writes. Declared once,
+        // rather than three times in three prompts that then disagree.
+        pending = { kind: "data" }
+        continue
+      }
       case "stack": {
         // `stack mobile { … }` and `stack backend { … }`. Without these the
         // format could not express a phone app's or a service's technology at
@@ -933,6 +1067,77 @@ export function parseFlow(source: string): ParseResult {
     edge.views = edge.views.filter((id) => viewIds.has(id))
   }
 
+  // ------------------------------------------------------------ data model
+  const entityByKey = new Map(entities.map((entity) => [entity.key, entity]))
+  const relations: Relation[] = []
+  for (const draft of relationDrafts) {
+    const from = entityByKey.get(slugify(draft.from).replace(/-/g, "_"))
+    const to = entityByKey.get(slugify(draft.to).replace(/-/g, "_"))
+    if (!from || !to) {
+      // Tolerant like everything else: name a table that was never declared
+      // and it is created, so the relation survives rather than vanishing.
+      const madeFrom = from ?? ensureEntity(draft.from)
+      const madeTo = to ?? ensureEntity(draft.to)
+      if (!madeFrom || !madeTo) {
+        warnings.push({
+          line: draft.line,
+          message: `Relation skipped — could not read the tables it joins.`,
+        })
+        continue
+      }
+      entityByKey.set(madeFrom.key, madeFrom)
+      entityByKey.set(madeTo.key, madeTo)
+      warnings.push({
+        line: draft.line,
+        message: `Relation joins ${madeFrom.key} → ${madeTo.key}, which were not declared as tables — created empty.`,
+      })
+      relations.push(buildRelation(madeFrom, madeTo, draft))
+      continue
+    }
+    relations.push(buildRelation(from, to, draft))
+  }
+
+  // A column named in a relation but never declared is created, so the
+  // migration the prompt describes can actually run.
+  for (const relation of relations) {
+    if (relation.kind === "many-to-many") continue
+    const from = entities.find((e) => e.id === relation.from)
+    const to = entities.find((e) => e.id === relation.to)
+    if (from && relation.fromField && !from.fields.some((f) => f.name === relation.fromField)) {
+      const target = to?.fields.find((f) => f.name === relation.toField)
+      from.fields.push({
+        id: uid("fld"),
+        name: relation.fromField,
+        type: target?.type ?? "uuid",
+        primary: false,
+        required: relation.kind !== "one-to-one",
+        unique: relation.kind === "one-to-one",
+        indexed: true,
+        defaultValue: "",
+        options: [],
+        note: "",
+      })
+    }
+  }
+
+  doc.entities = autoLayout(
+    entities,
+    relations.map((relation) => ({
+      id: relation.id,
+      from: relation.from,
+      to: relation.to,
+    })),
+    {
+      heights: Object.fromEntries(
+        entities.map((entity) => [entity.id, entityHeight(entity.fields.length)])
+      ),
+      nodeWidth: ENTITY_WIDTH,
+      colGap: 110,
+      rowGap: 44,
+    }
+  )
+  doc.relations = relations
+
   doc.screens = autoLayout(screens, edges)
   doc.edges = edges
   doc.sections = sections
@@ -944,10 +1149,10 @@ export function parseFlow(source: string): ParseResult {
     (e) => moduleIds.has(e.from) && moduleIds.has(e.to)
   )
 
-  if (!screens.length && !sections.length) {
+  if (!screens.length && !sections.length && !entities.length) {
     errors.push({
       line: 1,
-      message: "No screens or sections found — is this Flow source?",
+      message: "No screens, sections or tables found — is this Flow source?",
     })
   }
 
@@ -1229,3 +1434,314 @@ function normaliseColor(
   })
   return fallback
 }
+
+type RelationDraft = {
+  from: string
+  fromField: string
+  to: string
+  toField: string
+  kind: RelationKind
+  label: string
+  onDelete: "cascade" | "restrict" | "set-null"
+  through: string
+  line: number
+}
+
+function buildRelation(
+  from: Entity,
+  to: Entity,
+  draft: RelationDraft
+): Relation {
+  const key = to.fields.find((f) => f.primary)?.name ?? "id"
+  return {
+    id: uid("rel"),
+    from: from.id,
+    fromField:
+      draft.fromField ||
+      (draft.kind === "many-to-many" ? "" : `${singularKey(to.key)}_id`),
+    to: to.id,
+    toField: draft.toField || key,
+    kind: draft.kind,
+    label: draft.label,
+    onDelete: draft.onDelete,
+    through: draft.through,
+  }
+}
+
+/** `orders` → `order`, kept in step with the data feature's own singular(). */
+function singularKey(key: string) {
+  if (/(ss|us|is)$/i.test(key)) return key
+  if (/ies$/i.test(key)) return `${key.slice(0, -3)}y`
+  if (/(ches|shes|xes|ses)$/i.test(key)) return key.slice(0, -2)
+  if (/s$/i.test(key)) return key.slice(0, -1)
+  return key
+}
+
+const relationAliases: Record<string, RelationKind> = {
+  "many-to-one": "many-to-one",
+  manytoone: "many-to-one",
+  "n:1": "many-to-one",
+  "n-1": "many-to-one",
+  belongs_to: "many-to-one",
+  "one-to-many": "one-to-many",
+  onetomany: "one-to-many",
+  "1:n": "one-to-many",
+  "1-n": "one-to-many",
+  has_many: "one-to-many",
+  "one-to-one": "one-to-one",
+  onetoone: "one-to-one",
+  "1:1": "one-to-one",
+  "1-1": "one-to-one",
+  has_one: "one-to-one",
+  "many-to-many": "many-to-many",
+  manytomany: "many-to-many",
+  "n:n": "many-to-many",
+  "n-n": "many-to-many",
+  "m:n": "many-to-many",
+  m2m: "many-to-many",
+}
+
+const deleteAliases: Record<string, "cascade" | "restrict" | "set-null"> = {
+  cascade: "cascade",
+  delete: "cascade",
+  restrict: "restrict",
+  block: "restrict",
+  noaction: "restrict",
+  "no-action": "restrict",
+  "set-null": "set-null",
+  setnull: "set-null",
+  set_null: "set-null",
+  null: "set-null",
+}
+
+/**
+ * `rel orders.user_id -> users.id : many-to-one "belongs to" on_delete cascade`
+ *
+ * The kind may also be written as `n:1`, `1:n`, `1:1`, `n:n`, or left out —
+ * `->` means many-to-one, `<->` means many-to-many, which is what those arrows
+ * mean everywhere else they are drawn.
+ */
+function readRelation(
+  rest: string,
+  quoted: string[],
+  line: number,
+  warnings: ParseIssue[]
+): RelationDraft | null {
+  const body = rest
+    .replace(/^\s*(rel|relation|ref|references)\b/i, "")
+    .trim()
+  const symmetric = /<->|↔/.test(body)
+  const [leftRaw, rightRaw] = body
+    .split(/<->|↔|->|=>|→/)
+    .map((part) => part.trim())
+  if (!leftRaw || !rightRaw) return null
+
+  const left = readSide(leftRaw)
+  // The other side is the first token after the arrow; everything past it is
+  // options. Split on whitespace and commas only — `1:1` and `n:1` are single
+  // words, and splitting them on the colon read every cardinality as the
+  // default.
+  const trimmedRight = rightRaw.trim()
+  const firstToken = trimmedRight.split(/[\s,:]/)[0] ?? ""
+  const right = readSide(firstToken)
+  if (!left.table || !right.table) return null
+
+  const words = trimmedRight
+    .slice(firstToken.length)
+    .replace(/^\s*:\s*/, "")
+    .split(/[\s,]+/)
+    .map((word) => word.trim().toLowerCase())
+    .filter(Boolean)
+
+  let kind: RelationKind = symmetric ? "many-to-many" : "many-to-one"
+  let onDelete: "cascade" | "restrict" | "set-null" = "restrict"
+  let through = ""
+
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index]
+    const known = relationAliases[word]
+    if (known) {
+      kind = known
+      continue
+    }
+    if (relationKindValues.includes(word as RelationKind)) {
+      kind = word as RelationKind
+      continue
+    }
+    if (word === "through" || word === "via" || word === "join") {
+      through = words[index + 1] ?? ""
+      index += 1
+      continue
+    }
+    if (word === "on_delete" || word === "ondelete") {
+      const next = words[index + 1] ?? ""
+      onDelete = deleteAliases[next] ?? "restrict"
+      index += 1
+      continue
+    }
+    if (deleteAliases[word] && word !== "null") {
+      onDelete = deleteAliases[word]
+      continue
+    }
+    warnings.push({
+      line,
+      message: `Unknown relation option "${word}" — ignored.`,
+    })
+  }
+
+  return {
+    from: left.table,
+    fromField: left.field,
+    to: right.table,
+    toField: right.field,
+    kind,
+    label: quoted[0] ?? "",
+    onDelete,
+    through,
+    line,
+  }
+}
+
+function readSide(value: string) {
+  const cleaned = value.replace(/[^a-z0-9_.]/gi, "")
+  const [table, field = ""] = cleaned.split(".")
+  return { table: table ?? "", field }
+}
+
+/**
+ * One column: `email string unique required default "" note "…"`.
+ *
+ * Everything after the name and the type is a flag, in any order — LLM output
+ * puts them in whatever order it likes, and rejecting a line over word order
+ * would lose a column.
+ */
+function readColumn(
+  rest: string,
+  quoted: string[],
+  line: number,
+  warnings: ParseIssue[]
+): { field: EntityField; ref?: { table: string; field: string; onDelete?: "cascade" | "restrict" | "set-null" } } | null {
+  const options: string[] = []
+  const withoutList = rest.replace(/\[([^\]]*)\]/g, (_, body: string) => {
+    for (const item of String(body).split(/[,;]/)) {
+      const value = item.trim()
+      if (value) options.push(value)
+    }
+    return " "
+  })
+
+  const words = withoutList.split(/[\s,]+/).filter(Boolean)
+  const name = slugify(words[0] ?? "").replace(/-/g, "_")
+  if (!name) return null
+
+  const field: EntityField = {
+    id: uid("fld"),
+    name,
+    type: "text",
+    primary: false,
+    required: false,
+    unique: false,
+    indexed: false,
+    defaultValue: "",
+    options,
+    note: "",
+  }
+
+  let ref: { table: string; field: string; onDelete?: "cascade" | "restrict" | "set-null" } | undefined
+  let quotedAt = 0
+  const nextQuoted = () => quoted[quotedAt++] ?? ""
+
+  for (let index = 1; index < words.length; index += 1) {
+    const word = words[index].toLowerCase()
+    if (index === 1 && !FLAG_WORDS.has(word)) {
+      // The type. Unknown ones are kept rather than corrected: a project on a
+      // database this app has never heard of still has to round trip.
+      const known = fieldKindValues.find((value) => value === word)
+      if (!known) {
+        warnings.push({
+          line,
+          message: `"${words[index]}" is not a known column type — kept as written.`,
+        })
+      }
+      field.type = known ?? words[index]
+      continue
+    }
+    switch (word) {
+      case "pk":
+      case "primary":
+      case "primary_key":
+      case "id":
+        field.primary = true
+        field.required = true
+        break
+      case "required":
+      case "not_null":
+      case "notnull":
+      case "!":
+        field.required = true
+        break
+      case "optional":
+      case "nullable":
+      case "null":
+        field.required = false
+        break
+      case "unique":
+        field.unique = true
+        break
+      case "index":
+      case "indexed":
+        field.indexed = true
+        break
+      case "default": {
+        const value = nextQuoted() || words[index + 1] || ""
+        if (!quoted.length) index += 1
+        field.defaultValue = value
+        break
+      }
+      case "note":
+      case "comment":
+        field.note = nextQuoted()
+        break
+      case "ref":
+      case "references":
+      case "->": {
+        const side = readSide(words[index + 1] ?? "")
+        if (side.table) ref = { table: side.table, field: side.field || "id" }
+        index += 1
+        break
+      }
+      case "cascade":
+        if (ref) ref.onDelete = "cascade"
+        break
+      default:
+        warnings.push({
+          line,
+          message: `Unknown column option "${words[index]}" — ignored.`,
+        })
+    }
+  }
+
+  if (!field.note && quoted[quotedAt]) field.note = quoted[quotedAt]
+  return { field, ref }
+}
+
+const FLAG_WORDS = new Set([
+  "pk",
+  "primary",
+  "primary_key",
+  "required",
+  "not_null",
+  "notnull",
+  "optional",
+  "nullable",
+  "null",
+  "unique",
+  "index",
+  "indexed",
+  "default",
+  "note",
+  "comment",
+  "ref",
+  "references",
+  "cascade",
+])

@@ -26,7 +26,7 @@ import { diffLines, diffStats } from "@/features/prompt/engine/diff"
 import { isMultiBuild, selectedSurfaces } from "@/features/prompt/engine/monorepo"
 import { getTarget } from "@/features/prompt/engine/targets"
 import { copyText, downloadFile } from "@/lib/download"
-import { cn, countWords, estimateTokens } from "@/lib/utils"
+import { cn, countWords } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { usePromptDraftStore } from "@/stores/use-prompt-draft-store"
 import { useUiStore } from "@/stores/use-ui-store"
@@ -83,7 +83,7 @@ export function PromptPanel({ project }: { project: Project }) {
     setCopied(true)
     setTimeout(() => setCopied(false), 1600)
     toast.success("Prompt copied", {
-      description: `${estimateTokens(text).toLocaleString()} tokens · saved as a version`,
+      description: "Saved as a version",
     })
   }
 
@@ -152,7 +152,6 @@ export function PromptPanel({ project }: { project: Project }) {
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-3 py-2 text-[11px] text-muted-foreground">
         <Meter label="chars" value={text.length} />
         <Meter label="words" value={countWords(text)} />
-        <Meter label="~tokens" value={estimateTokens(text)} highlight />
         {multi && (
           <span className="ml-auto flex items-center gap-1">
             <ScopeButton
@@ -324,23 +323,10 @@ export function PromptPanel({ project }: { project: Project }) {
   )
 }
 
-function Meter({
-  label,
-  value,
-  highlight,
-}: {
-  label: string
-  value: number
-  highlight?: boolean
-}) {
+function Meter({ label, value }: { label: string; value: number }) {
   return (
     <span className="flex items-baseline gap-1">
-      <span
-        className={cn(
-          "font-mono text-xs tabular-nums",
-          highlight ? "text-primary" : "text-foreground"
-        )}
-      >
+      <span className="font-mono text-xs tabular-nums text-foreground">
         {value.toLocaleString()}
       </span>
       <span>{label}</span>

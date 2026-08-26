@@ -3,6 +3,7 @@
 import {
   Code2,
   Command,
+  Database,
   Globe,
   LayoutPanelTop,
   Moon,
@@ -127,6 +128,18 @@ export function TopBar({
             <Server />
             <span className="hidden sm:inline">Backend</span>
             <SurfaceCount count={counts.backend} />
+          </TabsTrigger>
+          {/*
+            The data model is not a build — it is what every build reads and
+            writes, which is why it sits beside them rather than inside one.
+          */}
+          <TabsTrigger
+            value="data"
+            title="Tables, columns and relations — shared by every build"
+          >
+            <Database />
+            <span className="hidden sm:inline">Data</span>
+            <SurfaceCount count={project.entities.length} />
           </TabsTrigger>
           {/*
             Available in Easy too. Reading the Flow source is how you check what

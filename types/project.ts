@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 export const borderRadiusValues = [
   "none",
@@ -221,6 +221,86 @@ export const sectionSchema = z.object({
   order: z.number(),
 })
 
+/**
+ * The data model — the tables behind the app, and how they relate.
+ *
+ * Kept in the project rather than left to the model to invent, because every
+ * build was otherwise given screens and endpoints and asked to guess the
+ * schema underneath them: three builds guessing separately is three different
+ * databases. One declared model is what makes the web app, the phone app and
+ * the service agree on what a `user` is.
+ */
+export const fieldKindValues = [
+  "uuid",
+  "text",
+  "string",
+  "integer",
+  "bigint",
+  "decimal",
+  "boolean",
+  "timestamp",
+  "date",
+  "time",
+  "json",
+  "enum",
+  "array",
+  "binary",
+] as const
+
+export const entityFieldSchema = z.object({
+  id: z.string(),
+  /** column name, as it will exist in the database */
+  name: z.string(),
+  /** free text rather than an enum: every database spells its types its own way */
+  type: z.string().default("text"),
+  primary: z.boolean().default(false),
+  required: z.boolean().default(false),
+  unique: z.boolean().default(false),
+  indexed: z.boolean().default(false),
+  /** literal default, written into the migration — "now()", "0", "'draft'" */
+  defaultValue: z.string().default(""),
+  /** allowed values for an enum column */
+  options: z.array(z.string()).default([]),
+  note: z.string().default(""),
+})
+
+export const entitySchema = z.object({
+  id: z.string(),
+  /** table name — snake_case, unique in the project */
+  key: z.string(),
+  /** what a person calls it — "Orders" */
+  name: z.string(),
+  note: z.string().default(""),
+  fields: z.array(entityFieldSchema).default([]),
+  x: z.number().default(0),
+  y: z.number().default(0),
+})
+
+export const relationKindValues = [
+  "one-to-many",
+  "many-to-one",
+  "one-to-one",
+  "many-to-many",
+] as const
+
+export const relationSchema = z.object({
+  id: z.string(),
+  /** entity id holding the foreign key (for many-to-many, either side) */
+  from: z.string(),
+  /** the column that holds it — "user_id" */
+  fromField: z.string().default(""),
+  /** entity id being pointed at */
+  to: z.string(),
+  /** the column being pointed at — normally the primary key */
+  toField: z.string().default("id"),
+  kind: z.enum(relationKindValues).default("many-to-one"),
+  /** "an order belongs to a customer" */
+  label: z.string().default(""),
+  onDelete: z.enum(["cascade", "restrict", "set-null"]).default("restrict"),
+  /** join table name, many-to-many only */
+  through: z.string().default(""),
+})
+
 export const stackSchema = z.object({
   framework: z.string().default("next-16"),
   language: z.string().default("ts-strict"),
@@ -355,6 +435,9 @@ export const projectDocSchema = z.object({
   modules: z.array(moduleSchema).default([]),
   moduleEdges: z.array(moduleEdgeSchema).default([]),
   sections: z.array(sectionSchema).default([]),
+  /** the tables behind every build, and how they relate */
+  entities: z.array(entitySchema).default([]),
+  relations: z.array(relationSchema).default([]),
   theme: themeSchema.default({}),
   /**
    * `stack` and `structure` are the **web** surface's, kept at the top level so
@@ -422,6 +505,10 @@ export type UserStory = z.infer<typeof userStorySchema>
 export type FlowGroup = z.infer<typeof flowSchema>
 export type FlowView = z.infer<typeof viewSchema>
 export type FlowEdge = z.infer<typeof edgeSchema>
+export type Entity = z.infer<typeof entitySchema>
+export type EntityField = z.infer<typeof entityFieldSchema>
+export type Relation = z.infer<typeof relationSchema>
+export type RelationKind = (typeof relationKindValues)[number]
 export type ScreenModule = z.infer<typeof moduleSchema>
 export type ModuleEdge = z.infer<typeof moduleEdgeSchema>
 export type Section = z.infer<typeof sectionSchema>

@@ -4,6 +4,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   type EdgeProps,
+  getBezierPath,
   getSmoothStepPath,
 } from "@xyflow/react"
 import { Plus, X } from "lucide-react"
@@ -15,6 +16,7 @@ import {
   updateEdge,
   updateModuleEdge,
 } from "@/features/builder/utils/actions"
+import { edgeKindMeta, edgeKindOf } from "@/features/builder/utils/edge-kinds"
 import { cn } from "@/lib/utils"
 
 /**
@@ -44,15 +46,36 @@ export function FlowEdge({
   const remove = inner ? deleteModuleEdge : deleteEdge
   const rename = inner ? updateModuleEdge : updateEdge
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    borderRadius: 10,
-  })
+  const kind = inner ? "module" : edgeKindOf(data?.kind)
+  const meta = edgeKindMeta[kind]
+
+  /**
+   * A right-angled path is the clearest way to draw one step forward, and the
+   * worst way to draw anything else: a loop back to an earlier column has to
+   * turn around, and smooth-step turns around *through* whatever cards sit in
+   * between. Loops and jumps therefore arc instead — the curve leaves the
+   * lane the nodes are in, which is why it stops crossing them.
+   */
+  const curved = kind === "back" || kind === "jump"
+  const [edgePath, labelX, labelY] = curved
+    ? getBezierPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition,
+        targetPosition,
+        curvature: kind === "back" ? 0.65 : 0.4,
+      })
+    : getSmoothStepPath({
+        sourceX,
+        sourceY,
+        targetX,
+        targetY,
+        sourcePosition,
+        targetPosition,
+        borderRadius: 10,
+      })
 
   const commit = () => {
     rename(id, draft.trim())
@@ -68,15 +91,13 @@ export function FlowEdge({
         // Wide invisible band so the line is clickable without pixel hunting.
         interactionWidth={28}
         style={{
-          stroke: selected
-            ? "var(--primary)"
-            : inner
-              ? "color-mix(in oklab, var(--foreground) 22%, transparent)"
-              : "color-mix(in oklab, var(--foreground) 35%, transparent)",
-          strokeWidth: selected ? 2.5 : inner ? 1.2 : 1.5,
-          // Inner transitions are dashed so a glance separates "moves inside
-          // this screen" from "leaves for another screen".
-          strokeDasharray: inner && !selected ? "4 3" : undefined,
+          // Colour carries the meaning — see `edgeKindMeta` and the canvas
+          // legend. Selection only brightens what is already there, so the
+          // kind of a connection stays readable while it is being edited.
+          stroke: selected ? "var(--primary)" : meta.color,
+          strokeWidth: selected ? 2.5 : inner ? 1.3 : 1.7,
+          opacity: selected ? 1 : 0.85,
+          strokeDasharray: meta.dashed && !selected ? "5 4" : undefined,
         }}
       />
 
@@ -113,14 +134,25 @@ export function FlowEdge({
                 setDraft(String(label ?? ""))
                 setEditing(true)
               }}
+              style={
+                label && !selected
+                  ? {
+                      borderColor: meta.color,
+                      color: meta.color,
+                      // Solid, not translucent: a label sitting over a card has
+                      // to stay readable, and this one is a button.
+                      background: "var(--card)",
+                    }
+                  : undefined
+              }
               className={cn(
                 "group/label max-w-40 truncate rounded-full border bg-card px-2 py-0.5 text-[10px] shadow-sm transition-colors",
                 label
                   ? "border-border text-foreground hover:border-primary"
                   : "border-dashed border-border text-muted-foreground hover:border-primary hover:text-foreground",
-                selected && "border-primary"
+                selected && "border-primary text-primary"
               )}
-              title="Click to edit what triggers this transition"
+              title={`${meta.label} — ${meta.hint}. Click to edit what triggers it.`}
             >
               {label || (
                 <span className="flex items-center gap-0.5">

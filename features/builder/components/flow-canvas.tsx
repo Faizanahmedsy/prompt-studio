@@ -38,8 +38,12 @@ import {
   deleteScreen,
   moveScreen,
 } from "@/features/builder/utils/actions"
+import {
+  type CanvasEdgeKind,
+  edgeKindMeta,
+} from "@/features/builder/utils/edge-kinds"
 import { inFlow } from "@/features/builder/utils/flows"
-import { analyseGraph } from "@/features/builder/utils/graph"
+import { analyseGraph, classifyEdges } from "@/features/builder/utils/graph"
 import {
   CARD_HEIGHT_FALLBACK,
   expandedHeight,
@@ -55,6 +59,7 @@ import { screenTemplates } from "@/features/library/data/templates"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
 
+import { CanvasLegend } from "./canvas-legend"
 import { FlowEdge } from "./flow-edge"
 import { FlowSwitcher } from "./flow-switcher"
 import { ModuleNode } from "./module-node"
@@ -63,6 +68,23 @@ import { ViewSwitcher } from "./view-switcher"
 
 const nodeTypes = { screen: ScreenNode, module: ModuleNode }
 const edgeTypes = { flow: FlowEdge }
+
+/**
+ * Space kept clear when the canvas fits itself to the graph.
+ *
+ * The toolbars float **over** the canvas, so a plain padding of 0.2 parked the
+ * first screen underneath the journey switcher and the last one under the
+ * Design bar. These numbers are the heights of that chrome: fitting inside them
+ * means no node ever lands under a button.
+ */
+const FIT_PADDING = {
+  top: "72px",
+  right: "24px",
+  bottom: "104px",
+  left: "24px",
+} as const
+
+const FIT = { padding: FIT_PADDING, maxZoom: 1, minZoom: 0.15 } as const
 
 function CanvasInner({
   project,
@@ -150,13 +172,11 @@ function CanvasInner({
     const spread = Math.max(...project.screens.map((s) => s.x))
     if (spread > 400 * project.screens.length) {
       arrangeScreens()
-      requestAnimationFrame(() =>
-        fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.4, duration: 0 })
-      )
+      requestAnimationFrame(() => fitView({ ...FIT, duration: 0 }))
       return
     }
 
-    fitView({ padding: 0.2, maxZoom: 1, minZoom: 0.4, duration: 0 })
+    fitView({ ...FIT, duration: 0 })
   }, [nodesInitialized, project.screens.length, fitView])
 
   const entries = useMemo(
@@ -191,27 +211,6 @@ function CanvasInner({
     screensWithModules.length > 0 &&
     screensWithModules.every((id) => openScreens.has(id))
 
-  /** How tall each node is for a given set of expanded screens. */
-  const heightsFor = useCallback(
-    (open: Set<string>) => {
-      const heights: Record<string, number> = {}
-      for (const screen of project.screens) {
-        const card = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
-        const count = modulesByScreen.get(screen.id)?.length ?? 0
-        heights[screen.id] = open.has(screen.id)
-          ? expandedHeight(card, count)
-          : card
-      }
-      return heights
-    },
-    [project.screens, cardHeights, modulesByScreen]
-  )
-
-  const renderedHeights = useCallback(
-    () => heightsFor(openScreens),
-    [heightsFor, openScreens]
-  )
-
   const toggleAll = useCallback(() => {
     setExpandedScreens(allExpanded ? [] : screensWithModules)
   }, [allExpanded, screensWithModules, setExpandedScreens])
@@ -241,7 +240,9 @@ function CanvasInner({
     if (!previous || previous.signature === expandSignature) return
     if (!project.screens.length) return
 
-    arrangeScreens(heightsFor(openScreens), { silent: true })
+    // Sizes are read inside the action from the same measurements the canvas
+    // reports, so every route into auto-arrange lays out the cards on screen.
+    arrangeScreens(undefined, { silent: true })
 
     // One screen toggling is a local change and the user's viewport should stay
     // put; a bulk expand changes the whole graph's size, so re-fit for that.
@@ -249,12 +250,10 @@ function CanvasInner({
     for (const id of previous.ids) if (openScreens.has(id)) changed.delete(id)
     if (changed.size > 1) {
       requestAnimationFrame(() =>
-        requestAnimationFrame(() =>
-          fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.15, duration: 300 })
-        )
+        requestAnimationFrame(() => fitView({ ...FIT, duration: 300 }))
       )
     }
-  }, [expandSignature, openScreens, heightsFor, project.screens.length, fitView])
+  }, [expandSignature, openScreens, project.screens.length, fitView])
 
   /**
    * Switching role re-lays out and re-fits what that role can see.
@@ -277,14 +276,12 @@ function CanvasInner({
     if (previous === undefined || previous === signature) return
     if (!visibleScreens.length) return
 
-    arrangeScreens(heightsFor(openScreens), {
+    arrangeScreens(undefined, {
       silent: true,
       only: visibleScreens.map((s) => s.id),
     })
     requestAnimationFrame(() =>
-      requestAnimationFrame(() =>
-        fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.1, duration: 350 })
-      )
+      requestAnimationFrame(() => fitView({ ...FIT, duration: 350 }))
     )
   }, [
     activeViewId,
@@ -292,8 +289,6 @@ function CanvasInner({
     activeFlowId,
     flowFaded,
     visibleScreens,
-    heightsFor,
-    openScreens,
     fitView,
   ])
 
@@ -368,16 +363,40 @@ function CanvasInner({
     surface,
   ])
 
+  /**
+   * What each connection *means* — next step, one of several branches, a jump
+   * ahead, or a loop back. The canvas colours by this, which is what turns a
+   * hundred identical grey arrows into something readable at a glance.
+   */
+  const edgeKinds = useMemo(
+    () => classifyEdges(visibleScreens, visibleEdges),
+    [visibleScreens, visibleEdges]
+  )
+
   const edges: Edge[] = useMemo(() => {
-    const out: Edge[] = visibleEdges.map((edge) => ({
-      id: edge.id,
-      source: edge.from,
-      target: edge.to,
-      label: edge.trigger || "",
-      type: "flow",
-      animated: false,
-      markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18 },
-    }))
+    const out: Edge[] = visibleEdges.map((edge) => {
+      const kind: CanvasEdgeKind = edgeKinds.get(edge.id) ?? "next"
+      return {
+        id: edge.id,
+        source: edge.from,
+        target: edge.to,
+        label: edge.trigger || "",
+        type: "flow",
+        animated: false,
+        data: { kind },
+        // The arrowhead has to carry the same colour as its line, or a graph
+        // of coloured edges ends in a row of grey points.
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 18,
+          height: 18,
+          color: edgeKindMeta[kind].color,
+        },
+        // Loops arc away from the lane the cards sit in, so they are drawn
+        // first and left underneath everything that goes forward.
+        zIndex: kind === "back" ? 0 : 1,
+      }
+    })
 
     // Inner transitions only exist while both ends are on screen; drawing them
     // to a collapsed screen would render an arrow from nowhere.
@@ -395,12 +414,26 @@ function CanvasInner({
         label: edge.trigger || "",
         type: "flow",
         animated: false,
-        data: { level: "module" },
-        markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+        data: { level: "module", kind: "module" as CanvasEdgeKind },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: edgeKindMeta.module.color,
+        },
       })
     }
     return out
-  }, [visibleEdges, project.moduleEdges, project.modules, openScreens])
+  }, [visibleEdges, edgeKinds, project.moduleEdges, project.modules, openScreens])
+
+  const kindCounts = useMemo(() => {
+    const counts: Partial<Record<CanvasEdgeKind, number>> = {}
+    for (const edge of edges) {
+      const kind = (edge.data?.kind as CanvasEdgeKind | undefined) ?? "next"
+      counts[kind] = (counts[kind] ?? 0) + 1
+    }
+    return counts
+  }, [edges])
 
   const isModule = useCallback(
     (id: string) => project.modules.some((m) => m.id === id),
@@ -595,7 +628,7 @@ function CanvasInner({
         event.dataTransfer.dropEffect = "copy"
       }}
       fitView
-      fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.4 }}
+      fitViewOptions={FIT}
       minZoom={0.2}
       maxZoom={1.6}
       snapToGrid
@@ -609,6 +642,7 @@ function CanvasInner({
         showInteractive={false}
         className="rounded-lg! border! border-border! bg-card! shadow-sm! [&_button]:border-border! [&_button]:bg-card! [&_button]:text-foreground! hover:[&_button]:bg-muted!"
       />
+      <CanvasLegend counts={kindCounts} />
       {!advanced && (
         <div className="absolute left-3 top-3 z-10">
           <AddMenu
@@ -621,7 +655,12 @@ function CanvasInner({
           />
         </div>
       )}
-      <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-1.5">
+      {/*
+        A solid, bordered bar rather than loose buttons: the toolbar floats over
+        the graph, and cards sliding under bare buttons while panning made both
+        unreadable.
+      */}
+      <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-1.5 rounded-xl border border-border bg-card/95 p-1 shadow-md backdrop-blur">
         <FlowSwitcher project={project} screens={roleScreens} />
         <ViewSwitcher project={project} />
         {screensWithModules.length > 0 && (
@@ -643,13 +682,12 @@ function CanvasInner({
           size="sm"
           variant="outline"
           onClick={() => {
-            // Arrange for the sizes on screen right now, expanded ones included.
-            arrangeScreens(renderedHeights())
+            // Sizes come from the measurements the nodes report, expanded
+            // screens included, so the arrangement matches what is on screen.
+            arrangeScreens()
             // Re-fit after the new positions have rendered, otherwise a wider
             // graph spills past the pane edge.
-            requestAnimationFrame(() =>
-              fitView({ padding: 0.15, maxZoom: 1, minZoom: 0.15, duration: 250 })
-            )
+            requestAnimationFrame(() => fitView({ ...FIT, duration: 250 }))
           }}
         >
           <LayoutGrid /> Auto-arrange

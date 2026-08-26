@@ -19,7 +19,12 @@ import type {
   UserStory,
 } from "@/types/project"
 
-import { autoLayout, edgeExists } from "./graph"
+import { type AutoLayoutOptions, autoLayout, edgeExists } from "./graph"
+import {
+  CARD_HEIGHT_FALLBACK,
+  expandedHeight,
+  nodeWidthFor,
+} from "./node-geometry"
 
 const update = (
   mutate: (doc: ProjectDoc) => void,
@@ -188,12 +193,45 @@ export function reorderScreens(fromId: string, toIndex: number) {
 }
 
 /**
- * `heights` comes from the canvas, which is the only place that knows how tall
- * each node currently renders — a screen showing its modules needs a whole
- * column row to itself.
+ * How big every screen renders **right now** — the measured card height, the
+ * extra height of an expanded screen's module well, and the node width for its
+ * surface.
+ *
+ * Read from the UI store rather than passed in, because auto-arrange is reached
+ * from four places (the canvas button, the `a` hotkey, the command palette and
+ * the reflow that follows expanding a screen) and any one of them forgetting to
+ * pass the sizes laid the graph out for cards that are not the ones on screen —
+ * which is exactly how nodes ended up on top of each other.
+ */
+function renderedSizes(doc: ProjectDoc): AutoLayoutOptions {
+  const ui = useUiStore.getState()
+  const open = new Set(ui.expandedScreenIds)
+  const moduleCount = new Map<string, number>()
+  for (const module of doc.modules) {
+    moduleCount.set(module.screenId, (moduleCount.get(module.screenId) ?? 0) + 1)
+  }
+
+  const heights: Record<string, number> = {}
+  const widths: Record<string, number> = {}
+  for (const screen of doc.screens) {
+    const card = ui.cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
+    heights[screen.id] = open.has(screen.id)
+      ? expandedHeight(card, moduleCount.get(screen.id) ?? 0)
+      : card
+    widths[screen.id] = nodeWidthFor(screen.surface)
+  }
+  return { heights, widths }
+}
+
+/**
+ * Re-space the graph.
+ *
+ * Each surface is laid out as its own graph: web, mobile and backend never
+ * share an edge and never share a canvas, so laying them out together would
+ * stack three unrelated apps into one column.
  */
 export function arrangeScreens(
-  heights?: Record<string, number>,
+  layout?: AutoLayoutOptions,
   options?: { silent?: boolean; only?: string[] }
 ) {
   update(
@@ -203,18 +241,27 @@ export function arrangeScreens(
       // the canvas but keep the whole-app positions, so the role's flow reads
       // as a full-app layout with holes punched in it.
       const only = options?.only ? new Set(options.only) : null
-      if (!only) {
-        doc.screens = autoLayout(doc.screens, doc.edges, { heights })
-        return
+      const sizes = { ...renderedSizes(doc), ...layout }
+
+      const placed = new Map<string, Screen>()
+      for (const surface of ["web", "mobile", "backend"] as const) {
+        const subset = doc.screens.filter(
+          (s) => s.surface === surface && (!only || only.has(s.id))
+        )
+        if (!subset.length) continue
+        const ids = new Set(subset.map((s) => s.id))
+        const subsetEdges = doc.edges.filter(
+          (e) => ids.has(e.from) && ids.has(e.to)
+        )
+        for (const screen of autoLayout(subset, subsetEdges, {
+          ...sizes,
+          nodeWidth: nodeWidthFor(surface),
+        })) {
+          placed.set(screen.id, screen)
+        }
       }
-      const subset = doc.screens.filter((s) => only.has(s.id))
-      const subsetEdges = doc.edges.filter(
-        (e) => only.has(e.from) && only.has(e.to)
-      )
-      const laid = new Map(
-        autoLayout(subset, subsetEdges, { heights }).map((s) => [s.id, s])
-      )
-      doc.screens = doc.screens.map((s) => laid.get(s.id) ?? s)
+
+      doc.screens = doc.screens.map((s) => placed.get(s.id) ?? s)
     },
     // Re-spacing that follows an expand/collapse is a consequence of a view
     // change, so it stays out of the undo stack; pressing Ctrl+Z after opening

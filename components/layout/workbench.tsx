@@ -14,6 +14,7 @@ import { FlowCanvas } from "@/features/builder/components/flow-canvas"
 import { OutlineList } from "@/features/builder/components/outline-list"
 import { useLiveProject } from "@/features/cloud/use-live-project"
 import { useProjectSync } from "@/features/cloud/use-project-sync"
+import { DataCanvas } from "@/features/data/components/data-canvas"
 import { FlowCodeView } from "@/features/flow-lang/components/flow-code-view"
 import { LandingPreview } from "@/features/landing/components/landing-preview"
 import { LibraryPanel } from "@/features/library/components/library-panel"
@@ -76,6 +77,8 @@ export function Workbench({ project }: { project: Project }) {
   const canvas =
     ui.mode === "code" ? (
       <FlowCodeView project={project} />
+    ) : ui.mode === "data" ? (
+      <DataCanvas project={project} />
     ) : ui.mode === "landing" ? (
       <div className="h-full overflow-y-auto">
         <LandingPreview project={project} />

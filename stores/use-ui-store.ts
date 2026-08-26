@@ -5,11 +5,17 @@ import { persist } from "zustand/middleware"
 
 /**
  * The tabs. Three of them are *surfaces* — separate builds of the same product,
- * each with its own screens and stack — plus the landing page and the raw Flow
- * source. `"flow"` is kept as an alias for `"web"` so a persisted preference
+ * each with its own screens and stack — plus the landing page, the data model
+ * every build shares, and the raw Flow source. `"flow"` is kept as an alias for `"web"` so a persisted preference
  * from before surfaces existed still lands somewhere sensible.
  */
-export type WorkMode = "web" | "mobile" | "backend" | "landing" | "code"
+export type WorkMode =
+  | "web"
+  | "mobile"
+  | "backend"
+  | "landing"
+  | "data"
+  | "code"
 
 /**
  * Easy keeps only what a dev needs to draw screens and get a prompt out —

@@ -155,6 +155,52 @@ export function serializeFlow(doc: ProjectDoc): string {
     out.push("}")
   }
 
+  // The data model, before the stack: what the app stores is a property of the
+  // product, not of the technology chosen to store it.
+  if (doc.entities.length) {
+    out.push("")
+    out.push("data {")
+    for (const entity of doc.entities) {
+      out.push(`  table ${entity.key} ${quote(entity.name)} {`)
+      if (entity.note.trim()) out.push(`    note ${quote(entity.note.trim())}`)
+      for (const field of entity.fields) {
+        const parts = [`    ${field.name} ${field.type}`]
+        if (field.options.length) parts.push(`[${field.options.join(", ")}]`)
+        if (field.primary) parts.push("pk")
+        // A primary key is required and unique by definition; writing it three
+        // times makes the line harder to read and says nothing extra.
+        if (field.required && !field.primary) parts.push("required")
+        if (field.unique && !field.primary) parts.push("unique")
+        if (field.indexed && !field.primary) parts.push("index")
+        if (field.defaultValue.trim()) {
+          parts.push(`default ${quote(field.defaultValue.trim())}`)
+        }
+        if (field.note.trim()) parts.push(`note ${quote(field.note.trim())}`)
+        out.push(parts.join(" "))
+      }
+      out.push("  }")
+    }
+
+    const keyOf = new Map(doc.entities.map((entity) => [entity.id, entity.key]))
+    for (const relation of doc.relations) {
+      const from = keyOf.get(relation.from)
+      const to = keyOf.get(relation.to)
+      // A relation with a missing end is not written: the file has to parse
+      // back into the same document, and a dangling name would not resolve.
+      if (!from || !to) continue
+      const left = relation.fromField ? `${from}.${relation.fromField}` : from
+      const right = relation.toField ? `${to}.${relation.toField}` : to
+      const parts = [`  rel ${left} -> ${right} : ${relation.kind}`]
+      if (relation.label.trim()) parts.push(quote(relation.label.trim()))
+      if (relation.through.trim()) parts.push(`through ${relation.through.trim()}`)
+      if (relation.onDelete !== "restrict") {
+        parts.push(`on_delete ${relation.onDelete}`)
+      }
+      out.push(parts.join(" "))
+    }
+    out.push("}")
+  }
+
   if (doc.sections.length) {
     out.push("")
     out.push("landing {")
