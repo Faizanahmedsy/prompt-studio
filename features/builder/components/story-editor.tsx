@@ -95,8 +95,7 @@ export function StoryEditor({
         )}
         {story.criteria.map((criterion, index) => (
           <div
-            // biome-ignore lint/suspicious/noArrayIndexKey: criteria have no ids, and the row is identified only by its position — reordering is by editing, not dragging
-            key={index}
+            key={`criterion-${index}`}
             className="flex items-center gap-1"
           >
             <Input

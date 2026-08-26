@@ -137,7 +137,9 @@ export function StackPanel({ project }: { project: Project }) {
       <section className="space-y-3">
         <SectionLabel>Technology</SectionLabel>
         <WarningList warnings={warnings} />
-        {stackGroups.map((group) => (
+        {stackGroups
+          .filter((group) => !group.appliesTo || group.appliesTo.includes(surface))
+          .map((group) => (
           <SelectField
             key={group.key}
             label={group.label}
@@ -153,7 +155,7 @@ export function StackPanel({ project }: { project: Project }) {
               label: option.label,
             }))}
           />
-        ))}
+          ))}
         <TextAreaField
           label="Extras"
           hint="One per line — libraries or constraints the list above doesn't cover."

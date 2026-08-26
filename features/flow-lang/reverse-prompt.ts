@@ -74,8 +74,25 @@ config, and the top-level folder list. Establish:
   on getting this right.
 - **The app root.** \`src/app\`, \`app/\`, \`src/pages\`, \`apps/web/src/app\`, …
 
+- **How many builds does this repository contain?** A monorepo often holds
+  several: \`apps/web\` beside \`apps/mobile\` beside \`services/api\`, or
+  \`packages/*\` beside a server. Each is its own build with its own manifest and
+  its own stack. Look for more than one \`package.json\`, a \`pyproject.toml\` or
+  \`requirements.txt\` next to a JS app, a workspace file, or a
+  \`docker-compose.yml\` that starts something the app talks to.
+
+Then declare what you found: \`builds web, mobile, backend\` in the \`app\` block,
+listing only the builds this repository actually contains. Tag every screen with
+its build — \`surface mobile\`, \`surface backend\`, nothing for web.
+
 Set \`stack { … }\` from what the manifest and config actually show, never from
 what you would have chosen. Read the dependency list; do not guess versions.
+**One stack block per build**: \`stack mobile { … }\` from the mobile app's own
+manifest, \`stack backend { … }\` from the service's — its framework, its
+\`database\` and \`orm\` read from the connection settings and the migration
+folder, its \`apiStyle\` from whether there is a generated schema, and its
+\`apiAuth\` from the code that actually verifies a request. A backend stack
+guessed from the frontend's dependencies is worse than none.
 
 ---
 
@@ -441,6 +458,18 @@ Same grammar, service semantics. Do **not** invent new keywords.
 - \`inner\` = the sequence within a service: handler → validation → repository →
   emitted event.
 - Record auth/roles per endpoint in its note — guards, decorators, middleware.
+- Fill \`stack backend { … }\` from the service's own manifest and configuration:
+  \`framework\` from what serves the routes, \`database\` from the connection
+  string or compose file, \`orm\` from the migration folder and the model
+  definitions, \`apiStyle\` from whether a schema is generated
+  (\`rest-openapi\`), hand-documented (\`rest-plain\`), \`graphql\` or \`trpc\`,
+  and \`apiAuth\` from the code that verifies a request — not from what the
+  README claims.
+
+When the service lives in the **same repository** as a client, do not write two
+files. One file, \`builds\` naming both, every screen tagged, and the transitions
+of each build kept to itself: a screen calling an endpoint is an integration and
+belongs in that screen's \`note\`, never as a \`flow\` arrow between builds.
 
 ---
 
@@ -475,6 +504,7 @@ file".
 app "Name from package.json" {
   target claude-code
   creativity 3                # low: this describes real code, not a new design
+  builds web                  # every build this repository actually contains
   theme { design modern-soft; primary #2563eb }
 }
 

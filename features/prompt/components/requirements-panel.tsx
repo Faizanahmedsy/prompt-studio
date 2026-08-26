@@ -2,6 +2,7 @@
 
 import { SelectField, TextAreaField, ToggleRow } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
+import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { snippets } from "@/features/library/data/snippets"
 import { promptTargets } from "@/features/prompt/engine/targets"
 import { useProjectStore } from "@/stores/use-project-store"
@@ -28,6 +29,29 @@ export function RequirementsPanel({ project }: { project: Project }) {
         }
         options={promptTargets.map((t) => ({ value: t.id, label: t.name }))}
       />
+
+      <section className="space-y-2">
+        <SectionLabel>Builds</SectionLabel>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          What this project ships. Choose more than one and the prompt describes a
+          single repository containing all of them, how they wire together, and the
+          tests that prove they do.
+        </p>
+        {(["web", "mobile", "backend"] as const).map((build) => (
+          <ToggleRow
+            key={build}
+            variant="checkbox"
+            title={surfaceMeta[build].label}
+            description={surfaceMeta[build].hint}
+            checked={project.builds[build]}
+            onCheckedChange={(on) =>
+              update((doc) => {
+                doc.builds[build] = on
+              })
+            }
+          />
+        ))}
+      </section>
 
       <ToggleRow
         variant="switch"

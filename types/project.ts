@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 export const borderRadiusValues = [
   "none",
@@ -234,6 +234,18 @@ export const stackSchema = z.object({
   testing: z.string().default("vitest"),
   tooling: z.string().default("biome-prettier"),
   packageManager: z.string().default("pnpm"),
+  /**
+   * The service half of the stack.
+   *
+   * Blank on a UI surface rather than absent: a screen has no database, and
+   * defaulting these to Postgres would put a database into every web-only
+   * brief that never asked for one. They are filled in only on the backend
+   * surface, where the picker shows them.
+   */
+  database: z.string().default(""),
+  orm: z.string().default(""),
+  apiStyle: z.string().default(""),
+  apiAuth: z.string().default(""),
   /** free-text additions the catalogue does not know about */
   extras: z.array(z.string()).default([]),
 })
@@ -277,18 +289,54 @@ const backendSurfaceDefaults = {
   stack: {
     // A service has no UI, so the presentation choices are deliberately blank
     // rather than a web default nobody meant to pick.
-    framework: "",
+    framework: "fastapi",
+    language: "python",
     styling: "",
     forms: "",
     icons: "",
     tables: "",
     charts: "",
+    state: "none-state-server",
+    http: "none-http-server",
+    testing: "pytest",
+    tooling: "ruff-mypy",
+    packageManager: "uv",
+    // The service half, which the Backend tab had no way to express at all
+    // until now: it blanked the presentation fields and offered nothing in
+    // their place, so a backend brief named no server technology.
+    database: "postgres",
+    orm: "sqlalchemy",
+    apiStyle: "rest-openapi",
+    apiAuth: "jwt-refresh",
   },
   structure: { preset: "src-layered" },
 }
 
 export const projectDocSchema = z.object({
   name: z.string().default("Untitled project"),
+  /**
+   * Which builds this project ships.
+   *
+   * Named `builds` rather than `surfaces` because `surfaces` already means
+   * something here — the per-surface stack and folder configuration below.
+   * This is the shorter question: which of them are we shipping at all.
+   *
+   * Until now this was inferred from which screens happened to exist, which
+   * cannot express "there is a backend" before anybody has drawn a service, and
+   * cannot express intent at all: a project meant to ship a phone app looked
+   * identical to one where somebody had tagged a screen `surface mobile` by
+   * accident. Stated up front, it drives what the generated prompt asks for and
+   * what the requirements prompt tells a model to write.
+   *
+   * Web defaults on because every existing project is a web project.
+   */
+  builds: z
+    .object({
+      web: z.boolean().default(true),
+      mobile: z.boolean().default(false),
+      backend: z.boolean().default(false),
+    })
+    .default({}),
   /**
    * Whether the build starts from the shared boilerplate repository or from an
    * empty folder.

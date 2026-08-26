@@ -13,6 +13,17 @@ import type { ProjectDoc } from "@/types/project"
  * Merge then matches on key, and the fragment lands on the real screens instead
  * of creating a second copy of each.
  */
+/** The builds this project ships, in words, for the fragment prompt. */
+function buildWords(doc: ProjectDoc): string {
+  const names: string[] = []
+  if (doc.builds.web) names.push("a web app")
+  if (doc.builds.mobile) names.push("a mobile app")
+  if (doc.builds.backend) names.push("a backend service")
+  if (!names.length) return "a web app"
+  if (names.length === 1) return names[0]
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+}
+
 export function buildFragmentPrompt(doc: ProjectDoc): string {
   const flowKeyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
   const inventory = doc.screens.length
@@ -113,6 +124,24 @@ ${flowInventory}
    \`surface\` line means the web app. The list above shows each existing screen's
    build, so match it when you extend one. Never connect a screen on one build
    to a screen on another.
+
+   This project ships: **${buildWords(doc)}**. A fragment for a build that is
+   not on that list is a fragment nobody asked for — if the feature genuinely
+   needs one, say so in a note rather than inventing the build.${
+     doc.builds.backend
+       ? `
+
+   On \`surface backend\` a screen is a service area, not a page: no
+   \`layout\`, modules named for their endpoints (\`"POST /jobs/{id}/status"\`),
+   and criteria about what the service rejects, what it tolerates being sent
+   twice, and what it never returns.`
+       : ""
+   }
+
+9. **Do not touch the stack.** A fragment adds screens, modules and connections.
+   It never contains \`stack\`, \`structure\`, \`theme\` or \`builds\` — those belong
+   to the project, are already set, and a fragment that restates them will
+   quietly reset a decision somebody made.
 
 # Grammar
 

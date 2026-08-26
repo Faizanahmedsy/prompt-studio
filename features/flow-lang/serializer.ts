@@ -14,6 +14,11 @@ export function serializeFlow(doc: ProjectDoc): string {
   out.push(`app ${quote(doc.name)} {`)
   out.push(`  target ${doc.target}`)
   out.push(`  creativity ${doc.creativity}`)
+  // Which builds this project ships. Written every time rather than only when
+  // it is unusual: a file that says nothing about its builds is a file that
+  // silently means "web", and a reader has no way to tell that from "nobody
+  // has decided yet".
+  out.push(`  builds ${buildWords(doc).join(", ")}`)
   out.push(
     // Every theme field, not the six this used to write.
     //
@@ -166,21 +171,7 @@ export function serializeFlow(doc: ProjectDoc): string {
 
   out.push("")
   out.push("stack {")
-  out.push(`  framework      ${doc.stack.framework}`)
-  out.push(`  language       ${doc.stack.language}`)
-  out.push(`  styling        ${doc.stack.styling}`)
-  out.push(`  state          ${doc.stack.state}`)
-  out.push(`  forms          ${doc.stack.forms}`)
-  out.push(`  http           ${doc.stack.http}`)
-  out.push(`  icons          ${doc.stack.icons}`)
-  out.push(`  tables         ${doc.stack.tables}`)
-  out.push(`  charts         ${doc.stack.charts}`)
-  out.push(`  testing        ${doc.stack.testing}`)
-  out.push(`  tooling        ${doc.stack.tooling}`)
-  out.push(`  packageManager ${doc.stack.packageManager}`)
-  if (doc.stack.extras.length) {
-    out.push(`  extras ${doc.stack.extras.map((e) => quote(e)).join(" ")}`)
-  }
+  out.push(...stackLines(doc.stack))
   out.push("}")
 
   out.push("")
@@ -188,6 +179,23 @@ export function serializeFlow(doc: ProjectDoc): string {
     out.push(`structure custom ${block(doc.structure.customTree, 0)}`)
   } else {
     out.push(`structure ${doc.structure.preset}`)
+  }
+
+  // The other builds' technology. Omitted entirely when the project does not
+  // ship them — an `apps/mobile` stack in a web-only file is noise a reader
+  // has to decide to ignore.
+  for (const surface of ["mobile", "backend"] as const) {
+    if (!doc.builds[surface]) continue
+    const config = doc.surfaces[surface]
+    out.push("")
+    out.push(`stack ${surface} {`)
+    out.push(...stackLines(config.stack))
+    out.push("}")
+    if (config.structure.preset === "custom") {
+      out.push(`structure ${surface} custom ${block(config.structure.customTree, 0)}`)
+    } else {
+      out.push(`structure ${surface} ${config.structure.preset}`)
+    }
   }
 
   if (doc.conventions.ids.length) {
@@ -207,6 +215,56 @@ export function serializeFlow(doc: ProjectDoc): string {
   }
 
   return `${out.join("\n")}\n`
+}
+
+/**
+ * One stack block's lines.
+ *
+ * Blank values are skipped, which is what makes the same function work for a
+ * service: it has no icon set and no charts, and writing `icons` with nothing
+ * after it produces a line the parser then has to decide what to do with.
+ */
+function stackLines(stack: ProjectDoc["stack"]): string[] {
+  const keys: [keyof ProjectDoc["stack"], string][] = [
+    ["framework", "framework"],
+    ["language", "language"],
+    ["styling", "styling"],
+    ["state", "state"],
+    ["forms", "forms"],
+    ["http", "http"],
+    ["icons", "icons"],
+    ["tables", "tables"],
+    ["charts", "charts"],
+    ["database", "database"],
+    ["orm", "orm"],
+    ["apiStyle", "apiStyle"],
+    ["apiAuth", "apiAuth"],
+    ["testing", "testing"],
+    ["tooling", "tooling"],
+    ["packageManager", "packageManager"],
+  ]
+  const width = Math.max(...keys.map(([, label]) => label.length))
+  const lines: string[] = []
+  for (const [key, label] of keys) {
+    const value = stack[key]
+    if (typeof value !== "string" || !value.trim()) continue
+    lines.push(`  ${label.padEnd(width)} ${value}`)
+  }
+  if (stack.extras.length) {
+    lines.push(`  extras ${stack.extras.map((extra) => quote(extra)).join(" ")}`)
+  }
+  return lines
+}
+
+/** The builds this project ships, for the `builds` line. */
+function buildWords(doc: ProjectDoc): string[] {
+  const words = (["web", "mobile", "backend"] as const).filter(
+    (surface) => doc.builds[surface]
+  )
+  // A project that ships nothing is not a state the app can produce, but a
+  // hand-edited file can say it — and "builds" with nothing after it does not
+  // parse back.
+  return words.length ? [...words] : ["web"]
 }
 
 /**

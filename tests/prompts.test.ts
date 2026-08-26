@@ -9,6 +9,7 @@ import { moduleKinds } from "@/features/library/data/module-kinds"
 import { starterDoc } from "@/features/library/data/starters"
 import { screenTemplates } from "@/features/library/data/templates"
 import { buildFigmaImportPrompt } from "@/features/theme/figma-prompt"
+import type { ProjectDoc } from "@/types/project"
 
 /**
  * Every fenced block in a prompt is an example the model will copy. An example
@@ -171,11 +172,37 @@ describe("choosing which builds to produce", () => {
     expect(prompt).toContain("Never draw a `flow` arrow from one build to another")
   })
 
-  it("shows a worked example with two builds in one file", () => {
+  it("shows a worked example with every build in one file", () => {
     const prompt = buildAuthoringPrompt()
-    expect(prompt).toContain("one product, two builds")
+    expect(prompt).toContain("one product, three builds")
     expect(prompt).toContain("surface mobile")
+    expect(prompt).toContain("surface backend")
     expect(prompt).toMatch(/layout\s+mobile-detail/)
+  })
+
+  it("declares the builds, and gives each one its own stack", () => {
+    const prompt = buildAuthoringPrompt()
+    // Without the declaration the tool cannot tell a product that ships an API
+    // from one where somebody tagged a screen `surface backend` by accident.
+    expect(prompt).toContain("builds web, mobile, backend")
+    expect(prompt).toContain("stack mobile {")
+    expect(prompt).toContain("stack backend {")
+    expect(prompt).toContain("structure backend src-layered")
+  })
+
+  it("says what a backend screen is, since it is not a page", () => {
+    const prompt = buildAuthoringPrompt()
+    expect(prompt).toContain("A backend \"screen\" is a service area, not a page")
+    // And the service technology it has to choose.
+    for (const key of ["database", "orm", "apiStyle", "apiAuth"]) {
+      expect(prompt).toContain(`\`${key}\``)
+    }
+  })
+
+  it("no longer tells the reader to fix the mobile stack up in the app afterwards", () => {
+    // The old worked example said to set it on the Mobile tab after importing,
+    // which was an admission that the format could not carry it.
+    expect(buildAuthoringPrompt()).not.toContain("after importing")
   })
 
   it("names the mobile layouts rather than leaving them to be guessed", () => {
@@ -345,5 +372,33 @@ describe("the Figma import prompt", () => {
     const p = buildFigmaImportPrompt(doc)
     expect(p).not.toMatch(/paste .* back into Prompt Studio/i)
     expect(p).toContain("Do not touch any other file.")
+  })
+})
+
+describe("the merge prompt knows what the project ships", () => {
+  const withBuilds = (builds: Partial<ProjectDoc["builds"]>) => {
+    const base = starterDoc("saas-dashboard")!
+    return buildFragmentPrompt({
+      ...base,
+      builds: { web: true, mobile: false, backend: false, ...builds },
+    })
+  }
+
+  it("names the builds, so a fragment cannot invent one", () => {
+    expect(withBuilds({})).toContain("a web app")
+    expect(withBuilds({ mobile: true, backend: true })).toContain(
+      "a web app, a mobile app and a backend service"
+    )
+  })
+
+  it("explains what a backend screen is, but only when there is one", () => {
+    expect(withBuilds({ backend: true })).toContain("a service area, not a page")
+    expect(withBuilds({})).not.toContain("a service area, not a page")
+  })
+
+  it("forbids a fragment from resetting the project's decisions", () => {
+    // A fragment that restates `stack` or `theme` silently reverts choices the
+    // project already made — merge fills blanks, but these are not blank.
+    expect(withBuilds({})).toContain("Do not touch the stack")
   })
 })

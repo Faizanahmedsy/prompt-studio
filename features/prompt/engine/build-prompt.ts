@@ -16,6 +16,7 @@ import {
   platformDelivery,
   platformOf,
   platformRequirements,
+  serverIrrelevantConventionIds,
   webOnlyConventionIds,
 } from "@/features/stack/data/platforms"
 import {
@@ -38,9 +39,9 @@ import {
 import type { ProjectDoc, Surface, UserStory } from "@/types/project"
 
 import { BOILERPLATE, cloneLines } from "./boilerplate"
-import { type BlockId, getTarget } from "./targets"
+import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 
-export type PromptBlock = { id: BlockId; title: string; body: string }
+export type PromptBlock = { id: ProjectBlockId; title: string; body: string }
 
 export type BuiltPrompt = {
   text: string
@@ -565,7 +566,15 @@ function conventionsBlock(doc: ProjectDoc): string {
   const lines = Array.from(new Set(ids))
     // A rule that cannot apply on this platform is worse than no rule: it
     // teaches the reader that these lines are boilerplate to skim.
-    .filter((id) => platform === "web" || !webOnlyConventionIds.includes(id))
+    .filter((id) => {
+      if (platform === "web") return true
+      // A service keeps the web rules that are really about shared code and
+      // validated boundaries — `conventionOverrides.server` restates those in
+      // its own words — and drops only the two that are purely about
+      // rendering.
+      if (platform === "server") return !serverIrrelevantConventionIds.includes(id)
+      return !webOnlyConventionIds.includes(id)
+    })
     .map((id) => overrides[id] ?? conventionMap[id]?.line ?? id)
     .filter(Boolean)
   const custom = doc.conventions.custom.trim()
@@ -747,7 +756,7 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
   return { text, blocks, warnings: collectWarnings(doc) }
 }
 
-function xmlTag(id: BlockId) {
+function xmlTag(id: ProjectBlockId) {
   return id.replace(/[^a-z]/g, "_")
 }
 

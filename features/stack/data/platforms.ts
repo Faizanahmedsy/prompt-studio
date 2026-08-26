@@ -11,13 +11,20 @@ import type { Stack } from "@/types/project"
  * have no web equivalent. Shipping web rules to a React Native build reads as
  * boilerplate and gets ignored, which then costs the rules that do matter.
  */
-export type Platform = "web" | "react-native" | "ios"
+export type Platform = "web" | "react-native" | "ios" | "server"
 
 const byFramework: Record<string, Platform> = {
   "expo-router": "react-native",
   "react-native": "react-native",
   swiftui: "ios",
   uikit: "ios",
+  // A service is a platform of its own, and needs saying: before this it fell
+  // through to "web" and a backend brief was handed rules about horizontal
+  // scrolling and focus rings.
+  fastapi: "server",
+  nestjs: "server",
+  "express-drizzle": "server",
+  "django-drf": "server",
 }
 
 export function platformOf(stack: Stack): Platform {
@@ -32,6 +39,7 @@ export const platformLabels: Record<Platform, string> = {
   web: "Web",
   "react-native": "React Native (Android + iOS)",
   ios: "Native iOS",
+  server: "Backend service",
 }
 
 /**
@@ -56,6 +64,17 @@ export const platformRequirements: Record<Platform, string[]> = {
     "Screen reader labels on every interactive element (`accessibilityLabel`, `accessibilityRole`), and layouts that survive the largest system font size.",
     "Built and verified on **both** Android and iOS — shadows, fonts, safe areas and keyboard behaviour differ, and a screen is not done until it is right on both.",
   ],
+  server: [
+    "Every endpoint validates its input at the boundary and answers a malformed request with a 4xx that names the field, never a 500.",
+    "Every response the clients depend on has one shape, including its errors — a failure is a documented status and body, not a stack trace.",
+    "Authorisation is checked on the server for every request. A hidden button is not a permission, and an id in a URL is not proof of ownership.",
+    "Anything that must not happen twice is idempotent or guarded — a double-clicked payment, a retried webhook, a replayed job.",
+    "Every list endpoint is paginated and every filter is indexed; no endpoint loads a whole table to count it.",
+    "No secret, token or password is logged, returned, or committed. Passwords are hashed with a slow algorithm, never encrypted.",
+    "Schema changes ship as migrations that run forward on a database with data in it. `create_all` at boot is not a migration.",
+    "Every query that runs per row of a list is a bug — resolve relations in one round trip.",
+    "Time is stored and compared in UTC; the timezone is a rendering decision the client makes.",
+  ],
   ios: [
     "Every screen respects the safe area and works on the smallest supported device as well as the largest.",
     "Dynamic Type is honoured up to the accessibility sizes: no fixed font sizes, no layouts that clip when text grows.",
@@ -71,6 +90,10 @@ export const platformRequirements: Record<Platform, string[]> = {
 /** Extra platform-specific delivery expectations. */
 export const platformDelivery: Record<Platform, string[]> = {
   web: [],
+  server: [
+    "Every endpoint has a test that exercises it through the app the way a client calls it — status, body and the failure path, against a real database rather than a mocked session.",
+    "The service starts from a clean checkout with documented commands, and the README says how to run it, migrate it and test it.",
+  ],
   "react-native": [
     "Verify each screen on an Android device and an iOS device, at the smallest supported width and at the largest system font size.",
   ],
@@ -86,9 +109,30 @@ export const platformDelivery: Record<Platform, string[]> = {
  */
 export const webOnlyConventionIds = ["ssr-safe", "no-native-controls", "next-proxy"]
 
+/**
+ * Conventions with no meaning on a service. They are about rendering, and a
+ * brief that hands a backend "every async surface ships all three states" in
+ * its UI wording teaches the reader that these lines are filler.
+ */
+export const serverIrrelevantConventionIds = ["ssr-safe", "next-proxy"]
+
 /** Conventions whose wording changes per platform rather than disappearing. */
 export const conventionOverrides: Record<Platform, Record<string, string>> = {
   web: {},
+  server: {
+    // The UI-shaped rules still have a true form on a service; they are about
+    // shared code and validated boundaries, not about pixels.
+    "shared-first":
+      "Before writing a query or a handler, check what already exists — a repository, a service, a dependency. Anything used by two routers moves into the shared layer on its second use.",
+    "no-native-controls":
+      "Never hand-roll what the framework provides — dependency injection, validation, pagination and error handling all have one implementation, and a route that does its own is a bug.",
+    "states-required":
+      "Every endpoint handles its three outcomes explicitly: the success, the client's mistake, and the failure that is ours. None of them is an unhandled exception.",
+    "a11y-baseline":
+      "Every response is machine-readable before it is human-readable: documented status codes, stable error shapes, and messages a client can act on.",
+    "tokens-only":
+      "No magic values in handlers — limits, page sizes, timeouts and expiry windows come from configuration, not from a literal two calls deep.",
+  },
   "react-native": {
     "a11y-baseline":
       "Accessible: `accessibilityLabel` and `accessibilityRole` on every control, tap targets of at least 44×44pt, and layouts that survive the largest system font size.",

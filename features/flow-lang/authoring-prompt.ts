@@ -134,14 +134,26 @@ decide what screens the product needs, and write the Flow file.
     - "API", "service", "webhook", "scheduled job", "integration" → backend
 
     Most real products need **more than one**. A field-service product is a
-    mobile app for the engineer *and* a web console for the dispatcher — write
-    both, in one file. Tag every screen with the build it belongs to:
-    \`surface mobile\`, \`surface backend\`; a screen with no \`surface\` line is a
-    web screen. Give each build its own \`stack\` block (see Grammar).
+    mobile app for the engineer *and* a web console for the dispatcher *and* an
+    API both of them call — write all of them, in one file.
+
+    Two things follow, and both are required:
+
+    - **Declare them**: \`builds web, mobile, backend\` in the \`app\` block. This
+      is what tells the tool to generate one brief covering the whole system
+      rather than one app.
+    - **Tag every screen** with the build it belongs to: \`surface mobile\`,
+      \`surface backend\`; no \`surface\` line means the web build. A build you
+      declared with no screens tagged to it is an empty promise.
+
+    Give each build its own stack: \`stack mobile { … }\` and
+    \`stack backend { … }\` alongside the web \`stack { … }\` (see Grammar). The
+    phone app is not written in the web app's libraries and the service is not
+    written in either.
 
     Never draw a \`flow\` arrow from one build to another — a phone screen
-    calling an endpoint is an integration, and belongs in a note or in
-    \`requirements\`, not as a transition.
+    calling an endpoint is an integration, not a transition. Say it in the
+    screen's \`note\` or in \`requirements\`.
 
 11. **Mobile screens are not web screens.** Use the \`mobile-*\` layouts — a
     phone screen is never \`dashboard-sidebar\` or \`table-advanced\`. Reach for
@@ -152,7 +164,25 @@ decide what screens the product needs, and write the Flow file.
     mobile \`stack\`, pick the native options (\`expo-router\`/\`swiftui\`,
     \`nativewind\`, \`rn-flashlist\`, \`victory-native\`) — the web ones do not
     exist on a phone.
-12. Put anything that does not fit the grammar into the \`requirements """..."""\`
+12. **A backend "screen" is a service area, not a page.** The grammar has one
+    word for a node, so on \`surface backend\` a \`screen\` is a group of related
+    endpoints — \`auth\`, \`clients\`, \`billing\`, \`webhooks\`, \`jobs\` — and its
+    \`module\`s are the endpoints and jobs inside it. Give it no \`layout\`: there
+    is nothing to lay out. Its story is written from the caller's point of view
+    ("as the web app", "as a scheduled job"), and its criteria are the rules the
+    service enforces — what it rejects, what it is allowed to do twice, what it
+    never returns.
+
+    A \`flow\` arrow between two backend screens means one service area calls
+    another: worth drawing when it is true, worth leaving out when it is not.
+
+13. **Choose the service's technology deliberately.** In \`stack backend\`, set
+    \`framework\`, \`database\`, \`orm\`, \`apiStyle\` and \`apiAuth\`. These are the
+    decisions both clients are built against — \`apiStyle\` decides whether the
+    apps generate their types from a schema or share them directly, and
+    \`trpc\` is only possible when the service is TypeScript.
+
+14. Put anything that does not fit the grammar into the \`requirements """..."""\`
    block in plain English — business rules, roles, integrations, edge cases.
 
 # Grammar
@@ -161,6 +191,7 @@ decide what screens the product needs, and write the Flow file.
 app "Product name" {
   target claude-code          # who will build it
   creativity 6                # 0 = follow spec literally, 10 = free rein
+  builds web, mobile, backend # which builds this product ships — see rule 10
   theme {
     design modern-soft; primary #2563eb; secondary #10b981
     radius md; buttons filled; density comfortable
@@ -276,6 +307,26 @@ stack {
 }
 
 structure feature-based
+
+# One stack per build. Omit a block for a build this product does not ship.
+stack mobile {
+  framework expo-router
+  styling   nativewind
+  state     rn-query-zustand
+}
+structure mobile expo-feature-based
+
+stack backend {
+  framework fastapi          # or nestjs, express-drizzle, django-drf
+  language  python
+  database  postgres
+  orm       sqlalchemy
+  apiStyle  rest-openapi     # how the clients get their types
+  apiAuth   jwt-refresh
+  testing   pytest
+}
+structure backend src-layered
+
 conventions [kebab-files, barrel-exports, alias-@, a11y-baseline]
 snippets [a11y, states, tables]
 
@@ -338,12 +389,13 @@ ${conventions.map((c) => `- ${c.id} — ${c.label}`).join("\n")}
 ## requirement snippets
 ${snippets.map((s) => `- ${s.id} — ${s.description}`).join("\n")}
 
-# Worked example — one product, two builds
+# Worked example — one product, three builds
 
 \`\`\`
 app "FieldOps" {
   target claude-code
   creativity 5
+  builds web, mobile, backend
   theme { design modern-soft; primary #0891b2; secondary #f97316; radius large }
 }
 
@@ -428,14 +480,78 @@ flow {
   app_today  -> app_job   : "tap a job"
 }
 
+# ---- the service both clients call ----
+screen api_auth "Auth" {
+  surface backend
+  flows   [access]
+  note    "Issues and refreshes tokens for both clients."
+  story {
+    as     "either client app"
+    want   "exchange credentials for a token, and refresh it without asking again"
+    so     "an engineer is not signed out halfway through a job"
+    accept [
+      "a wrong password answers 401 without saying which field was wrong"
+      "a refresh token is single-use and rotates; reuse of an old one revokes the session"
+      "the same account works from both clients, and signing out on one does not sign out the other"
+    ]
+  }
+  module login   "POST /auth/login"   { kind action }
+  module refresh "POST /auth/refresh" { kind action }
+}
+
+screen api_jobs "Jobs" {
+  surface backend
+  flows   [dispatching, on_site]
+  story {
+    as     "the phone app and the web console"
+    want   "read the jobs I am allowed to see and record what happened on them"
+    so     "the board and the device never disagree about a job's state"
+    accept [
+      "an engineer only ever receives their own jobs, enforced on the server"
+      "the same status update sent twice leaves one record, not two — the device retries after a dropped connection"
+      "a job list is paginated and filtered in the query, never in the client"
+      "a photo upload that fails halfway leaves no half-attached record"
+    ]
+  }
+  module list   "GET /jobs"              { kind action }
+  module detail "GET /jobs/{id}"         { kind action }
+  module status "POST /jobs/{id}/status" { kind action }
+}
+
+flow {
+  login      -> board    : "on successful sign in" @dispatcher
+  board      -> jobs     : "click All jobs"
+  app_signin -> app_today : "on successful sign in" @engineer
+  app_today  -> app_job   : "tap a job"
+}
+
 stack { framework next-16; styling tailwind4-shadcn; state tanstack-zustand }
 structure feature-based
 
+stack mobile {
+  framework expo-router
+  styling   nativewind
+  state     rn-query-zustand
+  testing   rn-testing-library
+}
+structure mobile expo-feature-based
+
+stack backend {
+  framework fastapi
+  language  python
+  database  postgres
+  orm       sqlalchemy
+  apiStyle  rest-openapi
+  apiAuth   jwt-refresh
+  testing   pytest
+}
+structure backend src-layered
+
 requirements """
-Two builds, one product. Engineers use the phone app offline in poor signal;
-dispatchers use the web console. The phone app's mobile stack is Expo Router +
-NativeWind (set it on the Mobile tab in Prompt Studio after importing).
-Job status updates queue on the device and sync when the network returns.
+Three builds, one product. Engineers use the phone app offline in poor signal;
+dispatchers use the web console; both call the same API and neither talks to the
+database directly. Job status updates queue on the device and sync when the
+network returns, so every write endpoint has to tolerate being sent twice.
 """
 \`\`\`
 

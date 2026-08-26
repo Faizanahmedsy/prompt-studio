@@ -26,6 +26,7 @@ import {
   type Screen,
   type ScreenModule,
   type Section,
+  type Surface,
   surfaceValues,
   typeScaleValues,
   type UserStory,
@@ -114,7 +115,7 @@ type Ctx =
    */
   | { kind: "story"; story: UserStory; collecting: boolean }
   | { kind: "landing" }
-  | { kind: "stack" }
+  | { kind: "stack"; surface: Surface }
   | { kind: "unknown" }
 
 /**
@@ -581,6 +582,11 @@ export function parseFlow(source: string): ParseResult {
 
     // ----------------------------------------------------------- stack block
     if (current.kind === "stack") {
+      // `surfaces` holds only the two non-web builds; web's stack is the
+      // top-level one, which is what every file written before surfaces
+      // existed still means.
+      const target =
+        current.surface === "web" ? doc.stack : doc.surfaces[current.surface].stack
       if (keyword === "extras" || keyword === "extra") {
         const extras = [
           ...words.slice(1),
@@ -588,7 +594,7 @@ export function parseFlow(source: string): ParseResult {
         ]
           .map((v) => v.trim())
           .filter(Boolean)
-        doc.stack.extras = [...doc.stack.extras, ...extras]
+        target.extras = [...target.extras, ...extras]
         continue
       }
       const group = stackGroups.find(
@@ -597,9 +603,9 @@ export function parseFlow(source: string): ParseResult {
       const value = words[1] ?? quoted[0] ?? ""
       if (group) {
         const ids = group.options.map((o) => o.id)
-        doc.stack[group.key] = matchId(value, ids, `${group.label} option`, line)
+        target[group.key] = matchId(value, ids, `${group.label} option`, line)
       } else if (value) {
-        doc.stack.extras.push(`${keyword}: ${value}`)
+        target.extras.push(`${keyword}: ${value}`)
         warnings.push({
           line,
           message: `Unknown stack key "${keyword}" — added to extras.`,
@@ -781,11 +787,32 @@ export function parseFlow(source: string): ParseResult {
         continue
       }
       case "stack": {
-        pending = { kind: "stack" }
+        // `stack mobile { … }` and `stack backend { … }`. Without these the
+        // format could not express a phone app's or a service's technology at
+        // all — the worked examples used to say "set it on the Mobile tab
+        // after importing", which is an admission that a round trip loses it.
+        pending = { kind: "stack", surface: surfaceWord(words[1], line, warnings) }
         continue
       }
       case "theme": {
         pending = { kind: "theme" }
+        continue
+      }
+      case "builds":
+      case "build": {
+        // What the project ships. Stated rather than inferred from which
+        // screens happen to exist: a product meant to have an API should say
+        // so before anybody has drawn one.
+        const named = [...words.slice(1), ...quoted]
+          .flatMap((word) => word.split(/[,;]/))
+          .map((word) => word.trim().toLowerCase())
+          .filter(Boolean)
+        if (!named.length) continue
+        doc.builds = { web: false, mobile: false, backend: false }
+        for (const word of named) {
+          const surface = surfaceWord(word, line, warnings)
+          doc.builds[surface] = true
+        }
         continue
       }
       case "target": {
@@ -806,15 +833,24 @@ export function parseFlow(source: string): ParseResult {
         continue
       }
       case "structure": {
-        const value = words[1] ?? ""
+        // `structure mobile expo-feature-based` — a build names its own tree,
+        // the same way it now names its own stack. A bare `structure x` is the
+        // web build's, unchanged.
+        const first = (words[1] ?? "").toLowerCase()
+        const named = surfaceValues.some((value) => value === first)
+        const surface: Surface = named ? (first as Surface) : "web"
+        const rest_ = named ? words.slice(2) : words.slice(1)
+        const target =
+          surface === "web" ? doc.structure : doc.surfaces[surface].structure
+        const value = rest_[0] ?? ""
         if (value.toLowerCase() === "custom") {
-          doc.structure.preset = "custom"
-          doc.structure.customTree = resolveHeredoc(
-            words.slice(2).join(" ") || quoted[0] || "",
+          target.preset = "custom"
+          target.customTree = resolveHeredoc(
+            rest_.slice(1).join(" ") || quoted[0] || "",
             heredocs
           )
         } else {
-          doc.structure.preset = matchId(value, structureIds, "folder structure", line)
+          target.preset = matchId(value, structureIds, "folder structure", line)
         }
         continue
       }
@@ -1137,6 +1173,30 @@ function applyThemeProp(
  * parser: an unknown font keeps the current font and produces a diagram, which
  * is far more useful than refusing the whole file over one line.
  */
+/**
+ * Which build a `stack` or `structure` line is talking about.
+ *
+ * No word means the web build, which is what every file written before there
+ * were other builds meant.
+ */
+function surfaceWord(word: string | undefined, line: number, warnings: ParseIssue[]): Surface {
+  if (!word) return "web"
+  const normalised = word.toLowerCase().replace(/[^a-z]/g, "")
+  const known = surfaceValues.find((value) => value === normalised)
+  if (known) return known
+  if (normalised === "api" || normalised === "server" || normalised === "service") {
+    return "backend"
+  }
+  if (normalised === "app" || normalised === "phone" || normalised === "native") {
+    return "mobile"
+  }
+  warnings.push({
+    line,
+    message: `"${word}" is not a build — expected one of ${surfaceValues.join(", ")}. Read as web.`,
+  })
+  return "web"
+}
+
 function pickThemeValue<T extends string>(
   value: string,
   allowed: readonly T[],

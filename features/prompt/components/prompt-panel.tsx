@@ -20,8 +20,10 @@ import { PanelBody, PanelHeader, SectionLabel } from "@/components/shared/layout
 import { Button } from "@/components/ui/button"
 import { Hint } from "@/components/ui/misc"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { buildProjectPrompt } from "@/features/prompt/engine/build-project-prompt"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { diffLines, diffStats } from "@/features/prompt/engine/diff"
+import { isMultiBuild, selectedSurfaces } from "@/features/prompt/engine/monorepo"
 import { getTarget } from "@/features/prompt/engine/targets"
 import { copyText, downloadFile } from "@/lib/download"
 import { cn, countWords, estimateTokens } from "@/lib/utils"
@@ -42,9 +44,16 @@ export function PromptPanel({ project }: { project: Project }) {
   // while looking at Mobile must not hand over the web app's screens.
   const surface: Surface =
     mode === "mobile" || mode === "backend" ? mode : "web"
+  // A project that ships more than one build has one deliverable — the whole
+  // system, wired together — so that is what the panel offers by default. The
+  // per-surface build stays one click away for anyone working on a single app.
+  const multi = isMultiBuild(project)
+  const [scope, setScope] = useState<"project" | "surface">("project")
+  const wholeProject = multi && scope === "project"
+
   const built = useMemo(
-    () => buildPrompt(project, { surface }),
-    [project, surface]
+    () => (wholeProject ? buildProjectPrompt(project) : buildPrompt(project, { surface })),
+    [project, surface, wholeProject]
   )
   const target = getTarget(project.target)
 
@@ -144,7 +153,21 @@ export function PromptPanel({ project }: { project: Project }) {
         <Meter label="chars" value={text.length} />
         <Meter label="words" value={countWords(text)} />
         <Meter label="~tokens" value={estimateTokens(text)} highlight />
-        <span className="ml-auto truncate">{target.name}</span>
+        {multi && (
+          <span className="ml-auto flex items-center gap-1">
+            <ScopeButton
+              active={scope === "project"}
+              onClick={() => setScope("project")}
+              label={`Whole project · ${selectedSurfaces(project).length} builds`}
+            />
+            <ScopeButton
+              active={scope === "surface"}
+              onClick={() => setScope("surface")}
+              label={`${surface} only`}
+            />
+          </span>
+        )}
+        <span className={cn("truncate", !multi && "ml-auto")}>{target.name}</span>
       </div>
 
       {edited && (
@@ -322,5 +345,30 @@ function Meter({
       </span>
       <span>{label}</span>
     </span>
+  )
+}
+
+/** Whole system, or just the build on screen. */
+function ScopeButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "rounded-md px-1.5 py-0.5 text-[10px] font-medium capitalize transition-colors",
+        active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-muted"
+      )}
+    >
+      {label}
+    </button>
   )
 }

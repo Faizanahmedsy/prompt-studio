@@ -1,3 +1,10 @@
+/**
+ * Blocks a single build's prompt is made of.
+ *
+ * `ProjectBlockId` below adds the ones that only exist when a project ships
+ * more than one build — they are never in a target's `order`, because a target
+ * describes how to lay out one app, and composing several is a different job.
+ */
 export type BlockId =
   | "overview"
   | "boilerplate"
@@ -13,6 +20,16 @@ export type BlockId =
   | "requirements"
   | "additional"
   | "delivery"
+
+/** Blocks that only a multi-build project has. */
+export type ProjectBlockId =
+  | BlockId
+  | "repository"
+  | "integration"
+  | "integration_tests"
+  | "build_web"
+  | "build_mobile"
+  | "build_backend"
 
 export type PromptTarget = {
   id: string

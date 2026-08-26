@@ -1,4 +1,4 @@
-import type { Stack } from "@/types/project"
+import type { Stack, Surface } from "@/types/project"
 import { isNative, platformOf } from "./platforms"
 
 export type StackOption = {
@@ -15,6 +15,14 @@ export type StackGroup = {
   label: string
   hint: string
   options: StackOption[]
+  /**
+   * Which builds this question is worth asking on. Omitted means all of them.
+   *
+   * A service has no icon set and a web app has no database; showing both to
+   * both is how a backend brief ended up carrying Lucide and a web brief
+   * ended up carrying Postgres, neither of which anyone chose.
+   */
+  appliesTo?: Surface[]
 }
 
 export const stackGroups: StackGroup[] = [
@@ -80,6 +88,35 @@ export const stackGroups: StackGroup[] = [
         promptLine:
           "Native iOS in UIKit with programmatic view controllers and a coordinator per flow — no storyboards for new screens.",
       },
+      // ── services ──────────────────────────────────────────────────────
+      //
+      // The Backend tab existed long before any of these did: it blanked out
+      // the presentation fields and offered nothing in their place, so a
+      // service brief named no server technology at all.
+      {
+        id: "fastapi",
+        label: "FastAPI + SQLAlchemy (Python)",
+        promptLine:
+          "FastAPI on Python 3.13 with async SQLAlchemy 2 and Alembic migrations; Pydantic v2 models for every request and response, and dependency-injected sessions rather than a global engine.",
+      },
+      {
+        id: "nestjs",
+        label: "NestJS + Prisma (TypeScript)",
+        promptLine:
+          "NestJS with Prisma; one module per product area, DTOs validated by class-validator, and services that never reach into another module's repository directly.",
+      },
+      {
+        id: "express-drizzle",
+        label: "Express / Fastify + Drizzle (TypeScript)",
+        promptLine:
+          "Fastify with Drizzle ORM; routes declared with typed schemas, handlers thin, and all data access behind a repository module.",
+      },
+      {
+        id: "django-drf",
+        label: "Django REST Framework (Python)",
+        promptLine:
+          "Django with Django REST Framework; serializers for every payload, viewsets over hand-rolled views, and the admin left enabled for internal use.",
+      },
     ],
   },
   {
@@ -101,10 +138,17 @@ export const stackGroups: StackGroup[] = [
         promptLine:
           "Swift 6 with strict concurrency checking on. Value types by default, `@MainActor` on anything touching UI, and no force unwraps outside tests.",
       },
+      {
+        id: "python",
+        label: "Python 3.13 (typed)",
+        promptLine:
+          "Python 3.13 with type hints on every signature, checked by mypy in strict mode. No untyped `dict` passed between layers.",
+      },
     ],
   },
   {
     key: "styling",
+    appliesTo: ["web", "mobile"],
     label: "Styling",
     hint: "How components are styled",
     options: [
@@ -177,10 +221,16 @@ export const stackGroups: StackGroup[] = [
         promptLine:
           "The Composable Architecture: one reducer per feature, state and actions explicit, effects isolated behind dependencies for testability.",
       },
+      {
+        id: "none-state-server",
+        label: "n/a — service",
+        promptLine: "",
+      },
     ],
   },
   {
     key: "forms",
+    appliesTo: ["web", "mobile"],
     label: "Forms",
     hint: "Inputs + validation",
     options: [
@@ -216,10 +266,16 @@ export const stackGroups: StackGroup[] = [
           "One `APIClient` actor over `URLSession` with `async`/`await`, `Codable` models, a typed `APIError`, and auth-token refresh handled in that single place.",
       },
       { id: "none-http", label: "No backend", promptLine: "No network layer — all data is local/mocked." },
+      {
+        id: "none-http-server",
+        label: "n/a — service",
+        promptLine: "",
+      },
     ],
   },
   {
     key: "icons",
+    appliesTo: ["web", "mobile"],
     label: "Icons",
     hint: "Icon set",
     options: [
@@ -242,6 +298,7 @@ export const stackGroups: StackGroup[] = [
   },
   {
     key: "tables",
+    appliesTo: ["web", "mobile"],
     label: "Tables",
     hint: "Grid engine",
     options: [
@@ -264,6 +321,7 @@ export const stackGroups: StackGroup[] = [
   },
   {
     key: "charts",
+    appliesTo: ["web", "mobile"],
     label: "Charts",
     hint: "Visualisation library",
     options: [
@@ -305,6 +363,18 @@ export const stackGroups: StackGroup[] = [
           "Swift Testing for unit coverage and XCUITest for the critical journeys, both runnable from the command line.",
       },
       { id: "none-testing", label: "No tests", promptLine: "No automated tests required for this build." },
+      {
+        id: "pytest",
+        label: "pytest",
+        promptLine:
+          "pytest with async support; every endpoint has a test that exercises it through the app, against a real database rather than a mocked session.",
+      },
+      {
+        id: "jest-supertest",
+        label: "Jest + Supertest",
+        promptLine:
+          "Jest with Supertest driving the HTTP layer, so a route is tested the way a client calls it.",
+      },
     ],
   },
   {
@@ -320,6 +390,11 @@ export const stackGroups: StackGroup[] = [
         label: "SwiftLint + swift-format",
         promptLine: "SwiftLint and swift-format, both run in CI and failing the build on violations.",
       },
+      {
+        id: "ruff-mypy",
+        label: "Ruff + mypy",
+        promptLine: "Ruff for linting and formatting, mypy in strict mode, both failing CI on a violation.",
+      },
     ],
   },
   {
@@ -331,6 +406,149 @@ export const stackGroups: StackGroup[] = [
       { id: "npm", label: "npm", promptLine: "npm as the package manager." },
       { id: "yarn", label: "yarn", promptLine: "yarn as the package manager." },
       { id: "bun", label: "bun", promptLine: "bun as the runtime and package manager." },
+      { id: "uv", label: "uv (Python)", promptLine: "uv for dependency management and virtual environments." },
+      { id: "poetry", label: "Poetry (Python)", promptLine: "Poetry for dependency management." },
+    ],
+  },
+
+  // ── service-only ────────────────────────────────────────────────────────
+  {
+    key: "database",
+    label: "Database",
+    hint: "Where the data actually lives.",
+    appliesTo: ["backend"],
+    options: [
+      {
+        id: "postgres",
+        label: "PostgreSQL",
+        promptLine:
+          "PostgreSQL as the database. Every schema change ships as a migration — no hand-edited tables, and no `create_all` in application code.",
+      },
+      {
+        id: "mysql",
+        label: "MySQL / MariaDB",
+        promptLine: "MySQL as the database, with every schema change shipped as a migration.",
+      },
+      {
+        id: "sqlite",
+        label: "SQLite",
+        promptLine:
+          "SQLite as the database — a single file, with migrations, suitable for a single-writer service.",
+      },
+      {
+        id: "mongodb",
+        label: "MongoDB",
+        promptLine:
+          "MongoDB as the database. Documents are validated at the application boundary; the absence of a schema in the engine is not an absence of a schema.",
+      },
+    ],
+  },
+  {
+    key: "orm",
+    label: "Data access",
+    hint: "How the service talks to the database.",
+    appliesTo: ["backend"],
+    options: [
+      {
+        id: "sqlalchemy",
+        label: "SQLAlchemy 2 (async) + Alembic",
+        promptLine:
+          "Async SQLAlchemy 2 with Alembic migrations. Sessions are injected per request and never held globally; every query is awaited.",
+      },
+      {
+        id: "prisma",
+        label: "Prisma",
+        promptLine:
+          "Prisma as the ORM, with the schema as the source of truth and a migration for every change.",
+      },
+      {
+        id: "drizzle",
+        label: "Drizzle",
+        promptLine:
+          "Drizzle ORM with schema-first tables and generated migrations; queries are typed end to end.",
+      },
+      {
+        id: "django-orm",
+        label: "Django ORM",
+        promptLine:
+          "The Django ORM with generated migrations; `select_related`/`prefetch_related` wherever a list view would otherwise fire a query per row.",
+      },
+      {
+        id: "raw-sql",
+        label: "Raw SQL",
+        promptLine:
+          "Hand-written SQL behind a repository layer. Every statement is parameterised — no string interpolation into a query, ever.",
+      },
+    ],
+  },
+  {
+    key: "apiStyle",
+    label: "API style",
+    hint: "The shape of the contract the clients consume.",
+    appliesTo: ["backend"],
+    options: [
+      {
+        id: "rest-openapi",
+        label: "REST + OpenAPI",
+        promptLine:
+          "A REST API with an OpenAPI schema generated from the code, not written beside it. The schema is what the clients generate their types from.",
+      },
+      {
+        id: "trpc",
+        label: "tRPC",
+        promptLine:
+          "tRPC, so the clients get the server's types directly with no generation step. Only valid when the clients are TypeScript.",
+      },
+      {
+        id: "graphql",
+        label: "GraphQL",
+        promptLine:
+          "A GraphQL API with a schema-first contract and dataloaders for anything that would otherwise fetch per row.",
+      },
+      {
+        id: "rest-plain",
+        label: "REST (no schema document)",
+        promptLine:
+          "A REST API whose contract is documented in the repository README rather than a generated schema.",
+      },
+    ],
+  },
+  {
+    key: "apiAuth",
+    label: "Auth",
+    hint: "How a request proves who it is.",
+    appliesTo: ["backend"],
+    options: [
+      {
+        id: "jwt-refresh",
+        label: "JWT access + refresh",
+        promptLine:
+          "JWT authentication: a short-lived access token and a rotating refresh token, with logout revoking the refresh token server-side rather than trusting the client to forget it.",
+      },
+      {
+        id: "session-cookie",
+        label: "Server sessions (cookie)",
+        promptLine:
+          "Server-side sessions in an httpOnly, SameSite cookie, with CSRF protection on every state-changing request.",
+      },
+      {
+        id: "oauth-provider",
+        label: "Third-party identity (OAuth/OIDC)",
+        promptLine:
+          "Authentication delegated to an OIDC provider; the service verifies the token's signature and claims on every request and stores no passwords.",
+      },
+      {
+        id: "api-key",
+        label: "API keys (service-to-service)",
+        promptLine:
+          "API-key authentication for service-to-service calls. Keys are hashed at rest, scoped, and revocable.",
+      },
+      {
+        id: "none-auth",
+        label: "No authentication",
+        promptLine:
+          "No authentication — the service is internal and reachable only on a private network. Say so explicitly in the README.",
+      },
     ],
   },
 ]

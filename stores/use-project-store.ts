@@ -56,7 +56,19 @@ type ProjectState = {
   seeded: boolean
 
   markHydrated: () => void
-  createProject: (starterId?: string, name?: string) => string
+  createProject: (
+    starterId?: string,
+    name?: string,
+    /**
+     * Applied to the starter before it becomes a project.
+     *
+     * The new-project dialog asks which builds this product ships and what the
+     * service is written in, and those answers have to be in the document from
+     * the first render — setting them afterwards would put an "untitled web
+     * project" into the version history of every project that is not one.
+     */
+    patch?: (doc: ProjectDoc) => void
+  ) => string
   importProject: (project: Project, opts?: { asCopy?: boolean }) => string
   setActive: (id: string) => void
   renameProject: (id: string, name: string) => void
@@ -133,8 +145,9 @@ export const useProjectStore = create<ProjectState>()(
 
       markHydrated: () => set({ hydrated: true }),
 
-      createProject: (starterId = "blank", name) => {
+      createProject: (starterId = "blank", name, patch) => {
         const doc = starterDoc(starterId) ?? projectDocSchema.parse({})
+        patch?.(doc)
         const project = newProject(doc, name)
         set((state) => ({
           projects: [project, ...state.projects],

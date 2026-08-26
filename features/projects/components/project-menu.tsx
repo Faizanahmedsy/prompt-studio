@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -36,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { removalKind, removeProjectWithFeedback } from "@/features/cloud/remove-project"
-import { starters } from "@/features/library/data/starters"
 import { copyText, downloadFile } from "@/lib/download"
 import { encodeShare, shareUrl } from "@/lib/share-codec"
 import { relativeTime } from "@/lib/utils"
@@ -47,6 +45,7 @@ import {
   SCHEMA_VERSION,
 } from "@/types/project"
 
+import { NewProjectDialog } from "./new-project-dialog"
 import { VersionsDialog } from "./versions-dialog"
 
 export function ProjectMenu({ project }: { project: Project }) {
@@ -233,36 +232,7 @@ export function ProjectMenu({ project }: { project: Project }) {
         </DialogContent>
       </Dialog>
 
-      {/* New from starter ------------------------------------------------- */}
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>
-              Start blank or from a template you can edit freely.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            {starters.map((starter) => (
-              <button
-                key={starter.id}
-                type="button"
-                onClick={() => {
-                  store.createProject(starter.id)
-                  setNewOpen(false)
-                  toast.success(`Created from “${starter.name}”`)
-                }}
-                className="rounded-lg border border-border bg-card p-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary-soft/30"
-              >
-                <span className="block text-xs font-medium">{starter.name}</span>
-                <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                  {starter.description}
-                </span>
-              </button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
 
       <VersionsDialog
         open={versionsOpen}
