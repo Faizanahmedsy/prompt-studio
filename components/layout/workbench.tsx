@@ -15,6 +15,7 @@ import { OutlineList } from "@/features/builder/components/outline-list"
 import { useLiveProject } from "@/features/cloud/use-live-project"
 import { useProjectSync } from "@/features/cloud/use-project-sync"
 import { DataCanvas } from "@/features/data/components/data-canvas"
+import { EntityList } from "@/features/data/components/entity-list"
 import { FlowCodeView } from "@/features/flow-lang/components/flow-code-view"
 import { LandingPreview } from "@/features/landing/components/landing-preview"
 import { LibraryPanel } from "@/features/library/components/library-panel"
@@ -78,7 +79,15 @@ export function Workbench({ project }: { project: Project }) {
     ui.mode === "code" ? (
       <FlowCodeView project={project} />
     ) : ui.mode === "data" ? (
-      <DataCanvas project={project} />
+      // The diagram is the better way to read a schema and the worse way to
+      // edit one with a thumb.
+      isDesktop ? (
+        <DataCanvas project={project} />
+      ) : (
+        <div className="h-full overflow-y-auto">
+          <EntityList project={project} />
+        </div>
+      )
     ) : ui.mode === "landing" ? (
       <div className="h-full overflow-y-auto">
         <LandingPreview project={project} />

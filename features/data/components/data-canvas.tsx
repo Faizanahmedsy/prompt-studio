@@ -22,6 +22,7 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/shared/feedback"
 import { Button } from "@/components/ui/button"
+import { overlapping } from "@/features/builder/utils/graph"
 import {
   addEntity,
   arrangeEntities,
@@ -83,7 +84,16 @@ function DataCanvasInner({ project }: { project: Project }) {
     // out before the first paint anyone sees.
     const stacked =
       project.entities.length > 1 &&
-      project.entities.every((entity) => entity.x === 0 && entity.y === 0)
+      (project.entities.every((entity) => entity.x === 0 && entity.y === 0) ||
+        overlapping(project.entities, {
+          heights: Object.fromEntries(
+            project.entities.map((entity) => [
+              entity.id,
+              entityHeight(entity.fields.length),
+            ])
+          ),
+          nodeWidth: ENTITY_WIDTH,
+        }))
     if (stacked) {
       arrangeEntities({ silent: true })
       requestAnimationFrame(() => fitView({ ...FIT, duration: 0 }))

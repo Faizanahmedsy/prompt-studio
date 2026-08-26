@@ -87,7 +87,9 @@ export function updateEntity(id: string, patch: Partial<Entity>) {
   update((doc) => {
     const entity = doc.entities.find((e) => e.id === id)
     if (!entity) return
-    if (patch.key !== undefined) {
+    if (patch.key !== undefined && patch.key.trim()) {
+      // `slugify` falls back to "screen" for an empty string, so an emptied
+      // field would have renamed the table to `screen` rather than left it be.
       const key = slugify(patch.key).replace(/-/g, "_")
       entity.key = key
         ? uniqueKey(

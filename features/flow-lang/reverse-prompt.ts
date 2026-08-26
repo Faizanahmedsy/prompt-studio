@@ -473,6 +473,46 @@ belongs in that screen's \`note\`, never as a \`flow\` arrow between builds.
 
 ---
 
+# Phase 3b — the data model
+
+The schema is in the repository, written down, in one of three places. Read it;
+do not infer it from the screens.
+
+\`\`\`bash
+# Migrations — the authority, and the only place that tells you what actually ran
+rg --files -g '**/migrations/**' -g '**/migrate/**' | head -50
+rg --files -g '**/*.sql' | head -50
+
+# ORM models / schema definitions
+rg --files -g '**/models/**' -g '**/entities/**' -g '**/schema.{ts,py,rb}'
+rg -n 'class .*\\(Base\\)|@Entity|pgTable\\(|sqliteTable\\(|mongoose\\.Schema'
+rg --files -g '**/schema.prisma'
+
+# The connection, for which database it actually is
+rg -n 'DATABASE_URL|POSTGRES_|MYSQL_|MONGO_' -g '!node_modules' | head -20
+\`\`\`
+
+Write what you find into one \`data { … }\` block:
+
+- **One \`table\` per model or migration table**, with its real name — the name
+  in the database, not the class name. Include join tables; they are tables.
+- **Every column**, with the type it actually has, and its flags: \`pk\`,
+  \`required\` for NOT NULL, \`unique\`, \`index\` for anything with an index on it,
+  and \`default "…"\` for a server default.
+- **Every foreign key as a \`rel\` line**, with the delete behaviour the
+  constraint really has — \`on_delete cascade\`, \`restrict\` or \`set-null\`. A
+  relation enforced only in application code is still written, with a note
+  saying the constraint is not in the database.
+- **Enums**: list the values — from the database enum type, the check
+  constraint, or the string union the code uses.
+- Columns that exist but nothing uses are still columns. Record them; deciding
+  they are dead is not this pass's job.
+- If the repository has **no persistence at all** (a pure frontend calling
+  somebody else's API), omit the \`data\` block entirely rather than inventing
+  one. Say so in \`requirements\`.
+
+---
+
 # Phase 4 — very large codebases
 
 If the repository has more than ~40 routes, the answer is still **all of them**.
@@ -587,6 +627,22 @@ screen client_detail "Client Detail" {
 flow {
   login   -> clients       : "on successful login"
   clients -> client_detail : "click a client row"
+}
+
+data {
+  table users "Users" {
+    id         uuid      pk
+    email      string    unique required
+    role       enum [admin, member] required default "member"
+    created_at timestamp required default "now()"
+  }
+  table clients "Clients" {
+    id         uuid      pk
+    name       string    required
+    owner_id   uuid      required index
+    created_at timestamp required default "now()"
+  }
+  rel clients.owner_id -> users.id : many-to-one on_delete restrict
 }
 
 stack {

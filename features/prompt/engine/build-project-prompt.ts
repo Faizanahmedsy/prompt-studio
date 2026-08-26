@@ -4,6 +4,7 @@ import type { ProjectDoc, Surface } from "@/types/project"
 
 import { BOILERPLATE } from "./boilerplate"
 import { type BuiltPrompt, buildPrompt, collectWarnings } from "./build-prompt"
+import { dataModelBlock } from "./data-model"
 import { buildFolder, repoTree, selectedSurfaces } from "./monorepo"
 import { getTarget, type ProjectBlockId } from "./targets"
 
@@ -56,12 +57,23 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
   // a project with the boilerplate switched on gets no clone instruction at
   // all — it would silently scaffold the web app from scratch.
   push("boilerplate", "Start From The Boilerplate", boilerplate(doc, surfaces))
+  // Before the builds, and stated once: the tables are what all of them read
+  // and write, and a schema repeated per build is a schema that disagrees
+  // with itself by the third repetition.
+  push("data_model", "Data Model", dataModelBlock(doc))
 
   // Each build keeps its own screens, journeys, stack and structure. The
   // shared blocks — overview, design, conventions, delivery — are lifted out
   // so they are stated once for the whole system rather than three times with
   // small differences nobody intended.
-  const sharedIds = new Set(["overview", "boilerplate", "design", "conventions", "delivery"])
+  const sharedIds = new Set([
+    "overview",
+    "boilerplate",
+    "data_model",
+    "design",
+    "conventions",
+    "delivery",
+  ])
   for (const { surface, built } of perSurface) {
     const body = built.blocks
       .filter((block) => !sharedIds.has(block.id))
@@ -217,6 +229,12 @@ function integration(doc: ProjectDoc, surfaces: Surface[]): string {
     "5. **The clients are not the authority on anything.** Validation, permissions and limits are enforced in the service. The apps mirror them for a better experience, never instead.",
   ]
 
+  if (doc.entities.length) {
+    lines.push(
+      `6. **The service is the only thing that touches the database.** The ${doc.entities.length} tables in the data model above are owned by it: migrations live in its folder, and no client holds a connection string, a query or an ORM model. A client that reads the database directly is a second source of truth for every rule the service enforces.`
+    )
+  }
+
   if (clients.length === 2) {
     lines.push(
       "6. **Web and mobile call the same endpoints.** No mobile-only route that quietly does something different, and no logic living in one client that the other has to reimplement — that belongs in the service or in `packages/shared`.",
@@ -315,6 +333,11 @@ function projectWarnings(doc: ProjectDoc, surfaces: Surface[]): string[] {
         `This project says it ships a ${surfaceMeta[surface].label.toLowerCase()} build, but no screen is tagged \`surface ${surface}\` — that build will have nothing to implement.`
       )
     }
+  }
+  if (surfaces.includes("backend") && !doc.entities.length) {
+    warnings.push(
+      "This project ships a service but no tables are drawn on the Data tab, so the prompt cannot say what it stores — the model will invent a schema, and each build will assume a different one."
+    )
   }
   if (surfaces.includes("backend") && surfaces.length > 1) {
     const stack = doc.surfaces.backend.stack

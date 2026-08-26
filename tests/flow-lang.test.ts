@@ -12,6 +12,7 @@ function normalise(doc: ProjectDoc) {
   // in front of it to be identifiable across a reparse.
   const viewKeyOf = new Map(doc.views.map((v) => [v.id, v.key]))
   const flowKeyOf = new Map(doc.flows.map((f) => [f.id, f.key]))
+  const entityKeyOf = new Map(doc.entities.map((e) => [e.id, e.key]))
   const moduleKeyOf = new Map(
     doc.modules.map((m) => [m.id, `${keyOf.get(m.screenId)}.${m.key}`])
   )
@@ -48,6 +49,19 @@ function normalise(doc: ProjectDoc) {
       }))
       .sort((a, b) => `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`)),
     sections: doc.sections.map(({ id, ...rest }) => rest),
+    entities: doc.entities.map(({ id, x, y, fields, ...rest }) => ({
+      ...rest,
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: `id` is destructured to drop it
+      fields: fields.map(({ id: fieldId, ...field }) => field),
+    })),
+    relations: doc.relations
+      // biome-ignore lint/correctness/noUnusedFunctionParameters: as above
+      .map(({ id, from, to, ...rest }) => ({
+        from: entityKeyOf.get(from),
+        to: entityKeyOf.get(to),
+        ...rest,
+      }))
+      .sort((a, b) => `${a.from}${a.to}`.localeCompare(`${b.from}${b.to}`)),
     views: doc.views.map(({ id, ...rest }) => rest),
     flows: doc.flows.map(({ id, ...rest }) => rest),
   }

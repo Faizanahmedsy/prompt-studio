@@ -1,4 +1,8 @@
 import { autoLayout } from "@/features/builder/utils/graph"
+import {
+  CARD_HEIGHT_FALLBACK,
+  nodeWidthFor,
+} from "@/features/builder/utils/node-geometry"
 import { ENTITY_WIDTH, entityHeight } from "@/features/data/utils/geometry"
 import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
@@ -1138,7 +1142,17 @@ export function parseFlow(source: string): ParseResult {
   )
   doc.relations = relations
 
-  doc.screens = autoLayout(screens, edges)
+  // Laid out for the size a card really is — the default row pitch is smaller
+  // than a rendered screen card, so a freshly pasted file opened with rows
+  // overlapping until somebody pressed Auto-arrange.
+  doc.screens = autoLayout(screens, edges, {
+    heights: Object.fromEntries(
+      screens.map((screen) => [screen.id, CARD_HEIGHT_FALLBACK])
+    ),
+    widths: Object.fromEntries(
+      screens.map((screen) => [screen.id, nodeWidthFor(screen.surface)])
+    ),
+  })
   doc.edges = edges
   doc.sections = sections
   // Modules of a deleted-or-never-declared screen would be unreachable data.

@@ -1,3 +1,4 @@
+import { fieldTypes } from "@/features/data/data/field-types"
 import { groupLayouts } from "@/features/library/data/layout-catalogue"
 import { allLayouts } from "@/features/library/data/layouts"
 import { moduleKinds } from "@/features/library/data/module-kinds"
@@ -239,7 +240,37 @@ ${decided}# Output rules
     apps generate their types from a schema or share them directly, and
     \`trpc\` is only possible when the service is TypeScript.
 
-14. Put anything that does not fit the grammar into the \`requirements """..."""\`
+14. **Write the data model.** Everything the product stores goes in one
+    \`data { … }\` block: the tables, their columns, and how they relate. This is
+    required whenever the product keeps anything at all — which is nearly
+    always, and is certain if you declared a \`backend\` build.
+
+    It exists because the screens and the endpoints are otherwise described
+    without the thing underneath them, and each build then invents its own
+    schema. One model, read by every build.
+
+    - **One table per real thing**, named in the plural and snake_case:
+      \`users\`, \`orders\`, \`order_items\`. 4–12 tables is the usual range; a
+      product with one table has probably not been read closely enough.
+    - **Every table gets \`id uuid pk\` and \`created_at timestamp\`**, plus
+      \`updated_at\` on anything that is edited.
+    - **Draw the relations.** A foreign key column and a \`rel\` line for it —
+      \`rel orders.user_id -> users.id : many-to-one\`. Say what deleting the
+      parent does: \`on_delete cascade\` for rows that only exist as part of it,
+      \`restrict\` for rows that must block the delete, \`set-null\` for a link
+      that may simply go away.
+    - **Many-to-many needs a join table**: \`rel posts <-> tags : many-to-many
+      through post_tags\`.
+    - **Use \`enum [ … ]\` for a fixed set** — a status, a role — rather than free
+      text nobody constrains.
+    - **Mark \`unique\` and \`index\`** where the requirements imply them: an email
+      that identifies an account is unique; a column every list filters by is
+      indexed.
+    - The columns must actually support the screens. If a list screen filters by
+      date and status, those columns exist; if a screen shows an author's name,
+      there is a relation that reaches it.
+
+15. Put anything that does not fit the grammar into the \`requirements """..."""\`
    block in plain English — business rules, roles, integrations, edge cases.
 
 # Grammar
@@ -353,6 +384,33 @@ landing {
   section pricing  "Pricing"  layout pricing-three
 }
 
+# What the product stores. One model, shared by every build — see rule 14.
+data {
+  table users "Users" {
+    note "Anyone who can sign in."
+    id         uuid      pk
+    email      string    unique required
+    full_name  string    required
+    role       enum [admin, member] required default "member"
+    created_at timestamp required default "now()"
+  }
+
+  table clients "Clients" {
+    id         uuid      pk
+    name       string    required
+    owner_id   uuid      required index
+    status     enum [active, paused, closed] required default "active"
+    created_at timestamp required default "now()"
+    updated_at timestamp required default "now()"
+  }
+
+  # The foreign key column above, and what it joins.
+  rel clients.owner_id -> users.id : many-to-one "a client belongs to one account manager" on_delete restrict
+
+  # Many on both sides needs a join table.
+  rel clients <-> tags : many-to-many through client_tags
+}
+
 stack {
   framework next-16
   language  ts-strict
@@ -399,6 +457,13 @@ Notes on syntax: braces and semicolons are optional, \`->\` may also be written
 per line, and a short story fits on one line with semicolons between its parts.
 
 # Valid values
+
+## column types (\`data\` block)
+${fieldTypes.map((t) => `- ${t.id} — ${t.hint}`).join("\n")}
+
+Relation kinds: \`many-to-one\`, \`one-to-many\`, \`one-to-one\`, \`many-to-many\`
+(\`n:1\`, \`1:n\`, \`1:1\`, \`n:n\` are read the same way). Column flags:
+\`pk\`, \`required\`, \`unique\`, \`index\`, \`default "…"\`, \`note "…"\`.
 
 ## targets
 ${promptTargets.map((t) => `- ${t.id} — ${t.description}`).join("\n")}

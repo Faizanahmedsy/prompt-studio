@@ -166,6 +166,10 @@ export function PasteFlowDialog({
                   ` · ${parsed.doc.modules.length} modules`}
                 {parsed.doc.sections.length > 0 &&
                   ` · ${parsed.doc.sections.length} sections`}
+                {parsed.doc.entities.length > 0 &&
+                  ` · ${parsed.doc.entities.length} tables`}
+                {parsed.doc.relations.length > 0 &&
+                  ` · ${parsed.doc.relations.length} relations`}
               </span>
             </div>
 
@@ -211,13 +215,23 @@ export function PasteFlowDialog({
           </Button>
           <Button
             variant="secondary"
-            disabled={!parsed || parsed.doc.screens.length === 0}
+            // A fragment that only adds tables is a fragment: the data model
+            // is merged by table key the same way screens are merged by theirs.
+            disabled={
+              !parsed ||
+              (parsed.doc.screens.length === 0 && parsed.doc.entities.length === 0)
+            }
             onClick={() => commit("merge")}
           >
             Merge into project
           </Button>
           <Button
-            disabled={!parsed || (!parsed.doc.screens.length && !parsed.doc.sections.length)}
+            disabled={
+              !parsed ||
+              (!parsed.doc.screens.length &&
+                !parsed.doc.sections.length &&
+                !parsed.doc.entities.length)
+            }
             onClick={() => commit("replace")}
           >
             Replace project

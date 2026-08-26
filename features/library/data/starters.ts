@@ -196,6 +196,70 @@ flow {
   app_today  -> app_job   : "tap a job"
 }
 
+data {
+  table users "Users" {
+    note "Anyone who can sign in, on either device."
+    id uuid pk
+    email string unique required
+    password_hash text required
+    full_name string required
+    role enum [dispatcher, engineer] required default "engineer"
+    active boolean required default "true"
+    created_at timestamp required default "now()"
+  }
+
+  table customers "Customers" {
+    note "Whose site the work happens at."
+    id uuid pk
+    name string required
+    phone string
+    address text required
+    created_at timestamp required default "now()"
+  }
+
+  table jobs "Jobs" {
+    note "One visit to one site. The board is a day of these."
+    id uuid pk
+    reference string unique required note "What everyone calls it on the phone"
+    customer_id uuid required index
+    assigned_to uuid index note "Null until a dispatcher assigns it"
+    status enum [unassigned, assigned, in_progress, done, cancelled] required default "unassigned"
+    scheduled_for timestamp required index
+    notes text
+    created_at timestamp required default "now()"
+    updated_at timestamp required default "now()"
+  }
+
+  table job_events "Job events" {
+    note "Every status change, kept rather than overwritten — this is what the office reads."
+    id uuid pk
+    job_id uuid required index
+    actor_id uuid required
+    status enum [assigned, in_progress, done, cancelled] required
+    note text
+    idempotency_key string unique note "The phone retries after a dropped connection; the second arrival must not add a row"
+    created_at timestamp required default "now()"
+  }
+
+  table sessions "Sessions" {
+    note "One row per signed-in device, so signing out on the phone leaves the console signed in."
+    id uuid pk
+    user_id uuid required index
+    refresh_token_hash text unique required
+    device string
+    expires_at timestamp required
+    revoked_at timestamp
+    created_at timestamp required default "now()"
+  }
+
+  rel jobs.customer_id -> customers.id : many-to-one "a job happens at one customer's site" on_delete restrict
+  rel jobs.assigned_to -> users.id : many-to-one "a job is assigned to one engineer" on_delete set-null
+  rel job_events.job_id -> jobs.id : many-to-one "an event belongs to one job" on_delete cascade
+  rel job_events.actor_id -> users.id : many-to-one "somebody recorded it" on_delete restrict
+  rel sessions.user_id -> users.id : many-to-one "a session belongs to one person" on_delete cascade
+}
+
+
 stack { framework next-16; styling tailwind4-shadcn; state tanstack-zustand; forms rhf-zod }
 structure feature-based
 

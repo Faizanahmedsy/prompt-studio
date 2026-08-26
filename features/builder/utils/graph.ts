@@ -297,6 +297,45 @@ export function classifyEdges(
   return kinds
 }
 
+/**
+ * Do any two of these sit on top of each other?
+ *
+ * Used at first paint: positions saved by an older layout, or written by a
+ * model that guessed them, routinely overlap — and a canvas that opens with
+ * one card covering another reads as lost work.
+ */
+export function overlapping<T extends PositionedNode>(
+  nodes: T[],
+  sizes: {
+    heights?: Map<string, number> | Record<string, number>
+    widths?: Map<string, number> | Record<string, number>
+    nodeWidth?: number
+    rowHeight?: number
+  } = {}
+): boolean {
+  const heightRead = reader(sizes.heights)
+  const widthRead = reader(sizes.widths)
+  const height = (id: string) => heightRead(id) ?? sizes.rowHeight ?? 168
+  const width = (id: string) => widthRead(id) ?? sizes.nodeWidth ?? DEFAULT_NODE_WIDTH
+  // A few pixels of touching is not an overlap; a card over a card is.
+  const pad = 4
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const a = nodes[i]
+      const b = nodes[j]
+      if (
+        a.x + width(a.id) - pad > b.x &&
+        b.x + width(b.id) - pad > a.x &&
+        a.y + height(a.id) - pad > b.y &&
+        b.y + height(b.id) - pad > a.y
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 export type AutoLayoutOptions = {
   /**
    * Rendered height per screen. Screens showing their modules are several

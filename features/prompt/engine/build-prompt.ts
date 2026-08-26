@@ -5,6 +5,7 @@ import {
   surfaceMeta,
 } from "@/features/builder/utils/surfaces"
 import { edgesInView, screensInView, viewNames } from "@/features/builder/utils/views"
+import { checkDataModel } from "@/features/data/utils/schema"
 import { describeLayout } from "@/features/library/data/layouts"
 import { describeModuleKind } from "@/features/library/data/module-kinds"
 import { sectionTypeMap } from "@/features/library/data/section-types"
@@ -39,6 +40,7 @@ import {
 import type { ProjectDoc, Surface, UserStory } from "@/types/project"
 
 import { BOILERPLATE, cloneLines } from "./boilerplate"
+import { dataModelBlock } from "./data-model"
 import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 
 export type PromptBlock = { id: ProjectBlockId; title: string; body: string }
@@ -663,6 +665,7 @@ const titles: Record<BlockId, string> = {
   overview: "Overview",
   boilerplate: "Start From The Boilerplate",
   flows: "User Journeys & Stories",
+  data_model: "Data Model",
   screens: "Screens",
   navigation: "Navigation & Flow",
   views: "Roles & Access",
@@ -727,6 +730,10 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
     overview: overviewBlock(doc),
     boilerplate: boilerplateBlock(doc),
     flows: flowsBlock(doc),
+    // The same tables for every build: the schema is a property of the
+    // product, and three builds each given their own guess at it is three
+    // databases.
+    data_model: dataModelBlock(doc),
     screens: screensBlock(doc),
     navigation: navigationBlock(doc),
     views: viewsBlock(doc),
@@ -767,6 +774,14 @@ function xmlTag(id: ProjectBlockId) {
 
 export function collectWarnings(doc: ProjectDoc): string[] {
   const warnings: string[] = []
+
+  // Anything in the data model that a migration could not express. Warnings
+  // from that check (a table nothing joins to, a column that is not snake_case)
+  // are left to the Data tab — they are style, and the checks list is for
+  // things that will actually break the build.
+  for (const issue of checkDataModel(doc)) {
+    if (issue.level === "error") warnings.push(issue.message)
+  }
   if (!doc.screens.length && !doc.sections.length) {
     warnings.push("Nothing to build yet — add a screen or a page section.")
   }

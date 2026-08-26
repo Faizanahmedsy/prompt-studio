@@ -43,7 +43,11 @@ import {
   edgeKindMeta,
 } from "@/features/builder/utils/edge-kinds"
 import { inFlow } from "@/features/builder/utils/flows"
-import { analyseGraph, classifyEdges } from "@/features/builder/utils/graph"
+import {
+  analyseGraph,
+  classifyEdges,
+  overlapping,
+} from "@/features/builder/utils/graph"
 import {
   CARD_HEIGHT_FALLBACK,
   expandedHeight,
@@ -165,19 +169,32 @@ function CanvasInner({
     if (hasFitted.current || !nodesInitialized || !project.screens.length) return
     hasFitted.current = true
 
-    // Projects saved before the layout fix can hold runaway coordinates; a graph
-    // wider than any real flow gets re-arranged instead of fitted to a viewport
-    // where every node is a speck. Guarded by the same ref so a graph that
-    // somehow stays wide can never re-trigger this in a loop.
+    // Two ways a stored layout arrives unusable, both worth fixing before the
+    // first frame anyone sees: runaway coordinates from an older version of
+    // this layout code, and cards written on top of each other — by a model
+    // that guessed positions, or by a layout computed for smaller cards.
+    // Guarded by the same ref, so neither can re-trigger in a loop.
     const spread = Math.max(...project.screens.map((s) => s.x))
-    if (spread > 400 * project.screens.length) {
-      arrangeScreens()
+    const piled = overlapping(
+      project.screens.filter((screen) => screen.surface === surface),
+      {
+        heights: Object.fromEntries(
+          project.screens.map((screen) => [
+            screen.id,
+            cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK,
+          ])
+        ),
+        nodeWidth: nodeWidthFor(surface),
+      }
+    )
+    if (spread > 400 * project.screens.length || piled) {
+      arrangeScreens(undefined, { silent: true })
       requestAnimationFrame(() => fitView({ ...FIT, duration: 0 }))
       return
     }
 
     fitView({ ...FIT, duration: 0 })
-  }, [nodesInitialized, project.screens.length, fitView])
+  }, [nodesInitialized, project.screens.length, cardHeights, surface, fitView])
 
   const entries = useMemo(
     () => new Set(analyseGraph(visibleScreens, visibleEdges).entries.map((s) => s.id)),

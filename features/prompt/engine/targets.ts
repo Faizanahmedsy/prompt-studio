@@ -9,6 +9,7 @@ export type BlockId =
   | "overview"
   | "boilerplate"
   | "flows"
+  | "data_model"
   | "screens"
   | "navigation"
   | "views"
@@ -66,6 +67,7 @@ export const promptTargets: PromptTarget[] = [
       "structure",
       "conventions",
       "flows",
+      "data_model",
       "screens",
       "navigation",
       "views",
@@ -91,6 +93,7 @@ export const promptTargets: PromptTarget[] = [
       "overview",
       "boilerplate",
       "flows",
+      "data_model",
       "screens",
       "navigation",
       "views",
@@ -121,6 +124,7 @@ export const promptTargets: PromptTarget[] = [
       "structure",
       "conventions",
       "flows",
+      "data_model",
       "screens",
       "navigation",
       "views",
@@ -146,6 +150,7 @@ export const promptTargets: PromptTarget[] = [
       "overview",
       "boilerplate",
       "flows",
+      "data_model",
       "screens",
       "navigation",
       "views",
@@ -176,6 +181,7 @@ export const promptTargets: PromptTarget[] = [
       "structure",
       "conventions",
       "flows",
+      "data_model",
       "screens",
       "navigation",
       "views",

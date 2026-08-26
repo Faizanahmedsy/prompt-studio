@@ -154,6 +154,11 @@ export function duplicateScreen(id: string) {
 export function connectScreens(from: string, to: string, trigger = "") {
   update((doc) => {
     if (from === to) return
+    // Both ends have to exist. An edge to a screen that is not there renders as
+    // an arrow from nowhere and is reported by the checks as a dangling edge —
+    // and the caller is usually a stale id from a canvas mid-delete.
+    const ids = new Set(doc.screens.map((screen) => screen.id))
+    if (!ids.has(from) || !ids.has(to)) return
     if (edgeExists(doc.edges, from, to)) return
     doc.edges.push({ id: uid("edg"), from, to, trigger, views: [] })
   })

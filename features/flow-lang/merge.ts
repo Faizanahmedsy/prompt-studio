@@ -3,6 +3,10 @@ import type { ProjectDoc, UserStory } from "@/types/project"
 
 export type MergeReport = {
   newFlows: number
+  newTables: number
+  updatedTables: number
+  newColumns: number
+  newRelations: number
   newScreens: number
   updatedScreens: number
   newModules: number
@@ -28,6 +32,10 @@ export type MergeReport = {
 export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
   const report: MergeReport = {
     newFlows: 0,
+    newTables: 0,
+    updatedTables: 0,
+    newColumns: 0,
+    newRelations: 0,
     newScreens: 0,
     updatedScreens: 0,
     newModules: 0,
@@ -174,6 +182,65 @@ export function mergeDoc(doc: ProjectDoc, incoming: ProjectDoc): MergeReport {
     report.newInnerEdges += 1
   }
 
+  // ---------------------------------------------------------- data model
+  // Tables match by key and columns by name, the same rule screens and modules
+  // follow: a fragment that adds `status` to `orders` must land on the orders
+  // table, not create a second one. Nothing is overwritten — a fragment
+  // restating a column it did not change must not quietly relax a constraint.
+  const entityByKey = new Map(doc.entities.map((entity) => [entity.key, entity]))
+  /** incoming entity id → id in `doc` */
+  const entityIds = new Map<string, string>()
+
+  for (const incomingEntity of incoming.entities) {
+    const existing = entityByKey.get(incomingEntity.key)
+    if (existing) {
+      entityIds.set(incomingEntity.id, existing.id)
+      let touched = false
+      if (!existing.note.trim() && incomingEntity.note.trim()) {
+        existing.note = incomingEntity.note
+        touched = true
+      }
+      for (const field of incomingEntity.fields) {
+        if (existing.fields.some((f) => f.name === field.name)) continue
+        existing.fields.push({ ...field, id: uid("fld") })
+        report.newColumns += 1
+        touched = true
+      }
+      if (touched) report.updatedTables += 1
+      continue
+    }
+
+    const below = doc.entities.length
+      ? Math.max(...doc.entities.map((e) => e.y)) + 320
+      : 0
+    const entity = {
+      ...incomingEntity,
+      id: uid("ent"),
+      fields: incomingEntity.fields.map((field) => ({ ...field, id: uid("fld") })),
+      y: below + incomingEntity.y,
+    }
+    entityIds.set(incomingEntity.id, entity.id)
+    entityByKey.set(entity.key, entity)
+    doc.entities.push(entity)
+    report.newTables += 1
+    report.newColumns += entity.fields.length
+  }
+
+  for (const relation of incoming.relations) {
+    const from = entityIds.get(relation.from)
+    const to = entityIds.get(relation.to)
+    if (!from || !to) continue
+    const already = doc.relations.some(
+      (existing) =>
+        existing.from === from &&
+        existing.to === to &&
+        existing.fromField === relation.fromField
+    )
+    if (already) continue
+    doc.relations.push({ ...relation, id: uid("rel"), from, to })
+    report.newRelations += 1
+  }
+
   // ------------------------------------------------------------ sections
   for (const section of incoming.sections) {
     if (doc.sections.some((s) => s.type === section.type && s.name === section.name)) {
@@ -200,6 +267,11 @@ export function describeMerge(report: MergeReport): string {
     report.newInnerEdges &&
       `${report.newInnerEdges} inner connection${plural(report.newInnerEdges)}`,
     report.newSections && `${report.newSections} section${plural(report.newSections)}`,
+    report.newTables && `${report.newTables} table${plural(report.newTables)}`,
+    report.updatedTables && `${report.updatedTables} table${plural(report.updatedTables)} updated`,
+    report.newColumns && `${report.newColumns} column${plural(report.newColumns)}`,
+    report.newRelations &&
+      `${report.newRelations} relation${plural(report.newRelations)}`,
   ].filter(Boolean)
   return parts.length ? parts.join(" · ") : "Nothing new — the project already had all of it"
 }

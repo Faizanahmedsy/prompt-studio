@@ -54,6 +54,17 @@ export function buildFragmentPrompt(doc: ProjectDoc): string {
         .join("\n")
     : "_(this project has no flows yet — name the ones your feature needs)_"
 
+  const tableInventory = doc.entities.length
+    ? doc.entities
+        .map(
+          (entity) =>
+            `- \`${entity.key}\` — ${entity.name} · ${entity.fields
+              .map((field) => `\`${field.name}\``)
+              .join(", ")}`
+        )
+        .join("\n")
+    : "_(this project has no tables yet)_"
+
   const anchorExample = doc.screens[0]?.key ?? "dashboard"
   const anchorFlows = doc.screens[0]?.flows.map((id) => flowKeyOf.get(id)).filter(Boolean) ?? []
   const flowExample = doc.flows[0]?.key ?? "billing"
@@ -91,13 +102,21 @@ that can never be looked at together.
 
 ${flowInventory}
 
+## The tables it already has
+
+Reuse these table names and column names exactly. A fragment that stores
+something new either adds columns to one of these, or adds a table that joins
+to one of them.
+
+${tableInventory}
+
 # Output rules
 
 1. Output **one fenced code block** and nothing else.
 2. **Fragment only.** Do not emit \`app\`, \`theme\`, \`stack\`, \`structure\`,
    \`conventions\`, \`snippets\` or \`requirements\` blocks — the project already has
-   those and your version would fight them. Only \`screen\`, \`module\`, \`inner\`
-   and \`flow\`.
+   those and your version would fight them. Only \`screen\`, \`module\`, \`inner\`,
+   \`flow\`, \`flows\` and \`data\`.
 3. **Anchor the fragment.** At least one connection in your \`flow\` block must
    start from an existing key above, so the new work is reachable from the app
    that already exists. An unanchored fragment lands as an island.
@@ -138,7 +157,20 @@ ${flowInventory}
        : ""
    }
 
-9. **Do not touch the stack.** A fragment adds screens, modules and connections.
+9. **If the feature stores anything, say what.** A \`data { … }\` block with the
+   tables and columns it needs, matched against the list above:
+   - adding a column to a table that exists — redeclare the table with **only
+     the new columns** in it. Anything you leave out is left alone, and a column
+     you restate does not change: the merge fills blanks, it never overwrites.
+   - a genuinely new thing gets a new table, with \`id uuid pk\`,
+     \`created_at timestamp\`, and a \`rel\` line joining it to whatever it belongs
+     to. A new table that joins nothing is almost always a missed relation.
+   - do not restate tables the feature does not touch.
+
+   A feature that visibly saves something and brings no \`data\` block is asking
+   for a screen with nothing behind it.
+
+10. **Do not touch the stack.** A fragment adds screens, modules and connections.
    It never contains \`stack\`, \`structure\`, \`theme\` or \`builds\` — those belong
    to the project, are already set, and a fragment that restates them will
    quietly reset a decision somebody made.
@@ -193,6 +225,25 @@ screen invoice_new "New Invoice" {
     line_items -> totals     : "recalculate on change"
     totals     -> send_modal : "click Send invoice"
   }
+}
+
+# --- what it stores: new columns on a table that exists, and one new table ---
+data {
+  table ${doc.entities[0]?.key ?? "clients"} {
+    # only the new columns — everything else is left alone
+    billing_email string
+  }
+
+  table invoices "Invoices" {
+    note "One raised invoice."
+    id         uuid      pk
+    ${doc.entities[0] ? `${doc.entities[0].key.replace(/s$/, "")}_id` : "client_id"} uuid      required index
+    total      decimal   required
+    status     enum [draft, sent, paid] required default "draft"
+    created_at timestamp required default "now()"
+  }
+
+  rel invoices.${doc.entities[0] ? `${doc.entities[0].key.replace(/s$/, "")}_id` : "client_id"} -> ${doc.entities[0]?.key ?? "clients"}.id : many-to-one "an invoice belongs to one client" on_delete restrict
 }
 
 # --- anchor it to the existing app ---
