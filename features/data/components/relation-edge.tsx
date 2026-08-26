@@ -8,6 +8,7 @@ import {
 } from "@xyflow/react"
 import { X } from "lucide-react"
 
+import { lanePath } from "@/features/builder/utils/edge-lanes"
 import { deleteRelation } from "@/features/data/utils/actions"
 import {
   relationKindMeta,
@@ -36,15 +37,22 @@ export function RelationEdge({
   const meta = relationKindMeta[kind]
   const label = typeof data?.label === "string" ? data.label : ""
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    borderRadius: 12,
-  })
+  // A lane is present when the canvas found a table standing between these
+  // two columns — see `laneFor`. A relation drawn straight through a third
+  // table is the same unreadable line the flow canvas used to have.
+  const lane = typeof data?.lane === "number" ? data.lane : null
+  const [edgePath, labelX, labelY] =
+    lane !== null
+      ? lanePath(sourceX, sourceY, targetX, targetY, lane)
+      : getSmoothStepPath({
+          sourceX,
+          sourceY,
+          targetX,
+          targetY,
+          sourcePosition,
+          targetPosition,
+          borderRadius: 12,
+        })
 
   return (
     <>
@@ -67,7 +75,15 @@ export function RelationEdge({
           className="nodrag nopan group pointer-events-auto absolute flex items-center gap-0.5"
         >
           <span
-            title={`${meta.label} — ${meta.hint}`}
+            // The sentence lives in the tooltip and the inspector, not on the
+            // canvas: drawn in full it lies across the next table, and
+            // truncated it reads as a word cut in half.
+            title={[
+              `${meta.label} — ${meta.hint}`,
+              label ? `“${label}”` : "",
+            ]
+              .filter(Boolean)
+              .join("\n")}
             style={
               selected
                 ? undefined
@@ -79,7 +95,6 @@ export function RelationEdge({
             )}
           >
             {meta.short}
-            {label ? ` · ${label}` : ""}
           </span>
           <button
             type="button"

@@ -42,6 +42,11 @@ import {
   type CanvasEdgeKind,
   edgeKindMeta,
 } from "@/features/builder/utils/edge-kinds"
+import {
+  laneFor,
+  type NodeBox,
+  routable,
+} from "@/features/builder/utils/edge-lanes"
 import { inFlow } from "@/features/builder/utils/flows"
 import {
   analyseGraph,
@@ -390,9 +395,41 @@ function CanvasInner({
     [visibleScreens, visibleEdges]
   )
 
+  /** Where every visible card is, in canvas coordinates. */
+  const boxes = useMemo(() => {
+    const map = new Map<string, NodeBox>()
+    for (const screen of visibleScreens) {
+      const card = cardHeights[screen.id] ?? CARD_HEIGHT_FALLBACK
+      const modules = modulesByScreen.get(screen.id)?.length ?? 0
+      map.set(screen.id, {
+        x: screen.x,
+        y: screen.y,
+        width: nodeWidthFor(surface),
+        height: openScreens.has(screen.id)
+          ? expandedHeight(card, modules)
+          : card,
+      })
+    }
+    return map
+  }, [visibleScreens, cardHeights, modulesByScreen, openScreens, surface])
+
   const edges: Edge[] = useMemo(() => {
     const out: Edge[] = visibleEdges.map((edge) => {
       const kind: CanvasEdgeKind = edgeKinds.get(edge.id) ?? "next"
+      // A connection that skips columns, or doubles back, would otherwise be
+      // drawn straight through whatever stands between its two ends.
+      const from = boxes.get(edge.from)
+      const to = boxes.get(edge.to)
+      const lane =
+        routable(kind) && from && to
+          ? laneFor(
+              from,
+              to,
+              [...boxes.entries()]
+                .filter(([id]) => id !== edge.from && id !== edge.to)
+                .map(([, box]) => box)
+            )
+          : null
       return {
         id: edge.id,
         source: edge.from,
@@ -400,7 +437,7 @@ function CanvasInner({
         label: edge.trigger || "",
         type: "flow",
         animated: false,
-        data: { kind },
+        data: { kind, lane },
         // The arrowhead has to carry the same colour as its line, or a graph
         // of coloured edges ends in a row of grey points.
         markerEnd: {
@@ -441,7 +478,7 @@ function CanvasInner({
       })
     }
     return out
-  }, [visibleEdges, edgeKinds, project.moduleEdges, project.modules, openScreens])
+  }, [visibleEdges, edgeKinds, boxes, project.moduleEdges, project.modules, openScreens])
 
   const kindCounts = useMemo(() => {
     const counts: Partial<Record<CanvasEdgeKind, number>> = {}

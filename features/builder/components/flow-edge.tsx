@@ -17,6 +17,7 @@ import {
   updateModuleEdge,
 } from "@/features/builder/utils/actions"
 import { edgeKindMeta, edgeKindOf } from "@/features/builder/utils/edge-kinds"
+import { lanePath } from "@/features/builder/utils/edge-lanes"
 import { cn } from "@/lib/utils"
 
 /**
@@ -57,7 +58,13 @@ export function FlowEdge({
    * lane the nodes are in, which is why it stops crossing them.
    */
   const curved = kind === "back" || kind === "jump"
-  const [edgePath, labelX, labelY] = curved
+  // A lane is only present when the canvas found something in the way — see
+  // `laneFor`. Without one, a jump and a loop are drawn as gentle arcs.
+  const lane = typeof data?.lane === "number" ? data.lane : null
+
+  const [edgePath, labelX, labelY] = lane !== null
+    ? lanePath(sourceX, sourceY, targetX, targetY, lane)
+    : curved
     ? getBezierPath({
         sourceX,
         sourceY,

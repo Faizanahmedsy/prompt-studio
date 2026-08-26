@@ -22,6 +22,7 @@ import { toast } from "sonner"
 
 import { EmptyState } from "@/components/shared/feedback"
 import { Button } from "@/components/ui/button"
+import { laneFor, type NodeBox } from "@/features/builder/utils/edge-lanes"
 import { overlapping } from "@/features/builder/utils/graph"
 import {
   addEntity,
@@ -123,6 +124,19 @@ function DataCanvasInner({ project }: { project: Project }) {
     [project.entities, project.relations, foreignKeys, selectedId]
   )
 
+  const boxes = useMemo(() => {
+    const map = new Map<string, NodeBox>()
+    for (const entity of project.entities) {
+      map.set(entity.id, {
+        x: entity.x,
+        y: entity.y,
+        width: ENTITY_WIDTH,
+        height: entityHeight(entity.fields.length),
+      })
+    }
+    return map
+  }, [project.entities])
+
   const edges: Edge[] = useMemo(
     () =>
       project.relations.map((relation) => {
@@ -133,6 +147,18 @@ function DataCanvasInner({ project }: { project: Project }) {
           from?.fields.find((f) => f.name === relation.fromField)?.id ?? null
         const targetHandle =
           to?.fields.find((f) => f.name === relation.toField)?.id ?? null
+        const fromBox = boxes.get(relation.from)
+        const toBox = boxes.get(relation.to)
+        const lane =
+          fromBox && toBox
+            ? laneFor(
+                fromBox,
+                toBox,
+                [...boxes.entries()]
+                  .filter(([id]) => id !== relation.from && id !== relation.to)
+                  .map(([, box]) => box)
+              )
+            : null
         return {
           id: relation.id,
           source: relation.from,
@@ -143,7 +169,7 @@ function DataCanvasInner({ project }: { project: Project }) {
           targetHandle,
           type: "relation",
           selected: relation.id === selectedId,
-          data: { kind: relation.kind, label: relation.label },
+          data: { kind: relation.kind, label: relation.label, lane },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 16,
@@ -152,7 +178,7 @@ function DataCanvasInner({ project }: { project: Project }) {
           },
         }
       }),
-    [project.relations, project.entities, selectedId]
+    [project.relations, project.entities, boxes, selectedId]
   )
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
