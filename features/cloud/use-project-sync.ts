@@ -93,7 +93,12 @@ async function claimPage(items: ProjectSummary[]): Promise<number> {
       versions: [],
     }
     useProjectStore.getState().importProject(project)
-    useSyncStore.getState().link(project.id, detail.id, detail.doc_version)
+    // The role comes with the listing, so recording it here costs nothing and
+    // saves the project menu a request it would otherwise have to make before
+    // it could decide whether to offer Delete or Leave.
+    useSyncStore
+      .getState()
+      .link(project.id, detail.id, detail.doc_version, detail.my_role ?? undefined)
     added += 1
   }
   return added
@@ -106,7 +111,8 @@ async function createRemote(project: Project): Promise<void> {
     doc: docOf(project) as unknown as Record<string, unknown>,
     schema_version: project.schemaVersion ?? SCHEMA_VERSION,
   })
-  useSyncStore.getState().link(project.id, created.id, created.doc_version)
+  // Creating a project makes this account its owner.
+  useSyncStore.getState().link(project.id, created.id, created.doc_version, "OWNER")
 }
 
 /** Returns whether the document actually went to the server. */

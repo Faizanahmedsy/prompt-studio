@@ -81,6 +81,8 @@ function CanvasInner({
   const viewStrict = useUiStore((s) => s.viewStrict)
   const activeFlowId = useUiStore((s) => s.activeFlowId)
   const flowFaded = useUiStore((s) => s.flowFaded)
+  const setActiveFlow = useUiStore((s) => s.setActiveFlow)
+  const setActiveView = useUiStore((s) => s.setActiveView)
 
   /**
    * Filtering happens at render, not in the data: the project always holds the
@@ -496,7 +498,12 @@ function CanvasInner({
 
   // An empty surface is the normal starting point for Mobile and Backend, so it
   // gets an invitation rather than the "nothing here" of a broken filter.
-  if (!visibleScreens.length && !activeViewId) {
+  //
+  // Both filters have to be clear for this to be the honest answer. Checking
+  // only the role view meant a journey filter matching nothing landed here
+  // instead: a project with seventeen screens said "No web screens yet" and
+  // offered to add the first one, which reads as the work having been deleted.
+  if (!visibleScreens.length && !activeViewId && !activeFlowId) {
     return (
       <div className="canvas-grid relative h-full w-full">
         <EmptyState
@@ -535,10 +542,25 @@ function CanvasInner({
           title={
             activeFlowId ? "No screens in this journey" : "No screens in this view"
           }
-          description={
+          description={`${
             activeFlowId
-              ? "Tag screens into this journey from the inspector, or switch back to Whole app."
-              : "Tag screens with this role in the inspector, or switch back to All views."
+              ? "Nothing is tagged into this journey yet — tag screens from the inspector."
+              : "No screen carries this role yet — tag them from the inspector."
+          } The other ${project.screens.length} ${
+            project.screens.length === 1 ? "screen is" : "screens are"
+          } still here; this is a filter, not a change to the project.`}
+          action={
+            // A way out that does not require knowing which of the two
+            // switchers above is the one hiding everything.
+            <Button
+              variant="outline"
+              onClick={() => {
+                setActiveFlow(null)
+                setActiveView(null)
+              }}
+            >
+              <Workflow /> Show the whole app
+            </Button>
           }
         />
       </div>

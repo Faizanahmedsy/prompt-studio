@@ -40,6 +40,19 @@ type ProjectState = {
   past: Record<string, HistoryEntry[]>
   future: Record<string, HistoryEntry[]>
   hydrated: boolean
+  /**
+   * Has this browser ever held a project?
+   *
+   * The studio creates a starter on first run so nobody lands on a blank page.
+   * That check used to be "are there no projects", which cannot tell a first
+   * run from someone who has just deleted their last one — so deleting the
+   * last project recreated it a second later, and synced the replacement up as
+   * a brand new row. Delete looked broken when it had worked perfectly.
+   *
+   * Persisted, and never cleared by a delete: emptiness after a deliberate
+   * delete is a state the app has to be able to show.
+   */
+  seeded: boolean
 
   markHydrated: () => void
   createProject: (starterId?: string, name?: string) => string
@@ -99,6 +112,7 @@ export const useProjectStore = create<ProjectState>()(
       past: {},
       future: {},
       hydrated: false,
+      seeded: false,
 
       markHydrated: () => set({ hydrated: true }),
 
@@ -108,6 +122,7 @@ export const useProjectStore = create<ProjectState>()(
         set((state) => ({
           projects: [project, ...state.projects],
           activeId: project.id,
+          seeded: true,
         }))
         return project.id
       },
@@ -129,6 +144,10 @@ export const useProjectStore = create<ProjectState>()(
             ...state.projects.filter((p) => p.id !== imported.id),
           ],
           activeId: imported.id,
+          // An import — including the first pull from the server — counts as
+          // having been seeded. Otherwise signing in on a new machine and
+          // deleting the pulled project would summon a starter.
+          seeded: true,
         }))
         return imported.id
       },
@@ -372,13 +391,24 @@ export const useProjectStore = create<ProjectState>()(
             ? saved.activeId
             : (projects[0]?.id ?? null)
 
-        return { ...current, projects, profiles, activeId }
+        // `seeded` has to be carried across explicitly. This merge rebuilds the
+        // state field by field, so anything not named here silently reverts to
+        // its default on every reload — which for `seeded` meant the first-run
+        // bootstrap firing again after a refresh and resurrecting a project
+        // the person had just deleted.
+        //
+        // A store that already holds projects has obviously been seeded, which
+        // keeps this correct for anyone upgrading from a build without the flag.
+        const seeded = saved.seeded === true || projects.length > 0
+
+        return { ...current, projects, profiles, activeId, seeded }
       },
       // History is deliberately session-scoped, and `hydrated` is runtime state.
       partialize: (state) => ({
         projects: state.projects,
         activeId: state.activeId,
         profiles: state.profiles,
+        seeded: state.seeded,
       }),
       onRehydrateStorage: () => (state) => {
         state?.markHydrated()

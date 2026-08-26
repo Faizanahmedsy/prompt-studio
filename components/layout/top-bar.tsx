@@ -19,7 +19,6 @@ import {
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 import { ExperienceToggle } from "@/components/layout/experience-toggle"
-import { Credit } from "@/components/shared/credit"
 import { Button } from "@/components/ui/button"
 import { Hint, Kbd } from "@/components/ui/misc"
 import {
@@ -101,8 +100,6 @@ export function TopBar({
           Prompt Studio
         </span>
       </span>
-
-      <Credit className="hidden whitespace-nowrap pl-1 lg:flex" />
 
       <ProjectMenu project={project} />
 

@@ -90,8 +90,28 @@ export function ConfirmDialog({
   description?: string
   confirmLabel?: string
   destructive?: boolean
-  onConfirm: () => void
+  /**
+   * Return `false` — or resolve to it — to keep the dialog open.
+   *
+   * Confirming used to close the dialog unconditionally, which is fine for a
+   * local action that cannot fail and wrong for one that talks to a server: a
+   * refused delete looked exactly like a successful one until the project
+   * reappeared.
+   */
+  onConfirm: () => void | boolean | Promise<void | boolean>
 }) {
+  const [working, setWorking] = useState(false)
+
+  const confirm = async () => {
+    setWorking(true)
+    try {
+      const result = await onConfirm()
+      if (result !== false) onOpenChange(false)
+    } finally {
+      setWorking(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -100,15 +120,13 @@ export function ConfirmDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={working}>
             Cancel
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
-            onClick={() => {
-              onConfirm()
-              onOpenChange(false)
-            }}
+            onClick={confirm}
+            disabled={working}
           >
             {confirmLabel}
           </Button>

@@ -8,6 +8,7 @@ import {
   FilePlus2,
   History,
   Link2,
+  LogOut,
   Pencil,
   Trash2,
   Upload,
@@ -34,6 +35,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { removalKind, removeProjectWithFeedback } from "@/features/cloud/remove-project"
 import { starters } from "@/features/library/data/starters"
 import { copyText, downloadFile } from "@/lib/download"
 import { encodeShare, shareUrl } from "@/lib/share-codec"
@@ -55,6 +57,10 @@ export function ProjectMenu({ project }: { project: Project }) {
   const [newOpen, setNewOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  // Recomputed on every render rather than held in state: sharing can change
+  // this account's role while the menu is on screen.
+  const kind = removalKind(project.id)
 
   const exportProject = () => {
     const file = {
@@ -174,7 +180,8 @@ export function ProjectMenu({ project }: { project: Project }) {
 
           <DropdownMenuSeparator />
           <DropdownMenuItem destructive onSelect={() => setDeleting(true)}>
-            <Trash2 /> Delete project
+            {kind === "leave" ? <LogOut /> : <Trash2 />}
+            {kind === "leave" ? "Leave project" : "Delete project"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -266,10 +273,28 @@ export function ProjectMenu({ project }: { project: Project }) {
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
-        title={`Delete “${project.name}”?`}
-        description="This removes the project and its version history from this browser. Export it first if you might need it."
-        confirmLabel="Delete project"
-        onConfirm={() => store.deleteProject(project.id)}
+        title={
+          kind === "leave" ? `Leave “${project.name}”?` : `Delete “${project.name}”?`
+        }
+        description={
+          kind === "leave"
+            ? "You will lose access to it. The project stays with everybody else, and an owner can add you back."
+            : "It goes to the trash for everyone on it, here and on the server. An owner can restore it."
+        }
+        confirmLabel={
+          removing ? "Working…" : kind === "leave" ? "Leave project" : "Delete project"
+        }
+        // The dialog stays open when this returns false: a failed delete that
+        // dismissed itself would look exactly like a successful one, right up
+        // until the project came back.
+        onConfirm={async () => {
+          setRemoving(true)
+          try {
+            return await removeProjectWithFeedback(project.id, project.name)
+          } finally {
+            setRemoving(false)
+          }
+        }}
       />
     </>
   )

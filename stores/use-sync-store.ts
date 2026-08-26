@@ -3,6 +3,8 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import type { ProjectRole } from "@/lib/api/types"
+
 /**
  * The bridge between a local project and its row on the server.
  *
@@ -24,6 +26,16 @@ type SyncStore = {
   links: Record<string, string>
   /** server project id -> the doc_version we last agreed on */
   versions: Record<string, number>
+  /**
+   * server project id -> this account's role on it.
+   *
+   * Kept here because two destructive actions have to choose between
+   * themselves before they are offered: an owner deletes a project, and
+   * everybody else leaves it. Asking the server at the moment the menu opens
+   * would put a network round trip in front of a dropdown, and getting it
+   * wrong means offering someone a button that can only ever fail.
+   */
+  roles: Record<string, ProjectRole>
   state: Record<string, SyncState>
   /** last failure per local project, for the badge's tooltip */
   errors: Record<string, string>
@@ -48,7 +60,10 @@ type SyncStore = {
   markHydrated: () => void
   setOnline: (online: boolean) => void
   setLiveRemoteId: (remoteId: string | null) => void
-  link: (localId: string, remoteId: string, version: number) => void
+  link: (localId: string, remoteId: string, version: number, role?: ProjectRole) => void
+  setRole: (remoteId: string, role: ProjectRole) => void
+  /** This account's role on a local project, if it is linked and known. */
+  roleOf: (localId: string) => ProjectRole | null
   unlink: (localId: string) => void
   setVersion: (remoteId: string, version: number) => void
   setState: (localId: string, state: SyncState, error?: string) => void
@@ -61,6 +76,7 @@ export const useSyncStore = create<SyncStore>()(
     (set, get) => ({
       links: {},
       versions: {},
+      roles: {},
       state: {},
       errors: {},
       online: true,
@@ -73,12 +89,16 @@ export const useSyncStore = create<SyncStore>()(
 
       setLiveRemoteId: (liveRemoteId) => set({ liveRemoteId }),
 
-      link: (localId, remoteId, version) =>
+      link: (localId, remoteId, version, role) =>
         set((store) => ({
           links: { ...store.links, [localId]: remoteId },
           versions: { ...store.versions, [remoteId]: version },
+          roles: role ? { ...store.roles, [remoteId]: role } : store.roles,
           state: { ...store.state, [localId]: "linked" },
         })),
+
+      setRole: (remoteId, role) =>
+        set((store) => ({ roles: { ...store.roles, [remoteId]: role } })),
 
       unlink: (localId) =>
         set((store) => {
@@ -96,6 +116,11 @@ export const useSyncStore = create<SyncStore>()(
           errors: { ...store.errors, [localId]: error ?? "" },
         })),
 
+      roleOf: (localId) => {
+        const remoteId = get().links[localId]
+        return remoteId ? (get().roles[remoteId] ?? null) : null
+      },
+
       remoteIdOf: (localId) => get().links[localId] ?? null,
       localIdOf: (remoteId) =>
         Object.entries(get().links).find(([, remote]) => remote === remoteId)?.[0] ?? null,
@@ -109,6 +134,7 @@ export const useSyncStore = create<SyncStore>()(
       partialize: (store) => ({
         links: store.links,
         versions: store.versions,
+        roles: store.roles,
       }),
       onRehydrateStorage: () => (store) => store?.markHydrated(),
     }

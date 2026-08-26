@@ -3,7 +3,6 @@
 import { Workflow } from "lucide-react"
 import Link from "next/link"
 
-import { Credit } from "@/components/shared/credit"
 
 /**
  * The frame every signed-out screen sits in.
@@ -41,8 +40,6 @@ export function AuthShell({
       </div>
 
       {footer && <div className="text-sm text-muted-foreground">{footer}</div>}
-
-      <Credit />
     </main>
   )
 }
