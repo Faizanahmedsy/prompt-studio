@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   Code2,
+  Database,
   Download,
   FileInput,
   FilePlus2,
@@ -35,6 +36,7 @@ import {
   addSection,
   arrangeScreens,
 } from "@/features/builder/utils/actions"
+import { addEntity } from "@/features/data/utils/actions"
 import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
 import { PasteFlowDialog } from "@/features/flow-lang/components/flow-code-view"
 import { buildFragmentPrompt } from "@/features/flow-lang/fragment-prompt"
@@ -130,6 +132,17 @@ export function CommandPalette({ project }: { project: Project }) {
             <CommandItem onSelect={() => run(() => arrangeScreens())}>
               <LayoutGrid /> Auto-arrange canvas
             </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  setMode("data")
+                  const id = addEntity()
+                  if (id) useUiStore.getState().select(id)
+                })
+              }
+            >
+              <Database /> Add a table to the data model
+            </CommandItem>
             <CommandItem onSelect={() => run(() => store.undo())}>
               <Undo2 /> Undo
             </CommandItem>
@@ -182,6 +195,9 @@ export function CommandPalette({ project }: { project: Project }) {
             </CommandItem>
             <CommandItem onSelect={() => run(() => setMode("backend"))}>
               <Workflow /> Backend services
+            </CommandItem>
+            <CommandItem onSelect={() => run(() => setMode("data"))}>
+              <Database /> Data model
             </CommandItem>
             <CommandItem onSelect={() => run(() => setMode("landing"))}>
               <LayoutPanelTop /> Landing sections

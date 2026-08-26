@@ -182,7 +182,9 @@ describe("arranging", () => {
 
   it("never leaves two screens on top of each other", () => {
     const ids = Array.from({ length: 8 }, () => addScreen("blank")!)
-    ids.slice(1).forEach((id, index) => connectScreens(ids[index], id))
+    ids.slice(1).forEach((id, index) => {
+      connectScreens(ids[index], id)
+    })
     // Pile them up first, the way a bad import does.
     for (const id of ids) moveScreen(id, 0, 0)
     arrangeScreens()

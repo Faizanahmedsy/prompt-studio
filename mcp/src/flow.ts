@@ -118,5 +118,15 @@ export function promptFor(payload: unknown, surface: Surface): string {
 }
 
 function describe(doc: ProjectDoc): string {
-  return `${doc.screens.length} screens, ${doc.flows.length} journeys, ${doc.edges.length} connections.`
+  const parts = [
+    `${doc.screens.length} screens`,
+    `${doc.flows.length} journeys`,
+    `${doc.edges.length} connections`,
+  ]
+  // Only when there is one: a report of "0 tables" on a project that stores
+  // nothing is noise, and on one that does, the count is the thing to check.
+  if (doc.entities.length) {
+    parts.push(`${doc.entities.length} tables`, `${doc.relations.length} relations`)
+  }
+  return `${parts.join(", ")}.`
 }

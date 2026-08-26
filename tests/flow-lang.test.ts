@@ -51,11 +51,9 @@ function normalise(doc: ProjectDoc) {
     sections: doc.sections.map(({ id, ...rest }) => rest),
     entities: doc.entities.map(({ id, x, y, fields, ...rest }) => ({
       ...rest,
-      // biome-ignore lint/correctness/noUnusedFunctionParameters: `id` is destructured to drop it
       fields: fields.map(({ id: fieldId, ...field }) => field),
     })),
     relations: doc.relations
-      // biome-ignore lint/correctness/noUnusedFunctionParameters: as above
       .map(({ id, from, to, ...rest }) => ({
         from: entityKeyOf.get(from),
         to: entityKeyOf.get(to),

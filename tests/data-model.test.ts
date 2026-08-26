@@ -298,3 +298,18 @@ data {
     expect(checkDataModel(parseFlow(`screen home "Home" {}`).doc)).toEqual([])
   })
 })
+
+describe("what the MCP server reports", () => {
+  it("counts the tables when there are any", async () => {
+    const { applyFlow } = await import("@/mcp/src/flow")
+    const applied = applyFlow(
+      parseFlow(`screen home "Home" {}`).doc,
+      `data { table users "Users" { id uuid pk } }
+screen home "Home" {}`,
+      "merge"
+    )
+    expect(applied.ok).toBe(true)
+    if (!applied.ok) return
+    expect(applied.summary).toContain("1 tables")
+  })
+})
