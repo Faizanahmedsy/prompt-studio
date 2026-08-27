@@ -278,7 +278,7 @@ ${decided}# Output rules
 \`\`\`
 app "Product name" {
   target claude-code          # who will build it
-  creativity 6                # 0 = follow spec literally, 10 = free rein
+  ui_level 3                # 1 = build exactly what is described, 5 = a showpiece
   builds web, mobile, backend # which builds this product ships — see rule 10
   theme {
     design modern-soft; primary #2563eb; secondary #10b981
@@ -516,7 +516,7 @@ ${snippets.map((s) => `- ${s.id} — ${s.description}`).join("\n")}
 \`\`\`
 app "FieldOps" {
   target claude-code
-  creativity 5
+  ui_level 3
   builds web, mobile, backend
   theme { design modern-soft; primary #0891b2; secondary #f97316; radius large }
 }
@@ -682,7 +682,7 @@ network returns, so every write endpoint has to tolerate being sent twice.
 \`\`\`
 app "Acme Ops Console" {
   target claude-code
-  creativity 5
+  ui_level 3
   theme { primary #2563eb; secondary #10b981; radius md; buttons filled }
 }
 
@@ -755,7 +755,7 @@ Every refund writes an audit entry visible on the order detail screen.
 \`\`\`
 app "Northwind Launch" {
   target v0
-  creativity 8
+  ui_level 4
   theme { primary #7c3aed; secondary #f59e0b; radius lg; buttons rounded }
 }
 

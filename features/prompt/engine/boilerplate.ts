@@ -30,6 +30,23 @@ export const BOILERPLATE = {
    * the structure and convention blocks it replaced. This is the short form:
    * enough that an agent which never cloned still knows what it is missing.
    */
+  /**
+   * The Next.js version the pinned commit installs.
+   *
+   * Checked against the CVE-2025-66478 floor in `security.ts` — a boilerplate
+   * that ships a vulnerable release would hand every generated project the
+   * vulnerability, and it is the one dependency here nobody re-picks.
+   */
+  nextVersion: "16.2.6",
+  /**
+   * Framework choices this repository actually is.
+   *
+   * Anything else and the clone is wrong: the repo is a Next 16 App Router app
+   * with `proxy.ts`, so telling a Vite or Remix build to start from it produces
+   * a brief that contradicts itself. The prompt falls back to describing the
+   * stack and folder structure in full instead — see `usesBoilerplate`.
+   */
+  frameworks: ["next-16"] as readonly string[],
   provides: [
     "The folder structure, TypeScript strict, Tailwind v4 with the design tokens already defined, Biome and Vitest — a clean clone typechecks, lints, tests and builds.",
     "The plumbing: validated environment, the endpoint catalogue, one axios instance with the auth header and error normalisation, the query client, and Next 16's `proxy.ts` with the auth redirect wired.",
@@ -51,4 +68,23 @@ export function cloneLines(projectName: string): string {
     "cp .env.example .env.local",
     "```",
   ].join("\n")
+}
+
+/**
+ * Whether this build genuinely starts from the clone.
+ *
+ * The switch in the Brief panel is the user's intent; this is whether that
+ * intent is coherent with the stack they picked. Answering "no" here is what
+ * makes the rest of the prompt fall back to describing the folder structure,
+ * conventions and dependencies in full — which is exactly what someone who
+ * chose Vite or Expo needs, and exactly what someone on the default Next 16
+ * stack does not.
+ */
+export function usesBoilerplate(doc: {
+  startFrom: string
+  stack: { framework: string }
+}): boolean {
+  return (
+    doc.startFrom === "boilerplate" && BOILERPLATE.frameworks.includes(doc.stack.framework)
+  )
 }

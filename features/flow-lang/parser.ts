@@ -14,6 +14,7 @@ import { conventions } from "@/features/stack/data/conventions"
 import { stackGroups } from "@/features/stack/data/stack-catalogue"
 import { structurePresets } from "@/features/stack/data/structures"
 import { designLanguages } from "@/features/theme/data/design-languages"
+import { uiLevelFromLegacyCreativity } from "@/features/theme/data/ui-levels"
 import { slugify, uid, uniqueKey } from "@/lib/utils"
 import {
   bodyFontValues,
@@ -957,10 +958,24 @@ export function parseFlow(source: string): ParseResult {
         doc.target = matchId(words[1] ?? quoted[0] ?? "", targetIds, "target", line)
         continue
       }
+      case "ui_level": {
+        const level = Number(words[1])
+        if (Number.isFinite(level)) {
+          doc.uiLevel = Math.max(1, Math.min(5, Math.round(level)))
+        } else {
+          warnings.push({ line, message: `ui_level must be 1–5, got "${words[1]}".` })
+        }
+        continue
+      }
+      // The old 0–10 dial. Still read so a `.flow` file written before the
+      // five-level scale keeps the setting its author chose, and mapped
+      // immediately rather than kept as a second source of truth.
       case "creativity": {
         const level = Number(words[1])
         if (Number.isFinite(level)) {
-          doc.creativity = Math.max(0, Math.min(10, Math.round(level)))
+          const clamped = Math.max(0, Math.min(10, Math.round(level)))
+          doc.creativity = clamped
+          if (doc.uiLevel === null) doc.uiLevel = uiLevelFromLegacyCreativity(clamped)
         } else {
           warnings.push({ line, message: `Creativity must be 0–10, got "${words[1]}".` })
         }

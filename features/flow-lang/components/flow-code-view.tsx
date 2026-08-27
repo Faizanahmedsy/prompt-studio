@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { useIsReadOnly } from "@/features/cloud/read-only"
 import { FlowActions } from "@/features/flow-lang/components/flow-actions"
 import { describeMerge, mergeDoc } from "@/features/flow-lang/merge"
 import { parseFlow } from "@/features/flow-lang/parser"
@@ -87,6 +88,8 @@ export function PasteFlowDialog({
 }) {
   const [text, setText] = useState("")
   const replaceDoc = useProjectStore((s) => s.replaceDoc)
+  const activeId = useProjectStore((s) => s.activeId)
+  const readOnly = useIsReadOnly(activeId)
   const update = useProjectStore((s) => s.update)
 
   const parsed = useMemo(() => (text.trim() ? parseFlow(text) : null), [text])
@@ -107,6 +110,14 @@ export function PasteFlowDialog({
 
   const commit = (mode: "replace" | "merge") => {
     if (!parsed) return
+    // The store refuses the write; without this the toast would still claim it
+    // worked and the person would think their paste had landed.
+    if (readOnly) {
+      toast.error("This project is read-only", {
+        description: "You cannot import Flow source into a project you can only view.",
+      })
+      return
+    }
     const incoming = applyProfile(parsed.doc, parsed.profile)
 
     if (mode === "replace") {

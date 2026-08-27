@@ -70,7 +70,7 @@ export function useLiveProject(project: Project | null): Live {
     // own change, and being able to undo a colleague's edit — on their screen
     // too, once it syncs back — is not an undo, it is a fight.
     appliedRemote.current = JSON.stringify(parsed.data)
-    useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
+    useProjectStore.getState().replaceDoc(parsed.data, { silent: true, system: true })
     if (remoteId) useSyncStore.getState().setVersion(remoteId, version)
     toast.message(`${byName} updated this project`, { duration: 2000 })
   }, [remoteId])
@@ -97,7 +97,7 @@ export function useLiveProject(project: Project | null): Live {
           useProjectStore.getState().saveVersion("Before syncing a colleague\u2019s changes", "auto")
         }
         appliedRemote.current = JSON.stringify(parsed.data)
-        useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
+        useProjectStore.getState().replaceDoc(parsed.data, { silent: true, system: true })
       }
       if (remoteId) useSyncStore.getState().setVersion(remoteId, hello.doc_version)
     },
@@ -108,7 +108,7 @@ export function useLiveProject(project: Project | null): Live {
       const parsed = projectDocSchema.safeParse(message.doc)
       if (parsed.success) {
         appliedRemote.current = JSON.stringify(parsed.data)
-        useProjectStore.getState().replaceDoc(parsed.data, { silent: true })
+        useProjectStore.getState().replaceDoc(parsed.data, { silent: true, system: true })
         if (remoteId) useSyncStore.getState().setVersion(remoteId, message.doc_version)
         toast.warning("Reloaded — someone else had saved a newer version")
         // Resolved the moment it is handled. Left set, the badge stayed on

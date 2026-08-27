@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 
+import { isTransientProject } from "@/features/cloud/read-only"
 import { isApiError, staleDocumentDetail } from "@/lib/api/client"
 import * as projectsApi from "@/lib/api/projects"
 import type { ProjectSummary } from "@/lib/api/types"
@@ -195,6 +196,9 @@ export function useProjectSync(): void {
         const store = useProjectStore.getState()
         for (const project of store.projects) {
           if (useSyncStore.getState().remoteIdOf(project.id)) continue
+          // Never upload a project that only exists because this tab is
+          // looking at somebody else's public link.
+          if (isTransientProject(project.id)) continue
           await createRemote(project)
         }
       } catch (failure) {

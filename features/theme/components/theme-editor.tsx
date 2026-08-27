@@ -6,7 +6,6 @@ import { toast } from "sonner"
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/misc"
 import { LayoutThumb } from "@/features/library/components/layout-thumb"
 import { describeLayout } from "@/features/library/data/layouts"
 import { DesignLanguageCard } from "@/features/theme/components/design-language-card"
@@ -20,8 +19,14 @@ import {
   type ThemeOption,
   typeScales,
 } from "@/features/theme/data/typography"
+import {
+  describeUiLevel,
+  uiLevelOf,
+  uiLevels,
+} from "@/features/theme/data/ui-levels"
 import { buildFigmaImportPrompt } from "@/features/theme/figma-prompt"
 import { copyText } from "@/lib/download"
+import { cn } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import {
@@ -65,20 +70,6 @@ function OptionField({
     </div>
   )
 }
-
-const creativityWords = [
-  "Literal",
-  "Literal",
-  "Literal",
-  "Close to spec",
-  "Close to spec",
-  "Balanced",
-  "Balanced",
-  "Expressive",
-  "Expressive",
-  "Bold",
-  "Bold",
-]
 
 export function ThemeEditor({ project }: { project: Project }) {
   const update = useProjectStore((s) => s.update)
@@ -282,26 +273,45 @@ export function ThemeEditor({ project }: { project: Project }) {
 
       <div className="space-y-2 border-t border-border pt-3">
         <div className="flex items-baseline justify-between">
-          <SectionLabel>Creative latitude</SectionLabel>
+          <SectionLabel>Creative level</SectionLabel>
           <span className="text-[11px] font-medium text-primary">
-            {creativityWords[project.creativity]} · {project.creativity}/10
+            {describeUiLevel(uiLevelOf(project)).name} · {uiLevelOf(project)}/5
           </span>
         </div>
-        <Slider
-          value={[project.creativity]}
-          min={0}
-          max={10}
-          step={1}
-          onValueChange={([creativity]) =>
-            update((doc) => {
-              doc.creativity = creativity
-            })
-          }
-          aria-label="Creative latitude"
-        />
+        {/* Five named buttons rather than a slider: each level is a different
+            instruction, not a point on a continuum, and the name is what tells
+            you what you are choosing. */}
+        <div className="flex gap-1">
+          {uiLevels.map((entry) => {
+            const active = uiLevelOf(project) === entry.level
+            return (
+              <button
+                type="button"
+                key={entry.level}
+                aria-pressed={active}
+                aria-label={`Creative level ${entry.level} — ${entry.name}`}
+                title={`${entry.name} — ${entry.hint}`}
+                onClick={() =>
+                  update((doc) => {
+                    doc.uiLevel = entry.level
+                  })
+                }
+                className={cn(
+                  "flex-1 rounded-md border py-1.5 text-[11px] font-medium transition-colors",
+                  active
+                    ? "border-primary bg-primary-soft text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {entry.level}
+              </button>
+            )
+          })}
+        </div>
         <p className="text-[11px] leading-snug text-muted-foreground">
-          Low keeps the agent literal about these layouts. High invites motion,
-          depth and its own visual ideas on top of them.
+          {describeUiLevel(uiLevelOf(project)).hint} The agent still reads the
+          journeys first and spends the effort where the people using it need
+          it — this sets the ceiling, not a quota.
         </p>
       </div>
     </div>

@@ -1,7 +1,8 @@
 "use client"
 
-import { Copy, Trash2 } from "lucide-react"
+import { ClipboardCopy, Copy, Trash2 } from "lucide-react"
 import { useState } from "react"
+import { toast } from "sonner"
 
 import { Glyph } from "@/components/icons/glyph"
 import { SelectField, TextField } from "@/components/shared/form"
@@ -31,6 +32,8 @@ import {
   moduleKinds,
 } from "@/features/library/data/module-kinds"
 import { screenTemplates } from "@/features/library/data/templates"
+import { buildScreenPrompt } from "@/features/prompt/engine/screen-prompt"
+import { copyText } from "@/lib/download"
 import { cn } from "@/lib/utils"
 import { useUiStore } from "@/stores/use-ui-store"
 import { type Project, type Screen, surfaceValues } from "@/types/project"
@@ -155,6 +158,35 @@ export function ScreenInspector({
       <ScreenModules project={project} screenId={screen.id} />
 
       <ScreenConnections project={project} screenId={screen.id} />
+
+      <div className="border-t border-border pt-3">
+        <Button
+          size="sm"
+          variant="secondary"
+          className="w-full"
+          onClick={async () => {
+            // Deliberately the whole module, not this tab's half of it: the
+            // brief is only useful if the agent reading it can see the API and
+            // the other devices this screen has to agree with.
+            const built = buildScreenPrompt(project, screen.id)
+            if (!built.text) {
+              toast.error(built.warnings[0] ?? "Nothing to copy yet.")
+              return
+            }
+            await copyText(built.text)
+            const builds = built.surfaces.map((s) => surfaceMeta[s].label).join(", ")
+            toast.success(`Copied the ${screen.title} prompt`, {
+              description: built.warnings[0] ?? `Covers ${builds}, the data model and the user stories.`,
+            })
+          }}
+        >
+          <ClipboardCopy /> Copy prompt for this screen
+        </Button>
+        <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+          Everything this screen touches — its journey on the other builds, the
+          tables underneath, and the stories all of them serve.
+        </p>
+      </div>
 
       <div className="flex gap-1.5 border-t border-border pt-3">
         <Button

@@ -164,8 +164,10 @@ describe("the boilerplate inside a repository of builds", () => {
     expect(text).not.toContain("git clone")
   })
 
-  it("stays silent when the project never asked for it", () => {
-    expect(buildProjectPrompt(system()).text).not.toContain("git clone")
+  it("stays silent once the project opts out", () => {
+    expect(
+      buildProjectPrompt({ ...system(), startFrom: "scratch" as const }).text
+    ).not.toContain("git clone")
   })
 })
 

@@ -20,7 +20,9 @@ export type BlockId =
   | "conventions"
   | "requirements"
   | "additional"
+  | "security"
   | "delivery"
+  | "deployment"
 
 /** Blocks that only a multi-build project has. */
 export type ProjectBlockId =
@@ -75,7 +77,9 @@ export const promptTargets: PromptTarget[] = [
       "design",
       "requirements",
       "additional",
+      "security",
       "delivery",
+      "deployment",
     ],
     preamble: (name) =>
       `You are building the frontend for **${name}**. Read every section below before writing code, then implement the whole thing — all screens, wired together, no placeholders and no TODOs.`,
@@ -102,7 +106,9 @@ export const promptTargets: PromptTarget[] = [
       "requirements",
       "structure",
       "additional",
+      "security",
       "delivery",
+      "deployment",
     ],
     preamble: (name) =>
       `Create ${name} — a modern, fully responsive web app using shadcn/ui and Tailwind CSS.`,
@@ -132,7 +138,9 @@ export const promptTargets: PromptTarget[] = [
       "design",
       "requirements",
       "additional",
+      "security",
       "delivery",
+      "deployment",
     ],
     preamble: (name) =>
       `Implement the frontend for ${name} in this workspace, following the existing project conventions where they already exist.`,
@@ -159,7 +167,9 @@ export const promptTargets: PromptTarget[] = [
       "stack",
       "requirements",
       "additional",
+      "security",
       "delivery",
+      "deployment",
     ],
     preamble: (name) =>
       `Build ${name}: a complete, responsive web application described screen by screen below.`,
@@ -189,7 +199,9 @@ export const promptTargets: PromptTarget[] = [
       "design",
       "requirements",
       "additional",
+      "security",
       "delivery",
+      "deployment",
     ],
     preamble: (name) => `Frontend build brief — ${name}.`,
     closing: "Ask before inventing requirements that are not stated above.",

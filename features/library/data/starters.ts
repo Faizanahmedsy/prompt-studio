@@ -19,7 +19,7 @@ export const starters: Starter[] = [
     description: "Empty canvas — start from nothing.",
     source: `app "Untitled project" {
   target claude-code
-  creativity 5
+  ui_level 3
 }`,
   },
   {
@@ -28,7 +28,7 @@ export const starters: Starter[] = [
     description: "One product, three builds, wired together and tested end to end.",
     source: `app "Field Service" {
   target claude-code
-  creativity 5
+  ui_level 3
   builds web, mobile, backend
   theme { design modern-soft; primary #0891b2; secondary #f97316; radius large }
 }
@@ -296,7 +296,7 @@ the database — both go through the API.
     description: "Auth, dashboard, records, detail, settings.",
     source: `app "SaaS Dashboard" {
   target claude-code
-  creativity 5
+  ui_level 3
   theme { primary #4f46e5; secondary #0ea5e9; radius md; buttons filled }
 }
 
@@ -427,7 +427,7 @@ snippets [a11y, states, tables, data-table-shell, api-hooks, pagination]`,
     description: "Sign in, sign up, OTP, reset, first run.",
     source: `app "Authentication" {
   target claude-code
-  creativity 4
+  ui_level 2
   theme { primary #0f766e; secondary #f59e0b; radius md; buttons filled }
 }
 
@@ -569,7 +569,7 @@ Never reveal whether an email address exists on the forgot-password screen.
     description: "Master/detail, bulk actions, audit.",
     source: `app "Admin Console" {
   target claude-code
-  creativity 4
+  ui_level 2
   theme { primary #1d4ed8; secondary #059669; radius sm; buttons filled; density compact }
 }
 
@@ -676,7 +676,7 @@ Every destructive action names the record in its confirmation and writes an audi
     description: "Full landing page, section by section.",
     source: `app "Marketing Site" {
   target v0
-  creativity 8
+  ui_level 4
   theme { primary #7c3aed; secondary #f59e0b; radius lg; buttons rounded; density spacious }
 }
 
@@ -735,7 +735,7 @@ snippets [responsive, a11y]`,
     description: "Product, cart, checkout, confirmation.",
     source: `app "Storefront Checkout" {
   target claude-code
-  creativity 6
+  ui_level 3
   theme { primary #db2777; secondary #0ea5e9; radius lg; buttons rounded }
 }
 
@@ -815,7 +815,7 @@ Payment failures return to the payment step with the entered details preserved.
     description: "Expo Router, tabs, offline-aware.",
     source: `app "Field App" {
   target claude-code
-  creativity 6
+  ui_level 3
   theme { design modern-soft; primary #0891b2; secondary #f97316; radius large; buttons rounded }
 }
 
@@ -956,7 +956,7 @@ Permissions: location (background while on a job), camera, notifications.
     description: "NavigationStack, sheets, Swift Charts.",
     source: `app "Swift Client" {
   target claude-code
-  creativity 5
+  ui_level 3
   theme { design minimal-mono; primary #0a84ff; secondary #30d158; radius large; buttons filled }
 }
 

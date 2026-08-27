@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/misc"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { FlowCanvas } from "@/features/builder/components/flow-canvas"
 import { OutlineList } from "@/features/builder/components/outline-list"
+import { ReadOnlyBanner } from "@/features/cloud/components/read-only-banner"
 import { useLiveProject } from "@/features/cloud/use-live-project"
 import { useProjectSync } from "@/features/cloud/use-project-sync"
 import { DataCanvas } from "@/features/data/components/data-canvas"
@@ -22,6 +23,7 @@ import { LibraryPanel } from "@/features/library/components/library-panel"
 import { CommandPalette } from "@/features/palette/command-palette"
 import { ShortcutsOverlay } from "@/features/palette/shortcuts-overlay"
 import { useWorkbenchHotkeys } from "@/features/palette/use-hotkeys"
+import { useProjectLink } from "@/features/projects/use-project-link"
 import { useShareImport } from "@/features/projects/use-share-import"
 import { PromptPanel } from "@/features/prompt/components/prompt-panel"
 import { useProjectStore } from "@/stores/use-project-store"
@@ -52,6 +54,9 @@ export function Workbench({ project }: { project: Project }) {
 
   useWorkbenchHotkeys()
   useShareImport(hydrated)
+  // After the snapshot import, so a URL carrying both resolves to the live
+  // project rather than a copy of it.
+  useProjectLink(hydrated)
   // Everything the account can see, kept in step over HTTP...
   useProjectSync()
   // ...and the one project on screen, kept live over a websocket.
@@ -116,6 +121,9 @@ export function Workbench({ project }: { project: Project }) {
     <TooltipProvider delayDuration={400}>
       <div className="flex h-dvh flex-col overflow-hidden bg-background">
         <TopBar project={project} live={live} />
+        {/* Above the panels, not inside one: it is true of the whole document,
+            not of whichever pane happens to be open. */}
+        <ReadOnlyBanner projectId={project.id} />
 
         {isDesktop ? (
           <PanelGroup

@@ -2,10 +2,12 @@ import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { findStackOption } from "@/features/stack/data/stack-catalogue"
 import type { ProjectDoc, Surface } from "@/types/project"
 
-import { BOILERPLATE } from "./boilerplate"
+import { BOILERPLATE, usesBoilerplate } from "./boilerplate"
 import { type BuiltPrompt, buildPrompt, collectWarnings } from "./build-prompt"
 import { dataModelBlock } from "./data-model"
+import { deploymentBlock } from "./deployment"
 import { buildFolder, repoTree, selectedSurfaces } from "./monorepo"
+import { verificationNotice } from "./security"
 import { getTarget, type ProjectBlockId } from "./targets"
 
 /**
@@ -73,6 +75,9 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
     "design",
     "conventions",
     "delivery",
+    // One product, one deployment. Left per-build, each surface repeated the
+    // whole block and the agent was told three times to deploy the same thing.
+    "deployment",
   ])
   for (const { surface, built } of perSurface) {
     const body = built.blocks
@@ -99,8 +104,16 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
   push("integration", "Wiring The Builds Together", integration(doc, surfaces))
   push("integration_tests", "Proving It Works End To End", integrationTests(doc, surfaces))
   push("delivery", "Definition of Done", delivery(surfaces, perSurface))
+  push("deployment", "Shipping It", deploymentBlock(doc))
 
-  const text = [target.preamble(doc.name), ...sections, target.closing]
+  const text = [
+    target.preamble(doc.name),
+    ...sections,
+    target.closing,
+    // Last thing in the prompt on purpose: it is about how the agent reports
+    // back, so it should be the most recent instruction when it does.
+    verificationNotice(target.format),
+  ]
     .filter(Boolean)
     .join("\n\n")
 
@@ -168,7 +181,7 @@ function repository(doc: ProjectDoc, surfaces: Surface[]): string {
  * seeds one folder; the rest is scaffolded around it.
  */
 function boilerplate(doc: ProjectDoc, surfaces: Surface[]): string {
-  if (doc.startFrom !== "boilerplate") return ""
+  if (!usesBoilerplate(doc)) return ""
   if (!surfaces.includes("web")) {
     return "The shared boilerplate is a web app, and this project does not ship one — scaffold each build from scratch, following the structure above."
   }
@@ -184,6 +197,8 @@ function boilerplate(doc: ProjectDoc, surfaces: Surface[]): string {
     "",
     `Pinned to \`${BOILERPLATE.commit.slice(0, 12)}\` — that commit, not \`main\`, so this brief builds the same thing whenever it is run.`,
     "",
+    `That commit installs \`next@${BOILERPLATE.nextVersion}\`, which is above the patched floor for CVE-2025-66478. Do not downgrade it.`,
+    "",
     "It brings the folder structure, TypeScript strict, the design tokens, one http instance with auth and error handling, the three feedback states, and a `CLAUDE.md` carrying the conventions — read it, and do not rebuild any of it. Two adjustments for living in a repository rather than being one:",
     "",
     "- Its `package.json` becomes a workspace member; the lockfile and the shared scripts live at the root.",
@@ -193,8 +208,10 @@ function boilerplate(doc: ProjectDoc, surfaces: Surface[]): string {
       ? "The other builds have no boilerplate — scaffold them normally, following the conventions above."
       : "",
   ]
-    .filter((line) => line !== "")
+    // Only the trailing empty. Filtering every "" would strip the blank lines
+    // between the paragraphs above and run them into one another.
     .join("\n")
+    .trimEnd()
 }
 
 function integration(doc: ProjectDoc, surfaces: Surface[]): string {

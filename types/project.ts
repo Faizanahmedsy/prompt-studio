@@ -10,7 +10,7 @@ import { z } from "zod"
  * it is allowed anywhere near the store.
  */
 
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 11
 
 export const borderRadiusValues = [
   "none",
@@ -392,6 +392,23 @@ const backendSurfaceDefaults = {
   structure: { preset: "src-layered" },
 }
 
+/**
+ * Where this project is deployed, and by what.
+ *
+ * `mcps` are servers the agent is expected to *use* during the build — it
+ * provisions and deploys and reports URLs back. `iac` is the opposite: nothing
+ * is provisioned, infrastructure is written down for the developer to run.
+ * Both are meaningful together, so they are separate fields rather than one
+ * choice.
+ */
+export const deploymentSchema = z.object({
+  /** ids from features/deploy/data/targets.ts */
+  mcps: z.array(z.string()).default([]),
+  iac: z.string().default("none"),
+  /** free text appended to the deployment block — domains, regions, accounts */
+  notes: z.string().default(""),
+})
+
 export const projectDocSchema = z.object({
   name: z.string().default("Untitled project"),
   /**
@@ -425,9 +442,22 @@ export const projectDocSchema = z.object({
    * anyone: a brief that has been handed to a developer must keep generating
    * what it generated yesterday.
    */
-  startFrom: z.enum(["scratch", "boilerplate"]).default("scratch"),
+  startFrom: z.enum(["scratch", "boilerplate"]).default("boilerplate"),
   target: z.string().default("claude-code"),
+  deployment: deploymentSchema.default({}),
+  /**
+   * Legacy 0–10 creative latitude. No longer written by the UI; kept so an
+   * existing project can be migrated to `uiLevel` rather than silently reset
+   * to the default. See `uiLevelOf`.
+   */
   creativity: z.number().min(0).max(10).default(5),
+  /**
+   * How much visual and interaction ambition to build — 1 (literal) to 5
+   * (signature). `null` means "never set on this document", which is how a
+   * project written before this field existed is recognised and migrated from
+   * `creativity`. Read it through `uiLevelOf`, never directly.
+   */
+  uiLevel: z.number().int().min(1).max(5).nullable().default(null),
   views: z.array(viewSchema).default([]),
   flows: z.array(flowSchema).default([]),
   screens: z.array(screenSchema).default([]),
@@ -518,6 +548,7 @@ export type SurfaceConfig = z.infer<typeof surfaceConfigSchema>
 export type Conventions = z.infer<typeof conventionsSchema>
 export type ProjectDoc = z.infer<typeof projectDocSchema>
 export type Snapshot = z.infer<typeof snapshotSchema>
+export type Deployment = z.infer<typeof deploymentSchema>
 export type Project = z.infer<typeof projectSchema>
 export type ProjectFile = z.infer<typeof projectFileSchema>
 

@@ -67,6 +67,7 @@ import {
 } from "@/features/builder/utils/node-geometry"
 import { surfaceMeta } from "@/features/builder/utils/surfaces"
 import { edgesInView, inView } from "@/features/builder/utils/views"
+import { useIsReadOnly } from "@/features/cloud/read-only"
 import { AddMenu } from "@/features/library/components/add-menu"
 import { screenTemplates } from "@/features/library/data/templates"
 import { useUiStore } from "@/stores/use-ui-store"
@@ -111,6 +112,7 @@ function CanvasInner({
   project: Project
   surface: Surface
 }) {
+  const readOnly = useIsReadOnly(project.id)
   const select = useUiStore((s) => s.select)
   const selectedId = useUiStore((s) => s.selectedId)
   const advanced = useUiStore((s) => s.experience === "advanced")
@@ -745,6 +747,7 @@ function CanvasInner({
       onPaneClick={() => select(null)}
       onNodeClick={(_, node) => select(node.id)}
       onDrop={(event) => {
+        if (readOnly) return
         event.preventDefault()
         const template = event.dataTransfer.getData("application/x-template")
         if (!template) return
@@ -755,9 +758,15 @@ function CanvasInner({
         addScreen(template, position, surface)
       }}
       onDragOver={(event) => {
+        if (readOnly) return
         event.preventDefault()
         event.dataTransfer.dropEffect = "copy"
       }}
+      // The store refuses the edit either way; these stop the canvas from
+      // *offering* it, so a viewer does not drag a node that springs back.
+      nodesDraggable={!readOnly}
+      nodesConnectable={!readOnly}
+      edgesReconnectable={!readOnly}
       fitView
       fitViewOptions={FIT}
       minZoom={0.2}
@@ -765,7 +774,7 @@ function CanvasInner({
       snapToGrid
       snapGrid={[10, 10]}
       proOptions={{ hideAttribution: true }}
-      deleteKeyCode={["Backspace", "Delete"]}
+      deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
       className="h-full w-full"
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />

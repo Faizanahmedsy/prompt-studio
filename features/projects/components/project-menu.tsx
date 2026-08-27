@@ -34,18 +34,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ShareDialog } from "@/features/cloud/components/share-dialog"
 import { removalKind, removeProjectWithFeedback } from "@/features/cloud/remove-project"
-import { copyText, downloadFile } from "@/lib/download"
-import { encodeShare, shareUrl } from "@/lib/share-codec"
+import { downloadFile } from "@/lib/download"
 import { relativeTime } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useSyncStore } from "@/stores/use-sync-store"
 import {
   type Project,
   projectFileSchema,
   SCHEMA_VERSION,
 } from "@/types/project"
-
 import { NewProjectDialog } from "./new-project-dialog"
+
 import { VersionsDialog } from "./versions-dialog"
 
 export function ProjectMenu({ project }: { project: Project }) {
@@ -57,6 +58,9 @@ export function ProjectMenu({ project }: { project: Project }) {
   const [versionsOpen, setVersionsOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const remoteId = useSyncStore((s) => s.links[project.id] ?? null)
+  const role = useSyncStore((s) => (remoteId ? (s.roles[remoteId] ?? null) : null))
   // Recomputed on every render rather than held in state: sharing can change
   // this account's role while the menu is on screen.
   const kind = removalKind(project.id)
@@ -93,24 +97,7 @@ export function ProjectMenu({ project }: { project: Project }) {
     }
   }
 
-  const share = async () => {
-    const token = await encodeShare({
-      kind: "prompt-studio/project",
-      schemaVersion: SCHEMA_VERSION,
-      project,
-    })
-    const url = shareUrl(token)
-    if (url.length > 30000) {
-      toast.error("This project is too large for a share link.", {
-        description: "Export the JSON file instead.",
-      })
-      return
-    }
-    await copyText(url)
-    toast.success("Share link copied", {
-      description: "Everything travels inside the link — nothing is uploaded.",
-    })
-  }
+
 
   return (
     <>
@@ -167,8 +154,8 @@ export function ProjectMenu({ project }: { project: Project }) {
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={share}>
-            <Link2 /> Copy share link
+          <DropdownMenuItem onSelect={() => setSharing(true)}>
+            <Link2 /> Share…
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportProject}>
             <Download /> Export .json
@@ -231,6 +218,16 @@ export function ProjectMenu({ project }: { project: Project }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShareDialog
+        project={project}
+        remoteId={remoteId}
+        // A project that has never synced has no server role; it is entirely
+        // this person's, so they own it.
+        isOwner={role === null || role === "OWNER"}
+        open={sharing}
+        onOpenChange={setSharing}
+      />
 
       <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
 

@@ -18,6 +18,7 @@ import {
   structureFor,
   surfaceMeta,
 } from "@/features/builder/utils/surfaces"
+import { DeploymentPanel } from "@/features/deploy/components/deployment-panel"
 import { conventions } from "@/features/stack/data/conventions"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import {
@@ -205,6 +206,9 @@ export function StackPanel({ project }: { project: Project }) {
           )
         )}
       </section>
+
+      {/* Deployment -------------------------------------------------------- */}
+      <DeploymentPanel project={project} />
 
       {/* Conventions ------------------------------------------------------- */}
       <section className="space-y-2 border-t border-border pt-4">

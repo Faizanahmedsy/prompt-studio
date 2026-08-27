@@ -12,6 +12,19 @@ Two things only a real browser can answer:
   someone else was their own other code path.
 - **`collaboration.mjs`** — two browsers, two accounts, one project. One adds a
   screen; the other sees it; the database agrees.
+- **`public-link.mjs`** — a project published read-only, opened by a stranger
+  with no account. The parts worth proving in a browser: they reach the diagram
+  without being bounced to the login screen; the page is genuinely read-only
+  rather than merely missing its buttons; viewing it leaves nothing in the
+  visitor's localStorage and creates nothing in their account (the sync hook
+  uploads every unsynced local project, so a copy landing in the store would
+  have quietly duplicated a stranger's diagram into the viewer's account); and
+  a revoked link stops working immediately.
+- **`team-link.mjs`** — `#p=<project id>`, the link that points at the live
+  project instead of carrying a copy of it. Covers the member landing on the
+  project itself with no duplicate created, a VIEWER being refused the edit,
+  the link surviving the bounce through `/login`, and an outsider being told
+  nothing.
 - **`sign-out.mjs`** — signing out leaves nothing of that account on the
   machine, and actually reaches the server. Both halves were broken: the stores
   persist under fixed keys and outlived the session, so the next person to sign

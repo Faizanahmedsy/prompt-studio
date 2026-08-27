@@ -1,4 +1,5 @@
 import { sectionTypeMap } from "@/features/library/data/section-types"
+import { uiLevelOf } from "@/features/theme/data/ui-levels"
 import type { ProjectDoc, UserStory } from "@/types/project"
 
 /**
@@ -13,7 +14,9 @@ export function serializeFlow(doc: ProjectDoc): string {
 
   out.push(`app ${quote(doc.name)} {`)
   out.push(`  target ${doc.target}`)
-  out.push(`  creativity ${doc.creativity}`)
+  // `ui_level`, not the old `creativity`: writing both would leave two dials
+  // in the file that can disagree. Reading the legacy keyword still works.
+  out.push(`  ui_level ${uiLevelOf(doc)}`)
   // Which builds this project ships. Written every time rather than only when
   // it is unusual: a file that says nothing about its builds is a file that
   // silently means "web", and a reader has no way to tell that from "nobody

@@ -37,10 +37,17 @@ import {
   motions,
   typeScales,
 } from "@/features/theme/data/typography"
+import {
+  describeUiLevel,
+  UI_LEVEL_PREAMBLE,
+  uiLevelOf,
+} from "@/features/theme/data/ui-levels"
 import type { ProjectDoc, Surface, UserStory } from "@/types/project"
 
-import { BOILERPLATE, cloneLines } from "./boilerplate"
+import { BOILERPLATE, cloneLines, usesBoilerplate } from "./boilerplate"
 import { dataModelBlock } from "./data-model"
+import { deploymentBlock } from "./deployment"
+import { securityConstraint, verificationNotice } from "./security"
 import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 
 export type PromptBlock = { id: ProjectBlockId; title: string; body: string }
@@ -72,19 +79,24 @@ const densityWords: Record<string, string> = {
   spacious: "spacious layout — generous whitespace, larger type",
 }
 
-function creativityLine(level: number) {
-  if (level <= 2)
-    return "Follow the layout specifications literally. Do not add sections, decoration or animation that is not described."
-  if (level <= 4)
-    return "Stay close to the specification. Small, tasteful refinements are welcome; the described structure stays intact."
-  if (level <= 6)
-    return "Balance the specification with sensible modern polish: subtle transitions, considered empty states, refined spacing."
-  if (level <= 8)
-    return "Interpret the specification confidently. Add motion, depth and micro-interactions where they aid comprehension, keeping the described structure."
-  return "Treat the specification as direction rather than constraint. Push the visual design — bold type, layered depth, motion — while keeping every described screen and transition."
+/**
+ * The creative-level paragraph.
+ *
+ * A named level and its instructions, not a bare number: "7/10" is not
+ * something an agent can build, and the old scale put exactly that into the
+ * prompt. The preamble comes first on purpose — the level is a ceiling, and
+ * what the journeys actually need decides where under it to land.
+ */
+function uiLevelBlock(doc: ProjectDoc): string {
+  const level = describeUiLevel(uiLevelOf(doc))
+  return [
+    UI_LEVEL_PREAMBLE,
+    "",
+    `**Creative level ${level.level} of 5 — ${level.name}.** ${level.promptDetails}`,
+  ].join("\n")
 }
 
-function list(lines: string[]) {
+export function list(lines: string[]) {
   return lines
     .map((line) => {
       // A snippet may be a fenced code block rather than a sentence. Prefixing
@@ -139,7 +151,7 @@ function overviewBlock(doc: ProjectDoc): string {
  * as a specification; the acceptance criteria stay a list, because that is how
  * they get checked off.
  */
-function storyLines(story: UserStory, indent: string): string[] {
+export function storyLines(story: UserStory, indent: string): string[] {
   const role = story.role.trim()
   const want = story.want.trim()
   const soThat = story.soThat.trim()
@@ -435,7 +447,7 @@ function designBlock(doc: ProjectDoc): string {
         "Leave class names and structure obvious and unstyled, so a stylesheet added later has something to hook onto.",
       ]),
       "",
-      `Creative latitude (${doc.creativity}/10): the design latitude does not apply here — the instruction above wins.`,
+      "The creative level does not apply here — the instruction above wins.",
     ].join("\n")
   }
 
@@ -491,12 +503,13 @@ function designBlock(doc: ProjectDoc): string {
     "",
     "Where this list and the settings above disagree, the settings win — they were chosen for this project, and this list is only about what to do when nothing was chosen.",
     "",
-    `Creative latitude (${doc.creativity}/10): ${creativityLine(doc.creativity)}`,
+    uiLevelBlock(doc),
   ].join("\n")
 }
 
 function stackBlock(doc: ProjectDoc, detail: "full" | "condensed"): string {
   const lines: string[] = []
+
   // The clone's `package.json` pins the versions, so the list is only worth
   // printing for what it adds beyond it — and anything it contradicts is a
   // decision the agent has to be told to make deliberately.
@@ -531,7 +544,7 @@ function stackBlock(doc: ProjectDoc, detail: "full" | "condensed"): string {
  * disagree with `CLAUDE.md`.
  */
 function fromBoilerplate(doc: ProjectDoc): boolean {
-  return doc.startFrom === "boilerplate"
+  return usesBoilerplate(doc)
 }
 
 function structureBlock(doc: ProjectDoc): string {
@@ -622,13 +635,15 @@ function requirementsBlock(doc: ProjectDoc): string {
  * repeats itself.
  */
 function boilerplateBlock(doc: ProjectDoc): string {
-  if (doc.startFrom !== "boilerplate") return ""
+  if (!usesBoilerplate(doc)) return ""
   return [
     "**Do not scaffold this project from scratch.** Clone the starting point, drop its history, and build on top of it:",
     "",
     cloneLines(doc.name),
     "",
     `Pinned to commit \`${BOILERPLATE.commit.slice(0, 12)}\` — use that commit, not \`main\`, so this brief builds the same thing whenever it is run. Source: ${BOILERPLATE.url}`,
+    "",
+    `That commit installs \`next@${BOILERPLATE.nextVersion}\`, which is above the patched floor for CVE-2025-66478. Do not downgrade it, and if you update it, stay on a patched release — see the version floor below.`,
     "",
     "It already provides, and none of it is to be rebuilt — `CLAUDE.md` lists every file and what it is for:",
     "",
@@ -676,7 +691,9 @@ const titles: Record<BlockId, string> = {
   conventions: "Conventions",
   requirements: "Technical Requirements",
   additional: "Additional Requirements",
+  security: "Dependency Versions — Non-Negotiable",
   delivery: "Definition of Done",
+  deployment: "Shipping It",
 }
 
 // ------------------------------------------------------------------- build
@@ -744,7 +761,14 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
     conventions: conventionsBlock(doc),
     requirements: requirementsBlock(doc),
     additional: additionalBlock(doc),
+    // Its own block rather than a paragraph inside the stack section. The v0
+    // target has no "stack" in its order, so a floor that rode along with the
+    // stack simply vanished for the one builder that scaffolds Next itself.
+    security: securityConstraint(doc.stack.framework),
     delivery: deliveryBlock(doc),
+    // Project-wide, not per-surface: the deployment answer is "where does this
+    // product live", and three builds each given their own is three answers.
+    deployment: deploymentBlock(doc),
   }
 
   const blocks: PromptBlock[] = target.order
@@ -761,7 +785,12 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
 
   const name =
     surface === "web" ? doc.name : `${doc.name} — ${surfaceMeta[surface].label}`
-  const text = [target.preamble(name), rendered, target.closing]
+  const text = [
+    target.preamble(name),
+    rendered,
+    target.closing,
+    verificationNotice(target.format),
+  ]
     .filter(Boolean)
     .join("\n\n")
 
@@ -781,6 +810,17 @@ export function collectWarnings(doc: ProjectDoc): string[] {
   // things that will actually break the build.
   for (const issue of checkDataModel(doc)) {
     if (issue.level === "error") warnings.push(issue.message)
+  }
+  // The switch says "clone the starter", the stack says something the starter
+  // is not. Silently ignoring one of the two is how a Vite brief ended up
+  // telling the agent to clone a Next app.
+  if (doc.startFrom === "boilerplate" && !usesBoilerplate(doc)) {
+    const option = findStackOption("framework", doc.stack.framework)
+    warnings.push(
+      `The boilerplate is a Next.js 16 App Router app, so it does not fit ${
+        option?.label ?? doc.stack.framework
+      }. The prompt describes the stack, folder structure and conventions in full instead.`
+    )
   }
   if (!doc.screens.length && !doc.sections.length) {
     warnings.push("Nothing to build yet — add a screen or a page section.")

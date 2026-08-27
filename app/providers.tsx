@@ -1,9 +1,10 @@
 "use client"
 
 import { ThemeProvider } from "next-themes"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import { Toaster } from "@/components/ui/sonner"
+import { stashProjectRef } from "@/lib/share-codec"
 import { useAuthStore } from "@/stores/use-auth-store"
 import { useProjectStore } from "@/stores/use-project-store"
 import { usePromptDraftStore } from "@/stores/use-prompt-draft-store"
@@ -16,6 +17,14 @@ import { useUiStore } from "@/stores/use-ui-store"
  * first client render.
  */
 function StoreHydration() {
+  // Synchronously, during the first client render — *before* any effect, and
+  // so before AuthGate’s redirect to /login replaces the URL and takes the
+  // `#p=` fragment with it. An effect here would be too late.
+  useState(() => {
+    stashProjectRef()
+    return null
+  })
+
   useEffect(() => {
     useProjectStore.persist.rehydrate()
     useUiStore.persist.rehydrate()

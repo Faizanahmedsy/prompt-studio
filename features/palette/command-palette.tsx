@@ -46,8 +46,9 @@ import { starters } from "@/features/library/data/starters"
 import { screenTemplates } from "@/features/library/data/templates"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { copyText, downloadFile } from "@/lib/download"
-import { encodeShare, shareUrl } from "@/lib/share-codec"
+import { encodeShare, projectUrl, shareUrl } from "@/lib/share-codec"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useSyncStore } from "@/stores/use-sync-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Surface } from "@/types/project"
 import { type Project, SCHEMA_VERSION } from "@/types/project"
@@ -152,13 +153,28 @@ export function CommandPalette({ project }: { project: Project }) {
             <CommandItem
               onSelect={() =>
                 run(async () => {
+                  // The team link when there is one: it opens the live project
+                  // for the people already on it, rather than handing them a
+                  // copy that stops updating the moment it is copied. The
+                  // snapshot is the fallback for a project that has never
+                  // synced, where a reference would point at nothing.
+                  const remoteId = useSyncStore.getState().remoteIdOf(project.id)
+                  if (remoteId) {
+                    await copyText(projectUrl(remoteId))
+                    toast.success("Team link copied", {
+                      description: "Only people you have added can open it.",
+                    })
+                    return
+                  }
                   const token = await encodeShare({
                     kind: "prompt-studio/project",
                     schemaVersion: SCHEMA_VERSION,
                     project,
                   })
                   await copyText(shareUrl(token))
-                  toast.success("Share link copied")
+                  toast.success("Snapshot link copied", {
+                    description: "The whole project travels inside the link.",
+                  })
                 })
               }
             >

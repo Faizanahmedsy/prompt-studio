@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import { parseFlow } from "@/features/flow-lang/parser"
 import { serializeFlow } from "@/features/flow-lang/serializer"
 import { starterDoc, starters } from "@/features/library/data/starters"
+import { uiLevelOf } from "@/features/theme/data/ui-levels"
 import type { ProjectDoc } from "@/types/project"
 
 /** Ids and canvas coordinates are regenerated on every parse — compare meaning. */
@@ -16,8 +17,17 @@ function normalise(doc: ProjectDoc) {
   const moduleKeyOf = new Map(
     doc.modules.map((m) => [m.id, `${keyOf.get(m.screenId)}.${m.key}`])
   )
+  // `creativity` is the retired 0–10 dial. The serializer no longer writes it,
+  // so a file that carried one loses it on the way out — deliberately: the
+  // value it fed (`uiLevel`) is written instead, and keeping both would leave
+  // two settings in the file that can disagree.
+  const { creativity: _legacyCreativity, ...rest_ } = doc
   return {
-    ...doc,
+    ...rest_,
+    // `uiLevel: null` means "the file never said", and the serializer writes
+    // the effective level explicitly. Compare what the document actually
+    // means, not whether it had been spelled out yet.
+    uiLevel: uiLevelOf(doc),
     screens: doc.screens.map(({ id, x, y, views, flows, ...rest }) => ({
       ...rest,
       views: views.map((v) => viewKeyOf.get(v)),

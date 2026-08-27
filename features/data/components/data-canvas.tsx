@@ -29,6 +29,7 @@ import {
   routeAround,
 } from "@/features/builder/utils/edge-routing"
 import { overlapping } from "@/features/builder/utils/graph"
+import { useIsReadOnly } from "@/features/cloud/read-only"
 import {
   addEntity,
   arrangeEntities,
@@ -59,6 +60,7 @@ const FIT = {
 } as const
 
 function DataCanvasInner({ project }: { project: Project }) {
+  const readOnly = useIsReadOnly(project.id)
   const select = useUiStore((s) => s.select)
   const selectedId = useUiStore((s) => s.selectedId)
   const { fitView } = useReactFlow()
@@ -279,6 +281,9 @@ function DataCanvasInner({ project }: { project: Project }) {
       onPaneClick={() => select(null)}
       onNodeClick={(_, node) => select(node.id)}
       onEdgeClick={(_, edge) => select(edge.id)}
+      nodesDraggable={!readOnly}
+      nodesConnectable={!readOnly}
+      edgesReconnectable={!readOnly}
       fitView
       fitViewOptions={FIT}
       minZoom={0.2}
@@ -286,7 +291,7 @@ function DataCanvasInner({ project }: { project: Project }) {
       snapToGrid
       snapGrid={[10, 10]}
       proOptions={{ hideAttribution: true }}
-      deleteKeyCode={["Backspace", "Delete"]}
+      deleteKeyCode={readOnly ? null : ["Backspace", "Delete"]}
       className="h-full w-full"
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} />

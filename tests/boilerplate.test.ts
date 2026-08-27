@@ -1,18 +1,32 @@
 import { describe, expect, it } from "vitest"
 
 import { starterDoc } from "@/features/library/data/starters"
-import { BOILERPLATE, cloneLines } from "@/features/prompt/engine/boilerplate"
+import {
+  BOILERPLATE,
+  cloneLines,
+  usesBoilerplate,
+} from "@/features/prompt/engine/boilerplate"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
+import { nextVersionFloors } from "@/features/prompt/engine/security"
 import { promptTargets } from "@/features/prompt/engine/targets"
 
 const base = () => starterDoc("saas-dashboard")!
 const withRepo = () => ({ ...base(), startFrom: "boilerplate" as const })
+/** Explicitly opted out — the default is now to clone. */
+const fromScratch = () => ({ ...base(), startFrom: "scratch" as const })
 
 describe("starting from the boilerplate", () => {
-  it("says nothing at all unless the project opted in", () => {
-    // Every brief that already exists must keep generating what it generated
-    // yesterday, so "scratch" is the default and produces the old prompt.
+  it("is what a project gets by default", () => {
+    // The starter repo is the intended path: a brief that scaffolds from
+    // scratch re-derives a folder tree, a design token set and an http client
+    // that already exist and are already known to build.
     const text = buildPrompt(base()).text
+    expect(text).toContain(BOILERPLATE.url)
+    expect(text).toContain("git clone")
+  })
+
+  it("says nothing at all once the project opts out", () => {
+    const text = buildPrompt(fromScratch()).text
     expect(text).not.toContain(BOILERPLATE.url)
     expect(text).not.toContain("git clone")
   })
@@ -37,7 +51,7 @@ describe("starting from the boilerplate", () => {
   })
 
   it("stops repeating the folder tree the clone already has", () => {
-    const scratch = buildPrompt(base()).text
+    const scratch = buildPrompt(fromScratch()).text
     const repo = buildPrompt(withRepo()).text
     expect(scratch).toContain("Use this folder structure")
     expect(repo).not.toContain("Use this folder structure")
@@ -47,7 +61,7 @@ describe("starting from the boilerplate", () => {
     const repo = buildPrompt(withRepo()).text
     expect(repo).toContain("`CLAUDE.md`")
     // One of the convention lines, verbatim, from the scratch prompt.
-    expect(buildPrompt(base()).text).toContain("Files and folders are kebab-case")
+    expect(buildPrompt(fromScratch()).text).toContain("Files and folders are kebab-case")
     expect(repo).not.toContain("Files and folders are kebab-case")
   })
 
@@ -76,7 +90,7 @@ describe("starting from the boilerplate", () => {
   })
 
   it("is shorter than writing it all out", () => {
-    const scratch = buildPrompt(base()).text.length
+    const scratch = buildPrompt(fromScratch()).text.length
     const repo = buildPrompt(withRepo()).text.length
     expect(repo).toBeLessThan(scratch)
   })
@@ -91,5 +105,74 @@ describe("starting from the boilerplate", () => {
 
   it("tells the agent to delete the example feature", () => {
     expect(buildPrompt(withRepo()).text).toContain("features/example/")
+  })
+})
+
+describe("the boilerplate only applies where it fits", () => {
+  const withFramework = (framework: string) => {
+    const base = withRepo()
+    return { ...base, stack: { ...base.stack, framework } }
+  }
+
+  it("clones for the Next 16 stack it actually is", () => {
+    expect(usesBoilerplate(withFramework("next-16"))).toBe(true)
+    expect(buildPrompt(withFramework("next-16")).text).toContain("git clone")
+  })
+
+  it("does not tell a Vite project to clone a Next app", () => {
+    const doc = withFramework("vite-react")
+    expect(usesBoilerplate(doc)).toBe(false)
+    expect(buildPrompt(doc).text).not.toContain("git clone")
+  })
+
+  it("does not tell a Remix project to clone a Next app", () => {
+    expect(usesBoilerplate(withFramework("remix"))).toBe(false)
+  })
+
+  it("declines Next 15 too — the repo is a Next 16 app with proxy.ts", () => {
+    expect(usesBoilerplate(withFramework("next-15"))).toBe(false)
+  })
+
+  it("falls back to the full stack and structure rather than saying nothing", () => {
+    // The failure that matters: a Vite brief that has neither a clone nor a
+    // folder tree is a brief with no starting point at all.
+    const { text } = buildPrompt(withFramework("vite-react"))
+    expect(text).toContain("Use this folder structure")
+    expect(text).toContain("Files and folders are kebab-case")
+  })
+
+  it("warns rather than silently ignoring the switch", () => {
+    const { warnings } = buildPrompt(withFramework("vite-react"))
+    expect(warnings.join(" ")).toContain("does not fit")
+  })
+
+  it("stays quiet when the stack and the switch agree", () => {
+    const { warnings } = buildPrompt(withFramework("next-16"))
+    expect(warnings.join(" ")).not.toContain("does not fit")
+  })
+
+  it("says nothing about fit when the project opted out entirely", () => {
+    const doc = { ...fromScratch(), stack: { ...base().stack, framework: "vite-react" } }
+    expect(buildPrompt(doc).warnings.join(" ")).not.toContain("does not fit")
+  })
+})
+
+describe("the pinned commit is not a vulnerable Next", () => {
+  it("ships a release above the CVE-2025-66478 floor", () => {
+    const floor = nextVersionFloors["next-16"].min.split(".").map(Number)
+    const shipped = BOILERPLATE.nextVersion.split(".").map(Number)
+    expect(shipped.length).toBe(3)
+    // Lexicographic on the numeric triple — 16.2.6 must not sort below 16.0.7.
+    expect(
+      shipped[0] > floor[0] ||
+        (shipped[0] === floor[0] &&
+          (shipped[1] > floor[1] || (shipped[1] === floor[1] && shipped[2] >= floor[2])))
+    ).toBe(true)
+  })
+
+  it("tells the agent not to downgrade it", () => {
+    const text = buildPrompt(withRepo()).text
+    expect(text).toContain(BOILERPLATE.nextVersion)
+    expect(text).toContain("Do not downgrade")
   })
 })

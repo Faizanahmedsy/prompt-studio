@@ -80,3 +80,86 @@ export function clearShareToken() {
   const { origin, pathname, search } = window.location
   window.history.replaceState(null, "", `${origin}${pathname}${search}`)
 }
+
+
+// ── links that point at a project rather than carrying one ───────────────────
+//
+// The `#s=` link above is a snapshot: the whole document travels inside the
+// URL and lands as a copy. That is right for "here, have this" and wrong for
+// "come and look at mine" — a copy stops updating the moment it is made, and
+// two people editing two copies is not collaboration.
+//
+// These two carry a reference instead:
+//
+//   #p=<server id>  — for people already added to the project. They open the
+//                     live document, with whatever role they were given.
+//   /v/<token>      — a public read-only link. No account needed.
+
+const PROJECT_HASH = "#p="
+
+/** A link to the live project, for people who already have access. */
+export function projectUrl(remoteId: string): string {
+  if (typeof window === "undefined") return ""
+  const { origin, pathname } = window.location
+  return `${origin}${pathname}${PROJECT_HASH}${remoteId}`
+}
+
+/** A link anyone can open, with no account, read-only. */
+export function publicUrl(token: string): string {
+  if (typeof window === "undefined") return ""
+  return `${window.location.origin}/v/${encodeURIComponent(token)}`
+}
+
+export function readProjectRef(): string | null {
+  if (typeof window === "undefined") return null
+  const hash = window.location.hash
+  if (!hash.startsWith(PROJECT_HASH)) return null
+  const id = hash.slice(PROJECT_HASH.length).trim()
+  return id || null
+}
+
+/**
+ * Where a project reference waits out the sign-in round trip.
+ *
+ * Opening `#p=<id>` while signed out bounces through `/login`, and the router
+ * replaces the whole URL — hash included — so by the time the person is back
+ * the link is gone and they land on whatever project they had open last.
+ * Stashing it in `sessionStorage` is what survives that, and it is per-tab, so
+ * a link opened in one tab does not hijack another.
+ */
+const PENDING_KEY = "ps:pending-project"
+
+export function stashProjectRef(): void {
+  if (typeof window === "undefined") return
+  const id = readProjectRef()
+  if (!id) return
+  try {
+    window.sessionStorage.setItem(PENDING_KEY, id)
+  } catch {
+    // Private mode, or storage disabled. The link still works for anyone who
+    // is already signed in; it just cannot survive the redirect.
+  }
+}
+
+export function takeProjectRef(): string | null {
+  if (typeof window === "undefined") return null
+  const fromHash = readProjectRef()
+  if (fromHash) {
+    try {
+      window.sessionStorage.removeItem(PENDING_KEY)
+    } catch {}
+    return fromHash
+  }
+  try {
+    const stored = window.sessionStorage.getItem(PENDING_KEY)
+    if (stored) window.sessionStorage.removeItem(PENDING_KEY)
+    return stored || null
+  } catch {
+    return null
+  }
+}
+
+/** Drop `#p=` from the address bar once it has been acted on. */
+export function clearProjectRef(): void {
+  clearShareToken()
+}

@@ -84,6 +84,9 @@ describe("prompt engine", () => {
     const base = doc()
     const { text } = buildPrompt({
       ...base,
+      // Scratch, not the default clone: on the boilerplate path these live in
+      // the repository's own CLAUDE.md and are deliberately not repeated.
+      startFrom: "scratch" as const,
       conventions: {
         ...base.conventions,
         ids: [
@@ -217,6 +220,7 @@ describe("house rules", () => {
     const base = doc()
     const { text } = buildPrompt({
       ...base,
+      startFrom: "scratch" as const,
       conventions: { ids: [], custom: "" },
     })
     expect(text).toContain("Git is owned entirely by the developer")
@@ -239,6 +243,7 @@ describe("house rules", () => {
     const base = doc()
     const { text } = buildPrompt({
       ...base,
+      startFrom: "scratch" as const,
       conventions: { ...base.conventions, ids: ["git-permission"] },
     })
     const occurrences =

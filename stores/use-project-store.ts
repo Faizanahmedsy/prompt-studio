@@ -2,7 +2,7 @@
 
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
-
+import { isReadOnly, isTransientProject } from "@/features/cloud/read-only"
 import { starterDoc } from "@/features/library/data/starters"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import { uid } from "@/lib/utils"
@@ -29,6 +29,14 @@ type UpdateOptions = {
    * step — so dragging a node is one Ctrl+Z, not two hundred.
    */
   coalesce?: string
+  /**
+   * A machine write, not a person's edit: the initial load, and a document
+   * arriving from a colleague over the socket. These must still apply while
+   * the document is read-only — a viewer watching a live project has to see
+   * the changes — so they say so explicitly rather than the guard trying to
+   * infer intent from `silent`.
+   */
+  system?: boolean
 }
 
 type HistoryEntry = { doc: ProjectDoc; coalesce?: string; at: number }
@@ -184,14 +192,19 @@ export const useProjectStore = create<ProjectState>()(
 
       setActive: (id) => set({ activeId: id }),
 
-      renameProject: (id, name) =>
+      renameProject: (id, name) => {
+        if (isReadOnly(id)) return
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === id ? { ...p, name, updatedAt: Date.now() } : p
           ),
-        })),
+        }))
+      },
 
       duplicateProject: (id) => {
+        // A public viewer duplicating a stranger's diagram would persist it and
+        // hand it to the sync hook, which uploads anything unsynced.
+        if (isReadOnly(id)) return null
         const source = get().projects.find((p) => p.id === id)
         if (!source) return null
         const copy: Project = {
@@ -237,6 +250,11 @@ export const useProjectStore = create<ProjectState>()(
         const state = get()
         const id = state.activeId
         if (!id) return
+        // One guard for every edit in the app. Actions, the canvas, the
+        // inspectors, the command palette and the keyboard shortcuts all
+        // funnel through here, so a read-only document cannot be changed by a
+        // path somebody forgot to check.
+        if (!options?.system && isReadOnly(id)) return
         const project = state.projects.find((p) => p.id === id)
         if (!project) return
 
@@ -269,12 +287,19 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       replaceDoc: (doc, options) =>
+        // Honours the read-only guard unless the caller explicitly says this is
+        // a machine write. It is NOT inherently one: "Paste Flow -> Replace
+        // project" is a person, and defaulting to system here let a read-only
+        // viewer overwrite the whole document.
         get().update(() => structuredClone(doc), options),
 
       undo: () => {
         const state = get()
         const id = state.activeId
         if (!id) return
+        // Undo writes to the document directly rather than through `update`,
+        // so it needs its own guard or Ctrl+Z would edit a read-only project.
+        if (isReadOnly(id)) return
         const history = state.past[id] ?? []
         const entry = history.at(-1)
         if (!entry) return
@@ -296,6 +321,7 @@ export const useProjectStore = create<ProjectState>()(
         const state = get()
         const id = state.activeId
         if (!id) return
+        if (isReadOnly(id)) return
         const stackAhead = state.future[id] ?? []
         const entry = stackAhead.at(-1)
         if (!entry) return
@@ -341,20 +367,25 @@ export const useProjectStore = create<ProjectState>()(
 
       restoreVersion: (versionId) => {
         const state = get()
+        // Its own check: this goes out through `replaceDoc`, which is a system
+        // write and therefore not covered by the guard in `update`.
+        if (isReadOnly(state.activeId)) return
         const project = state.projects.find((p) => p.id === state.activeId)
         const snapshot = project?.versions.find((v) => v.id === versionId)
         if (!snapshot) return
         get().replaceDoc(snapshot.doc)
       },
 
-      deleteVersion: (versionId) =>
+      deleteVersion: (versionId) => {
+        if (isReadOnly(get().activeId)) return
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === state.activeId
               ? { ...p, versions: p.versions.filter((v) => v.id !== versionId) }
               : p
           ),
-        })),
+        }))
+      },
 
       saveProfile: (name) => {
         const state = get()
@@ -440,8 +471,11 @@ export const useProjectStore = create<ProjectState>()(
       },
       // History is deliberately session-scoped, and `hydrated` is runtime state.
       partialize: (state) => ({
-        projects: state.projects,
-        activeId: state.activeId,
+        // A public view's project is for this page load only — persisting it
+        // would leave a stranger's diagram in the viewer's own project list.
+        projects: state.projects.filter((p) => !isTransientProject(p.id)),
+        activeId:
+          state.activeId && isTransientProject(state.activeId) ? null : state.activeId,
         profiles: state.profiles,
         seeded: state.seeded,
       }),

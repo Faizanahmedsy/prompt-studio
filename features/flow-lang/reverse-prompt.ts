@@ -543,7 +543,7 @@ file".
 \`\`\`
 app "Name from package.json" {
   target claude-code
-  creativity 3                # low: this describes real code, not a new design
+  ui_level 2                # low: this describes real code, not a new design
   builds web                  # every build this repository actually contains
   theme { design modern-soft; primary #2563eb }
 }
