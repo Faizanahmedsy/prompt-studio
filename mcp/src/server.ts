@@ -22,7 +22,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 
-import { buildAuthoringPrompt } from "@/features/flow-lang"
+import { buildAuthoringPrompt } from "@/features/flow-lang/authoring-prompt"
 import { surfaceValues } from "@/types/project"
 
 import { Api, ApiError, type ProjectDetail, type ProjectSummary } from "./api.js"

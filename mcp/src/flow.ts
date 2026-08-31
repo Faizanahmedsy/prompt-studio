@@ -6,7 +6,9 @@
  * makes it testable without standing a server up.
  */
 
-import { describeMerge, mergeDoc, parseFlow, serializeFlow } from "@/features/flow-lang"
+import { describeMerge, mergeDoc } from "@/features/flow-lang/merge"
+import { parseFlow } from "@/features/flow-lang/parser"
+import { serializeFlow } from "@/features/flow-lang/serializer"
 import { starterDoc } from "@/features/library/data/starters"
 import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { type ProjectDoc, projectDocSchema, type Surface } from "@/types/project"
