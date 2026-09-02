@@ -102,6 +102,9 @@ function uiLevelBlock(doc: ProjectDoc): string {
 
 export function list(lines: string[]) {
   return lines
+    // An empty entry means "this one does not apply here" — rendering it as a
+    // bare "- " is a bullet with nothing after it.
+    .filter((line) => line.trim().length > 0)
     .map((line) => {
       // A snippet may be a fenced code block rather than a sentence. Prefixing
       // one with "- " produces `- ```ts`, which is not a list item containing
@@ -497,6 +500,15 @@ function designBlock(doc: ProjectDoc): string {
       tokens.fonts.display
         ? `Typefaces: **${tokens.fonts.display}** for display, **${tokens.fonts.body}** for body, **${tokens.fonts.mono}** for figures and code. Load them from Google Fonts with a real fallback stack.`
         : "Typefaces: two families and a monospace, no more.",
+      // Two legacy fields with no token to land on. They still reach the agent
+      // when an old file set them, and stay silent otherwise rather than
+      // asserting a default nobody chose.
+      t.buttonStyle === THEME_FIELD_DEFAULTS.buttonStyle
+        ? ""
+        : `Buttons: ${buttonWords[t.buttonStyle] ?? t.buttonStyle}.`,
+      t.iconStyle === THEME_FIELD_DEFAULTS.iconStyle
+        ? ""
+        : `Icons: ${describeOption(iconStyles, t.iconStyle).promptDetails}.`,
       `Themes: ${describeOption(colorSchemes, t.colorScheme).promptDetails}.`,
       "Define every colour, radius, shadow and font size once as CSS custom properties; components reference the tokens, never raw values. The stylesheet below is that file — use it rather than deriving your own.",
     ]),

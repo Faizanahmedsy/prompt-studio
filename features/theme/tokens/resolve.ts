@@ -27,7 +27,7 @@ import {
   parseOklch,
 } from "@/features/theme/color/oklch"
 import { type Preset, presetById } from "@/features/theme/data/presets"
-import { type Theme, themeSchema } from "@/types/project"
+import { type FontCharacter, type Theme, themeSchema } from "@/types/project"
 
 /**
  * The shadcn token names, in the order a stylesheet declares them.
@@ -377,9 +377,19 @@ function layer(
  * each emitter to remember.
  */
 function resolveFonts(theme: Theme, preset: Preset | undefined): Theme["fonts"] {
-  const display = theme.fonts.display || preset?.fonts.display || ""
+  // A character chosen in an old file outranks the preset's families, the same
+  // way a named family would: it was written on purpose.
+  const byCharacter = deviates("headingFont", theme.headingFont)
+    ? LEGACY_FAMILY[theme.headingFont]
+    : ""
+  const bodyByCharacter =
+    theme.bodyFont !== "pair" && deviates("bodyFont", theme.bodyFont)
+      ? LEGACY_FAMILY[theme.bodyFont as FontCharacter]
+      : ""
+
+  const display = theme.fonts.display || byCharacter || preset?.fonts.display || ""
   const mono = theme.fonts.mono || preset?.fonts.mono || ""
-  const named = theme.fonts.body || preset?.fonts.body || ""
+  const named = theme.fonts.body || bodyByCharacter || preset?.fonts.body || ""
   return { display, body: named || (theme.bodyFont === "pair" ? display : ""), mono }
 }
 
@@ -561,6 +571,78 @@ function deviates<K extends keyof Theme>(key: K, value: Theme[K]): boolean {
 }
 
 /**
+ * The pre-preset design fields, mapped onto the values that are read now.
+ *
+ * `radius`, `buttons`, `type scale`, `elevation`, `motion` and the font
+ * characters are still valid Flow, still parsed, and still written by every
+ * starter and by every `.flow` file anybody has saved. They stopped being read
+ * when the preset system landed, which meant an old file's `radius large` was
+ * silently ignored — the diagram opened looking nothing like the file said.
+ *
+ * So they are a fallback layer rather than dead weight: a modern field that has
+ * been moved wins, then a legacy field that has been moved, then the preset,
+ * then the default. Nothing here writes to the document — an old file keeps its
+ * old fields, and saving it does not silently rewrite them.
+ */
+const LEGACY_SHAPE: Record<
+  Theme["borderRadius"],
+  { control: number; card: number; overlay: number; pill: boolean }
+> = {
+  none: { control: 0, card: 0, overlay: 2, pill: false },
+  small: { control: 4, card: 6, overlay: 8, pill: false },
+  medium: { control: 8, card: 12, overlay: 16, pill: false },
+  large: { control: 14, card: 18, overlay: 22, pill: false },
+  full: { control: 16, card: 20, overlay: 24, pill: true },
+}
+
+const LEGACY_SCALE: Record<Theme["typeScale"], number> = {
+  compact: 1.15,
+  balanced: 1.25,
+  expressive: 1.4,
+}
+
+const LEGACY_ELEVATION: Record<Theme["elevation"], Theme["elevationStrategy"]> = {
+  flat: "hairline",
+  subtle: "shadow",
+  layered: "ladder",
+}
+
+const LEGACY_MOTION: Record<Theme["motion"], Theme["motionModel"]> = {
+  none: "none",
+  restrained: "duration",
+  expressive: "spring",
+}
+
+/**
+ * A real family for a character, so an old file that asked for "slab" gets a
+ * slab rather than the fallback stack. One family per character, deliberately:
+ * the character was always a direction, and picking the same face for it every
+ * time is what makes two projects that asked for the same thing look alike.
+ */
+const LEGACY_FAMILY: Record<FontCharacter, string> = {
+  geometric: "Outfit",
+  grotesque: "Inter",
+  humanist: "Source Sans 3",
+  serif: "Source Serif 4",
+  slab: "Roboto Slab",
+  mono: "IBM Plex Mono",
+}
+
+function legacyShape(theme: Theme) {
+  const radius = deviates("borderRadius", theme.borderRadius)
+    ? LEGACY_SHAPE[theme.borderRadius]
+    : null
+  const buttons = deviates("buttonStyle", theme.buttonStyle) ? theme.buttonStyle : null
+  if (!radius && !buttons) return null
+  const base = radius ?? LEGACY_SHAPE.medium
+  // `rounded` and `sharp` are shape decisions; `filled` and `outlined` are
+  // fills, and the prompt states those rather than the token set.
+  if (buttons === "rounded") return { ...base, pill: true }
+  if (buttons === "sharp") return { ...base, control: 0 }
+  return base
+}
+
+/**
  * `preview` exists for the editor, which has to render a preset the project has
  * not switched to yet — hovering a card must not write to the document.
  */
@@ -620,16 +702,25 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
   // exactly as the colours do. Without this, naming a preset in Flow — the one
   // path that sets `preset` without going through the editor — produced a
   // project wearing one design's palette and another's geometry.
-  const shape = deviates("shape", theme.shape) ? theme.shape : (preset?.shape ?? theme.shape)
+  // Modern field, then the legacy field it replaced, then the preset.
+  const shape = deviates("shape", theme.shape)
+    ? theme.shape
+    : (legacyShape(theme) ?? preset?.shape ?? theme.shape)
   const scaleRatio = deviates("scaleRatio", theme.scaleRatio)
     ? theme.scaleRatio
-    : (preset?.scaleRatio ?? theme.scaleRatio)
+    : deviates("typeScale", theme.typeScale)
+      ? LEGACY_SCALE[theme.typeScale]
+      : (preset?.scaleRatio ?? theme.scaleRatio)
   const elevationStrategy = deviates("elevationStrategy", theme.elevationStrategy)
     ? theme.elevationStrategy
-    : (preset?.elevationStrategy ?? theme.elevationStrategy)
+    : deviates("elevation", theme.elevation)
+      ? LEGACY_ELEVATION[theme.elevation]
+      : (preset?.elevationStrategy ?? theme.elevationStrategy)
   const motionModel = deviates("motionModel", theme.motionModel)
     ? theme.motionModel
-    : (preset?.motionModel ?? theme.motionModel)
+    : deviates("motion", theme.motion)
+      ? LEGACY_MOTION[theme.motion]
+      : (preset?.motionModel ?? theme.motionModel)
   const inputStyle = deviates("inputStyle", theme.inputStyle)
     ? theme.inputStyle
     : (preset?.inputStyle ?? theme.inputStyle)
