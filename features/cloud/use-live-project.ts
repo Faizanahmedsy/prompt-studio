@@ -99,7 +99,15 @@ export function useLiveProject(project: Project | null): Live {
         appliedRemote.current = JSON.stringify(parsed.data)
         useProjectStore.getState().replaceDoc(parsed.data, { silent: true, system: true })
       }
-      if (remoteId) useSyncStore.getState().setVersion(remoteId, hello.doc_version)
+      if (remoteId) {
+        useSyncStore.getState().setVersion(remoteId, hello.doc_version)
+        // The room greeting carries the authoritative role, and it was being
+        // thrown away. The role map was written once, at first link, and
+        // persisted — so a member demoted to VIEWER kept a fully editable
+        // canvas whose every edit 403'd on the way out, and a member promoted
+        // to EDITOR stayed locked out by a guard that had never heard about it.
+        useSyncStore.getState().setRole(remoteId, hello.you.role)
+      }
     },
 
     onRemoteDoc: (doc, version, by) => applyRemote(doc, version, by.name || "Someone"),
@@ -107,6 +115,19 @@ export function useLiveProject(project: Project | null): Live {
     onConflict: (message) => {
       const parsed = projectDocSchema.safeParse(message.doc)
       if (parsed.success) {
+        // Snapshot first, exactly as `onHello` does. This path replaces the
+        // document silently — no undo entry, and persist rewrites localStorage
+        // underneath it — so without this, work done while the server moved on
+        // was gone with no way back. The two handlers apply the same event and
+        // behaved oppositely.
+        if (current.current) {
+          const local = JSON.stringify(docOf(current.current))
+          if (local !== JSON.stringify(parsed.data)) {
+            useProjectStore
+              .getState()
+              .saveVersion("Before reloading a newer version", "auto")
+          }
+        }
         appliedRemote.current = JSON.stringify(parsed.data)
         useProjectStore.getState().replaceDoc(parsed.data, { silent: true, system: true })
         if (remoteId) useSyncStore.getState().setVersion(remoteId, message.doc_version)
