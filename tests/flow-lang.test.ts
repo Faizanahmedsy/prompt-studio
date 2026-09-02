@@ -4,7 +4,7 @@ import { parseFlow } from "@/features/flow-lang/parser"
 import { serializeFlow } from "@/features/flow-lang/serializer"
 import { starterDoc, starters } from "@/features/library/data/starters"
 import { uiLevelOf } from "@/features/theme/data/ui-levels"
-import type { ProjectDoc } from "@/types/project"
+import type { ProjectDoc, Theme } from "@/types/project"
 
 /** Ids and canvas coordinates are regenerated on every parse — compare meaning. */
 function normalise(doc: ProjectDoc) {
@@ -528,6 +528,14 @@ describe("the starters demonstrate the feature they teach", () => {
 })
 
 describe("the theme survives a round trip", () => {
+  /**
+   * Every field of the theme, and every one of them different from its default.
+   *
+   * Exhaustive on purpose: a partial match here would pass on the day somebody
+   * adds a field the serializer cannot write, which is precisely the failure
+   * this test exists to catch. When the schema grows, this literal grows with
+   * it — that is the test working, not the test being in the way.
+   */
   const themed = {
     designLanguage: "bold-graphic",
     primaryColor: "#ff0000",
@@ -542,15 +550,37 @@ describe("the theme survives a round trip", () => {
     elevation: "layered",
     motion: "none",
     colorScheme: "dark-first",
+    preset: "monolith",
+    shape: { control: 0, card: 4, overlay: 24, pill: true },
+    palette: {
+      light: { primary: "oklch(0.55 0.12 250)", "chart-1": "#2563eb" },
+      dark: { primary: "oklch(0.72 0.10 250)" },
+    },
+    fonts: {
+      display: "Bricolage Grotesque",
+      body: "Public Sans",
+      mono: "JetBrains Mono",
+    },
+    scaleRatio: 1.618,
+    vividness: 95,
+    neutralHue: 275,
+    elevationStrategy: "hairline",
+    motionModel: "spring",
   } as const
+
+  const themedDoc = () => ({
+    ...starterDoc("saas-dashboard")!,
+    theme: { ...themed } as Theme,
+  })
 
   it("writes every field and reads every field back", () => {
     // The seven settings added with stories and journeys were written by
     // neither end: the serializer skipped them and the parser warned about
     // them. Copy Flow / Paste Flow quietly reset a project's typography,
-    // elevation, motion and dark-mode choice to the defaults.
-    const doc = { ...starterDoc("saas-dashboard")!, theme: { ...themed } }
-    const source = serializeFlow(doc)
+    // elevation, motion and dark-mode choice to the defaults. The preset, the
+    // radii, the palette overrides and the type dials arrived the same way and
+    // would have gone the same way.
+    const source = serializeFlow(themedDoc())
     const parsed = parseFlow(source)
     expect(parsed.errors).toEqual([])
     expect(parsed.doc.theme).toEqual(themed)
@@ -567,8 +597,130 @@ describe("the theme survives a round trip", () => {
   })
 
   it("does not warn about the fields it now understands", () => {
-    const source = serializeFlow({ ...starterDoc("saas-dashboard")!, theme: { ...themed } })
-    const messages = parseFlow(source).warnings.map((issue) => issue.message)
+    const messages = parseFlow(serializeFlow(themedDoc())).warnings.map((i) => i.message)
     expect(messages.filter((message) => message.includes("Unknown theme property"))).toEqual([])
+  })
+
+  /**
+   * One field at a time, so a failure names the field that broke rather than
+   * printing a diff of twenty-two of them.
+   */
+  const oneAtATime: [string, Partial<Theme>][] = [
+    ["preset", { preset: "monolith" }],
+    ["shape", { shape: { control: 0, card: 4, overlay: 24, pill: false } }],
+    ["shape pill", { shape: { control: 8, card: 12, overlay: 16, pill: true } }],
+    [
+      "palette",
+      { palette: { light: { ring: "#2563eb" }, dark: { ring: "#93c5fd" } } },
+    ],
+    [
+      "fonts",
+      { fonts: { display: "Bricolage Grotesque", body: "", mono: "JetBrains Mono" } },
+    ],
+    ["scaleRatio", { scaleRatio: 1.6 }],
+    ["vividness", { vividness: 12 }],
+    ["neutralHue", { neutralHue: 275 }],
+    ["elevationStrategy", { elevationStrategy: "ladder" }],
+    ["motionModel", { motionModel: "spring" }],
+  ]
+
+  for (const [name, patch] of oneAtATime) {
+    it(`carries \`${name}\` through serialize → parse on its own`, () => {
+      const base = starterDoc("saas-dashboard")!
+      const theme: Theme = { ...base.theme, ...patch }
+      const parsed = parseFlow(serializeFlow({ ...base, theme }))
+      expect(parsed.errors).toEqual([])
+      expect(parsed.doc.theme).toEqual(theme)
+    })
+  }
+
+  it("keeps an oklch override whole, spaces and brackets and all", () => {
+    // Written by hand rather than round-tripped: the tokenizer splits on `;`
+    // and `{`, and `words` splits on whitespace, so a colour with spaces inside
+    // brackets is the value most likely to arrive in pieces.
+    const { doc, errors } = parseFlow(`
+app "X" {
+  theme {
+    palette light {
+      primary    oklch(0.55 0.12 250)
+      background #fdfcfb
+    }
+    palette dark { primary oklch(0.72 0.1 250) }
+  }
+}
+screen a "A" {}
+`)
+    expect(errors).toEqual([])
+    expect(doc.theme.palette.light.primary).toBe("oklch(0.55 0.12 250)")
+    expect(doc.theme.palette.light.background).toBe("#fdfcfb")
+    expect(doc.theme.palette.dark.primary).toBe("oklch(0.72 0.1 250)")
+  })
+
+  it("clamps a number outside its range rather than refusing the file", () => {
+    const { doc, errors, warnings } = parseFlow(`
+app "X" {
+  theme {
+    scale_ratio 4
+    vividness  -20
+    neutral_hue 900
+  }
+}
+screen a "A" {}
+`)
+    expect(errors).toEqual([])
+    expect(doc.theme.scaleRatio).toBe(1.7)
+    expect(doc.theme.vividness).toBe(0)
+    expect(doc.theme.neutralHue).toBe(360)
+    expect(warnings.map((issue) => issue.message).join(" ")).toContain("clamped")
+  })
+
+  it("names an elevation_strategy it does not know and keeps the current one", () => {
+    const { doc, warnings } = parseFlow(`
+app "X" { theme { elevation_strategy brutalist_slab } }
+screen a "A" {}
+`)
+    expect(doc.theme.elevationStrategy).toBe("shadow")
+    expect(warnings.map((issue) => issue.message).join(" ")).toContain("brutalist_slab")
+  })
+
+  it("does not grow the file for a theme nobody has touched", () => {
+    // Omitting a default is only safe because the parser starts from the
+    // schema's defaults. Both halves of that are asserted here: the line is
+    // absent, and the value still comes back.
+    const base = starterDoc("saas-dashboard")!
+    const source = serializeFlow(base)
+    for (const key of ["shape", "fonts", "scale_ratio", "vividness", "palette"]) {
+      expect(source, `wrote \`${key}\` for an untouched theme`).not.toContain(key)
+    }
+    expect(parseFlow(source).doc.theme).toEqual(base.theme)
+  })
+})
+
+describe("what the build is for", () => {
+  it("round-trips `priority ui-first`", () => {
+    const base = starterDoc("saas-dashboard")!
+    const source = serializeFlow({ ...base, priority: "ui-first" })
+    expect(source).toContain("priority ui-first")
+    const parsed = parseFlow(source)
+    expect(parsed.errors).toEqual([])
+    expect(parsed.doc.priority).toBe("ui-first")
+  })
+
+  it("says nothing when the build is the ordinary whole-system one", () => {
+    // "logic-first" is what a file that says nothing means, and what every
+    // project written before the field existed does.
+    const base = starterDoc("saas-dashboard")!
+    const source = serializeFlow(base)
+    expect(source).not.toContain("priority")
+    expect(parseFlow(source).doc.priority).toBe("logic-first")
+  })
+
+  it("keeps the current priority and says so when the word is not one", () => {
+    const { doc, warnings } = parseFlow(`
+app "X" { priority vibes }
+screen a "A" {}
+`)
+    expect(doc.priority).toBe("logic-first")
+    expect(warnings.map((issue) => issue.message).join(" ")).toContain("vibes")
   })
 })

@@ -1,0 +1,522 @@
+"use client"
+
+/**
+ * The full-page design editor.
+ *
+ * The existing ThemeEditor is a sidebar of selects and it stays — it is the
+ * right thing when you want to nudge one value while looking at the canvas.
+ * This is the other job: choosing the design in the first place, which needs
+ * the result at a size you can actually judge.
+ *
+ * It is a work mode rather than a route on purpose. Every cloud hook — sync,
+ * sharing, presence, and the read-only guard — is mounted inside Workbench, so
+ * a route would either need all of them rewired or would quietly bypass them,
+ * and the one it would bypass is the guard that stops a public viewer editing
+ * a stranger's project.
+ *
+ * Every write goes through `useProjectStore.update`, which is where that guard
+ * lives. Nothing here calls `setState` directly.
+ */
+
+import { Check, Contrast, RotateCcw } from "lucide-react"
+import { useMemo, useState } from "react"
+import { ColorField, SelectField } from "@/components/shared/form"
+import { SectionLabel } from "@/components/shared/layout"
+import { Button } from "@/components/ui/button"
+import { LC_FLOORS, lc } from "@/features/theme/color/apca"
+import { type Preset, presetById, presets } from "@/features/theme/data/presets"
+import { resolveTokens } from "@/features/theme/tokens"
+import { cn } from "@/lib/utils"
+import { useProjectStore } from "@/stores/use-project-store"
+import {
+  elevationStrategyValues,
+  motionModelValues,
+  type Project,
+  type Theme,
+} from "@/types/project"
+
+import { ThemePreview } from "./theme-preview"
+
+/**
+ * The token list, grouped the way the shadcn table is.
+ *
+ * Grouped rather than alphabetical because the questions people actually have
+ * are "what colour is a card" and "why is the sidebar wrong", not "what starts
+ * with s".
+ */
+const TOKEN_GROUPS: Array<{ label: string; keys: string[] }> = [
+  { label: "Base", keys: ["background", "foreground", "border", "input", "ring"] },
+  { label: "Surfaces", keys: ["card", "card-foreground", "popover", "popover-foreground"] },
+  {
+    label: "Roles",
+    keys: [
+      "primary",
+      "primary-foreground",
+      "secondary",
+      "secondary-foreground",
+      "muted",
+      "muted-foreground",
+      "accent",
+      "accent-foreground",
+      "destructive",
+    ],
+  },
+  { label: "Charts", keys: ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"] },
+  {
+    label: "Sidebar",
+    keys: [
+      "sidebar",
+      "sidebar-foreground",
+      "sidebar-primary",
+      "sidebar-primary-foreground",
+      "sidebar-accent",
+      "sidebar-accent-foreground",
+      "sidebar-border",
+      "sidebar-ring",
+    ],
+  },
+]
+
+/** Pairs whose legibility actually decides whether a theme is usable. */
+const CONTRAST_PAIRS: Array<[string, string, keyof typeof LC_FLOORS]> = [
+  ["foreground", "background", "body"],
+  ["card-foreground", "card", "body"],
+  ["muted-foreground", "muted", "secondary"],
+  ["primary-foreground", "primary", "body"],
+  ["sidebar-foreground", "sidebar", "body"],
+]
+
+function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit = "",
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step?: number
+  unit?: string
+  onChange: (value: number) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="flex items-baseline justify-between text-xs">
+        <span className="font-medium text-foreground">{label}</span>
+        <span className="font-mono tabular-nums text-muted-foreground">
+          {value}
+          {unit}
+        </span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-muted accent-primary"
+      />
+    </label>
+  )
+}
+
+/**
+ * The measured contrast of one pair, in APCA lightness contrast.
+ *
+ * Shown inline rather than behind a "check contrast" button, because a number
+ * you have to ask for is a number nobody asks for.
+ */
+function ContrastBadge({
+  text,
+  bg,
+  floor,
+}: {
+  text: string
+  bg: string
+  floor: number
+}) {
+  const measured = Math.round(Math.abs(lc(text, bg)))
+  const passes = measured >= floor
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] tabular-nums",
+        passes
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+      )}
+      title={
+        passes
+          ? `Lc ${measured}, above the Lc ${floor} floor for this role`
+          : `Lc ${measured} — below the Lc ${floor} floor. This text will be hard to read.`
+      }
+    >
+      <Contrast className="size-2.5" />
+      Lc {measured}
+    </span>
+  )
+}
+
+export function ThemeForge({ project }: { project: Project }) {
+  const update = useProjectStore((state) => state.update)
+  const theme = project.theme
+  const [mode, setMode] = useState<"light" | "dark" | "both">("both")
+  const [tokensOpen, setTokensOpen] = useState(false)
+  const [editing, setEditing] = useState<"light" | "dark">("light")
+
+  const tokens = useMemo(() => resolveTokens(theme), [theme])
+  const active = presetById(theme.preset)
+
+  const set = (patch: Partial<Theme>) =>
+    update(
+      (doc) => {
+        Object.assign(doc.theme, patch)
+      },
+      // Dragging a slider is one decision, not forty undo entries.
+      { coalesce: "theme" }
+    )
+
+  /**
+   * Choosing a preset clears the per-token overrides.
+   *
+   * Keeping them would silently mix half of one design into another and the
+   * result is the muddle that makes people give up on theme editors.
+   */
+  const choosePreset = (id: string) => {
+    const preset = presetById(id)
+    set({
+      preset: preset.id,
+      palette: { light: {}, dark: {} },
+      shape: { ...preset.shape },
+      fonts: { ...preset.fonts },
+      scaleRatio: preset.scaleRatio,
+      vividness: preset.vividness,
+      neutralHue: preset.neutralHue,
+      elevationStrategy: preset.elevationStrategy,
+      motionModel: preset.motionModel,
+      density: preset.density,
+    })
+  }
+
+  const overrideCount =
+    Object.keys(theme.palette.light).length + Object.keys(theme.palette.dark).length
+
+  const setToken = (which: "light" | "dark", key: string, value: string) =>
+    set({
+      palette: {
+        ...theme.palette,
+        [which]: { ...theme.palette[which], [key]: value },
+      },
+    })
+
+  return (
+    <div className="flex h-full min-h-0">
+      {/* ---------------------------------------------------------- controls */}
+      <aside className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
+        <div className="flex flex-col gap-1 border-b border-border p-4">
+          <h2 className="text-sm font-semibold">Design</h2>
+          <p className="text-xs text-muted-foreground">
+            Chosen once, then every screen and the generated prompt follow it.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-5 p-4">
+          <section className="flex flex-col gap-2">
+            <SectionLabel>Preset</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              {presets.map((preset: Preset) => {
+                const chosen = preset.id === theme.preset
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => choosePreset(preset.id)}
+                    className={cn(
+                      "flex flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left transition-colors",
+                      chosen
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/40"
+                    )}
+                  >
+                    <span className="flex w-full items-center justify-between">
+                      <span className="text-xs font-semibold">{preset.name}</span>
+                      {chosen && <Check className="size-3 text-primary" />}
+                    </span>
+                    {/* The swatch row is three tokens, not one: a single dot
+                        makes every preset look like a hue rotation, which is
+                        the exact impression to avoid. */}
+                    <span className="flex gap-1">
+                      {["primary", "background", "muted", "chart-2"].map((key) => (
+                        <span
+                          key={key}
+                          className="size-3 rounded-full border border-border/60"
+                          style={{ background: preset.light[key] }}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-[10px] leading-tight text-muted-foreground">
+                      {preset.character}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {overrideCount > 0 && (
+              <button
+                type="button"
+                onClick={() => choosePreset(theme.preset)}
+                className="flex items-center gap-1.5 self-start text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="size-3" />
+                Reset {overrideCount} custom {overrideCount === 1 ? "value" : "values"} back to{" "}
+                {active.name}
+              </button>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Colour</SectionLabel>
+            <Slider
+              label="Vividness"
+              value={theme.vividness}
+              min={0}
+              max={100}
+              unit="%"
+              onChange={(vividness) => set({ vividness })}
+            />
+            <Slider
+              label="Neutral hue"
+              value={theme.neutralHue}
+              min={0}
+              max={360}
+              unit="°"
+              onChange={(neutralHue) => set({ neutralHue })}
+            />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Vividness is a share of what the hue can actually reach in sRGB, so
+              turning it up never pushes a colour out of gamut. The neutral hue
+              biases every grey toward the accent — a pure grey beside them reads
+              as an accident.
+            </p>
+            <ColorField
+              label="Primary"
+              value={theme.primaryColor}
+              onChange={(primaryColor) => set({ primaryColor })}
+            />
+            <ColorField
+              label="Secondary"
+              value={theme.secondaryColor}
+              onChange={(secondaryColor) => set({ secondaryColor })}
+            />
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Shape</SectionLabel>
+            <Slider
+              label="Controls"
+              value={theme.shape.control}
+              min={0}
+              max={24}
+              unit="px"
+              onChange={(control) => set({ shape: { ...theme.shape, control } })}
+            />
+            <Slider
+              label="Cards"
+              value={theme.shape.card}
+              min={0}
+              max={32}
+              unit="px"
+              onChange={(card) => set({ shape: { ...theme.shape, card } })}
+            />
+            <Slider
+              label="Overlays"
+              value={theme.shape.overlay}
+              min={0}
+              max={40}
+              unit="px"
+              onChange={(overlay) => set({ shape: { ...theme.shape, overlay } })}
+            />
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={theme.shape.pill}
+                onChange={(event) =>
+                  set({ shape: { ...theme.shape, pill: event.target.checked } })
+                }
+                className="size-3.5 accent-primary"
+              />
+              <span>Actions are pills, whatever the control radius says</span>
+            </label>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Type</SectionLabel>
+            <Slider
+              label="Scale ratio"
+              value={theme.scaleRatio}
+              min={1.05}
+              max={1.7}
+              step={0.01}
+              onChange={(scaleRatio) => set({ scaleRatio })}
+            />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Tracking is computed from the resulting sizes, tightening as they
+              grow and going slightly positive at the smallest step. That inverse
+              relationship is the clearest signal a person set the type.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <SectionLabel>Depth &amp; motion</SectionLabel>
+            <SelectField
+              label="Elevation carried by"
+              value={theme.elevationStrategy}
+              onValueChange={(value) =>
+                set({ elevationStrategy: value as Theme["elevationStrategy"] })
+              }
+              options={elevationStrategyValues.map((id) => ({ value: id, label: id }))}
+            />
+            <SelectField
+              label="Motion"
+              value={theme.motionModel}
+              onValueChange={(value) => set({ motionModel: value as Theme["motionModel"] })}
+              options={motionModelValues.map((id) => ({ value: id, label: id }))}
+            />
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setTokensOpen((open) => !open)}
+              className="flex items-center justify-between text-left"
+            >
+              <SectionLabel>Every token</SectionLabel>
+              <span className="text-[11px] text-muted-foreground">
+                {tokensOpen ? "Hide" : `${TOKEN_GROUPS.flatMap((g) => g.keys).length} values`}
+              </span>
+            </button>
+            {tokensOpen && (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-1">
+                  {(["light", "dark"] as const).map((one) => (
+                    <Button
+                      key={one}
+                      size="sm"
+                      variant={editing === one ? "secondary" : "ghost"}
+                      onClick={() => setEditing(one)}
+                      className="h-6 flex-1 px-2 text-[11px] capitalize"
+                    >
+                      {one}
+                    </Button>
+                  ))}
+                </div>
+                {TOKEN_GROUPS.map((group) => (
+                  <div key={group.label} className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                      {group.label}
+                    </span>
+                    {group.keys.map((key) => (
+                      <label key={key} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={tokens[editing][key] ?? ""}
+                          onChange={(event) => setToken(editing, key, event.target.value)}
+                          spellCheck={false}
+                          className="min-w-0 flex-1 rounded border border-input bg-background px-1.5 py-1 font-mono text-[10px]"
+                          aria-label={`--${key} in ${editing} mode`}
+                        />
+                        <span
+                          className="size-5 shrink-0 rounded border border-border"
+                          style={{ background: tokens[editing][key] }}
+                        />
+                        <span className="w-[104px] shrink-0 truncate font-mono text-[10px] text-muted-foreground">
+                          {key}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <SectionLabel>Legibility</SectionLabel>
+            <div className="flex flex-col gap-1.5">
+              {CONTRAST_PAIRS.map(([text, bg, role]) => (
+                <div key={text} className="flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-[10px] text-muted-foreground">
+                    {text} on {bg}
+                  </span>
+                  <span className="flex gap-1">
+                    <ContrastBadge
+                      text={tokens.light[text]}
+                      bg={tokens.light[bg]}
+                      floor={LC_FLOORS[role]}
+                    />
+                    <ContrastBadge
+                      text={tokens.dark[text]}
+                      bg={tokens.dark[bg]}
+                      floor={LC_FLOORS[role]}
+                    />
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              Light then dark, measured in APCA. Dark mode has less than half the
+              tonal room light mode has, which is why the two are authored
+              separately rather than inverted.
+            </p>
+          </section>
+        </div>
+      </aside>
+
+      {/* ----------------------------------------------------------- preview */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-muted/30">
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+          <div className="flex flex-col">
+            <span className="text-xs font-semibold">{active.name}</span>
+            <span className="text-[11px] text-muted-foreground">{active.character}</span>
+          </div>
+          <div className="flex gap-1">
+            {(["light", "dark", "both"] as const).map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant={mode === option ? "secondary" : "ghost"}
+                onClick={() => setMode(option)}
+                className="h-7 px-2.5 text-xs capitalize"
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div
+            className={cn(
+              "grid gap-4",
+              mode === "both" ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"
+            )}
+          >
+            {(mode === "both" ? (["light", "dark"] as const) : [mode]).map((one) => (
+              <div key={one} className="flex flex-col gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                  {one}
+                </span>
+                <ThemePreview tokens={tokens} mode={one} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

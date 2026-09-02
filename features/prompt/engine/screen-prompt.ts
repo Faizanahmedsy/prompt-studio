@@ -232,6 +232,10 @@ export function buildScreenPrompt(doc: ProjectDoc, screenId: string): BuiltScree
   push("Data Model", dataModelBlock(doc))
   push("Tech Stack", blockBody("stack"))
   push("Design System", blockBody("design"))
+  // A screen built without the token contract is a screen that invents its own
+  // colours, and one screen off the system is more obvious than all of them.
+  push("Design Tokens — Write These First", blockBody("tokens"))
+  push("Interface Craft", blockBody("ui_conventions"))
   push("Conventions", blockBody("conventions"))
 
   // From the scoped context, not `doc.stack` — `doc.stack` is always the WEB

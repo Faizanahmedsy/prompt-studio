@@ -9,7 +9,11 @@ import { moduleKinds } from "@/features/library/data/module-kinds"
 import { starterDoc } from "@/features/library/data/starters"
 import { screenTemplates } from "@/features/library/data/templates"
 import { buildFigmaImportPrompt } from "@/features/theme/figma-prompt"
-import type { ProjectDoc } from "@/types/project"
+import {
+  elevationStrategyValues,
+  motionModelValues,
+  type ProjectDoc,
+} from "@/types/project"
 
 /**
  * Every fenced block in a prompt is an example the model will copy. An example
@@ -74,12 +78,63 @@ describe("the reverse-engineer prompt", () => {
     const prompt = buildAuthoringPrompt()
     // These seven were in the schema and the design block but in neither
     // prompt, so no model ever wrote one and every brief came out with the
-    // same soft-modern defaults.
-    for (const key of ["headings", "body", "scale", "icons", "elevation", "motion", "scheme"]) {
-      expect(prompt).toContain(`\`${key}\``)
+    // same soft-modern defaults. The nine below them arrived with the presets
+    // and would have gone the same way: a key the grammar reference does not
+    // name is a key no model will ever write.
+    for (const key of [
+      "headings",
+      "body",
+      "scale",
+      "icons",
+      "elevation",
+      "motion",
+      "scheme",
+      "preset",
+      "shape",
+      "fonts",
+      "scale_ratio",
+      "vividness",
+      "neutral_hue",
+      "elevation_strategy",
+      "motion_model",
+      "palette",
+    ]) {
+      expect(prompt, `\`${key}\` is not documented`).toContain(`\`${key}\``)
     }
     expect(prompt).toContain("dark-first")
     expect(prompt).toContain("expressive")
+    // Documented from the exported tuples, so the language and the schema
+    // cannot drift: a strategy added to the enum appears here on its own.
+    for (const value of elevationStrategyValues) expect(prompt).toContain(value)
+    for (const value of motionModelValues) expect(prompt).toContain(value)
+  })
+
+  it("teaches a theme block the parser really understands", () => {
+    // The grammar example is where a model learns these keys. If it showed
+    // `neutral_hue` while the parser read `neutralHue`, every brief written
+    // from this prompt would lose the line and nothing else would say so —
+    // "it parses without errors" passes happily on a line that was ignored.
+    const example = flowExamples(buildAuthoringPrompt()).find((body) =>
+      body.includes("palette light")
+    )
+    expect(example, "the grammar example no longer shows a theme block").toBeDefined()
+
+    const { doc, warnings } = parseFlow(example as string)
+    expect(doc.theme.preset).toBe("atrium")
+    expect(doc.theme.shape).toEqual({ control: 8, card: 12, overlay: 16, pill: false })
+    expect(doc.theme.fonts).toEqual({
+      display: "Bricolage Grotesque",
+      body: "Public Sans",
+      mono: "JetBrains Mono",
+    })
+    expect(doc.theme.scaleRatio).toBe(1.25)
+    expect(doc.theme.vividness).toBe(60)
+    expect(doc.theme.neutralHue).toBe(160)
+    expect(doc.theme.elevationStrategy).toBe("shadow")
+    expect(doc.theme.motionModel).toBe("duration")
+    expect(doc.theme.palette.light.primary).toBe("oklch(0.55 0.12 250)")
+    expect(doc.theme.palette.dark.primary).toBe("oklch(0.72 0.10 250)")
+    expect(warnings.filter((issue) => issue.message.includes("theme"))).toEqual([])
   })
 
   it("gives the reverse prompt the same described layout catalogue", () => {

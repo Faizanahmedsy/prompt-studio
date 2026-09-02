@@ -16,6 +16,10 @@ export type WorkMode =
   | "landing"
   | "data"
   | "code"
+  // Not a surface and not a document view: the design itself, which every
+  // surface inherits. It is a tab because choosing it needs the whole window —
+  // a colour judged in a 340px sidebar is a colour judged wrong.
+  | "theme"
 
 /**
  * Easy keeps only what a dev needs to draw screens and get a prompt out —

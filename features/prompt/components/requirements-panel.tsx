@@ -55,6 +55,18 @@ export function RequirementsPanel({ project }: { project: Project }) {
 
       <ToggleRow
         variant="switch"
+        title="Interface first"
+        description="A prototype brief: the design is chosen up front and the prompt drops the data model and the deployment section. Turn it off for a full one-shot build of the whole system."
+        checked={project.priority === "ui-first"}
+        onCheckedChange={(on) =>
+          update((doc) => {
+            doc.priority = on ? "ui-first" : "logic-first"
+          })
+        }
+      />
+
+      <ToggleRow
+        variant="switch"
         title="Start from the boilerplate"
         description="The agent clones a pinned starter repo — folder structure, design tokens, http instance, CLAUDE.md — instead of scaffolding one. The stack, structure and convention sections shrink to what this product adds on top."
         checked={project.startFrom === "boilerplate"}

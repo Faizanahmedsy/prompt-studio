@@ -73,6 +73,11 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
     "boilerplate",
     "data_model",
     "design",
+    // One stylesheet for the whole product. Repeated per build, three agents
+    // each write their own globals.css and the phone app stops matching the
+    // website by the second commit.
+    "tokens",
+    "ui_conventions",
     "conventions",
     "delivery",
     // One product, one deployment. Left per-build, each surface repeated the
@@ -97,6 +102,15 @@ export function buildProjectPrompt(doc: ProjectDoc): BuiltPrompt {
     (block) => block.id === "design"
   )
   if (design) push("design", "Design System", design.body)
+
+  // Sourced from the same non-backend surface as the design block, for the
+  // same reason: a server build has no stylesheet, and taking the tokens from
+  // one would emit an empty section.
+  const webish = perSurface.find((entry) => entry.surface !== "backend")?.built.blocks
+  const tokens = webish?.find((block) => block.id === "tokens")
+  if (tokens) push("tokens", "Design Tokens — Write These First", tokens.body)
+  const craft = webish?.find((block) => block.id === "ui_conventions")
+  if (craft) push("ui_conventions", "Interface Craft", craft.body)
 
   const conventions = perSurface[0]?.built.blocks.find((block) => block.id === "conventions")
   if (conventions) push("conventions", "Conventions", conventions.body)

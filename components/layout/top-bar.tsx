@@ -7,6 +7,7 @@ import {
   Globe,
   LayoutPanelTop,
   Moon,
+  Palette,
   PanelLeft,
   PanelRight,
   Redo2,
@@ -146,6 +147,13 @@ export function TopBar({
             the diagram actually says, and hiding it behind Advanced made that a
             setting to discover rather than a tab to click.
           */}
+          <TabsTrigger
+            value="theme"
+            title="Colour, type, shape and motion — shared by every build"
+          >
+            <Palette />
+            <span className="hidden sm:inline">Design</span>
+          </TabsTrigger>
           <TabsTrigger value="code">
             <Code2 />
             <span className="hidden sm:inline">Code</span>

@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import type { Surface } from "@/types/project"
 
+/** "logic-first" is the whole system; "ui-first" is a prototype brief. */
+type Priority = "logic-first" | "ui-first"
+
 /**
  * What this product is, before any of it is drawn.
  *
@@ -30,6 +33,26 @@ import type { Surface } from "@/types/project"
  * with nothing in it. Asked here, the answers reach the requirements prompt,
  * which is the thing that decides what a model writes back.
  */
+/**
+ * The first question, because it changes what the rest of the dialog is for.
+ *
+ * It is asked as "what are you building" rather than "which blocks do you
+ * want" — the person answering knows whether they are making a prototype, and
+ * does not yet know the prompt has blocks.
+ */
+const PRIORITIES: Array<{ id: Priority; label: string; hint: string }> = [
+  {
+    id: "logic-first",
+    label: "The whole system",
+    hint: "Screens, data model, backend and deployment. Best for a one-shot build.",
+  },
+  {
+    id: "ui-first",
+    label: "Interface first",
+    hint: "Design chosen up front, no schema or deployment in the brief. Best for a prototype.",
+  },
+]
+
 export function NewProjectDialog({
   open,
   onOpenChange,
@@ -41,6 +64,7 @@ export function NewProjectDialog({
 
   const [starterId, setStarterId] = useState(starters[0]?.id ?? "blank")
   const [builds, setBuilds] = useState({ web: true, mobile: false, backend: false })
+  const [priority, setPriority] = useState<Priority>("logic-first")
   const [framework, setFramework] = useState("fastapi")
   const [database, setDatabase] = useState("postgres")
   const [orm, setOrm] = useState("sqlalchemy")
@@ -54,6 +78,7 @@ export function NewProjectDialog({
   const create = () => {
     createProject(starterId, undefined, (doc) => {
       doc.builds = { ...builds }
+      doc.priority = priority
       if (builds.backend) {
         const stack = doc.surfaces.backend.stack
         stack.framework = framework
@@ -85,6 +110,31 @@ export function NewProjectDialog({
         </DialogHeader>
 
         <div className="-mr-2 min-h-0 flex-1 space-y-5 overflow-y-auto pr-2">
+          <section className="space-y-2">
+            <SectionLabel>What you are building</SectionLabel>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {PRIORITIES.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setPriority(option.id)}
+                  aria-pressed={priority === option.id}
+                  className={cn(
+                    "rounded-lg border p-2.5 text-left transition-colors",
+                    priority === option.id
+                      ? "border-primary bg-primary-soft/40"
+                      : "border-border hover:border-primary/40"
+                  )}
+                >
+                  <span className="block text-sm font-medium">{option.label}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {option.hint}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section className="space-y-2">
             <SectionLabel>Start from</SectionLabel>
             <div className="grid gap-1.5 sm:grid-cols-2">

@@ -26,6 +26,7 @@ import { useWorkbenchHotkeys } from "@/features/palette/use-hotkeys"
 import { useProjectLink } from "@/features/projects/use-project-link"
 import { useShareImport } from "@/features/projects/use-share-import"
 import { PromptPanel } from "@/features/prompt/components/prompt-panel"
+import { ThemeForge } from "@/features/theme/components/theme-forge"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
@@ -68,7 +69,12 @@ export function Workbench({ project }: { project: Project }) {
   // unconditionally in Easy, so the button in the top bar did nothing and the
   // one panel a person most wants out of the way could not be closed.
   const advanced = ui.experience === "advanced"
-  const showLeft = ui.leftOpen
+  // The design tab takes the whole window. It is the one view where the thing
+  // being judged is the pixels themselves, and a preview squeezed into the
+  // centre column between a library and a prompt panel is a preview nobody can
+  // read a colour off.
+  const fullBleed = ui.mode === "theme"
+  const showLeft = ui.leftOpen && !fullBleed
 
   // Opening a screen on a phone should surface the inspector, not hide it.
   useEffect(() => {
@@ -81,7 +87,9 @@ export function Workbench({ project }: { project: Project }) {
     ui.mode === "mobile" || ui.mode === "backend" ? ui.mode : "web"
 
   const canvas =
-    ui.mode === "code" ? (
+    ui.mode === "theme" ? (
+      <ThemeForge project={project} />
+    ) : ui.mode === "code" ? (
       <FlowCodeView project={project} />
     ) : ui.mode === "data" ? (
       // The diagram is the better way to read a schema and the worse way to
@@ -108,7 +116,7 @@ export function Workbench({ project }: { project: Project }) {
   // Easy mode floats the project-wide settings over the canvas instead of
   // mixing them into the inspector, where they read as properties of whatever
   // happens to be selected.
-  const centre = advanced ? (
+  const centre = advanced || fullBleed ? (
     canvas
   ) : (
     <div className="relative h-full">
@@ -166,7 +174,7 @@ export function Workbench({ project }: { project: Project }) {
               {centre}
             </Panel>
 
-            {ui.rightOpen && (
+            {ui.rightOpen && !fullBleed && (
               <>
                 <ResizeHandle />
                 <Panel

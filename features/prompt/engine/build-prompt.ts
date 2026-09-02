@@ -48,6 +48,8 @@ import { BOILERPLATE, cloneLines, usesBoilerplate } from "./boilerplate"
 import { dataModelBlock } from "./data-model"
 import { deploymentBlock } from "./deployment"
 import { securityConstraint, verificationNotice } from "./security"
+import { tokensBlock } from "./tokens-block"
+import { uiConventionsBlock } from "./ui-conventions"
 import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 
 export type PromptBlock = { id: ProjectBlockId; title: string; body: string }
@@ -676,6 +678,19 @@ function deliveryBlock(doc: ProjectDoc): string {
   )
 }
 
+/**
+ * Blocks a UI-first build does not want.
+ *
+ * A prototype brief that still carries a database schema and a deployment
+ * section is the thing people stop reading, so this drops content rather than
+ * merely reordering it. It is a set rather than a filter on each block so the
+ * decision is in one place and can be read at a glance.
+ */
+function droppedByPriority(doc: ProjectDoc): Set<BlockId> {
+  if (doc.priority !== "ui-first") return new Set()
+  return new Set<BlockId>(["data_model", "deployment"])
+}
+
 const titles: Record<BlockId, string> = {
   overview: "Overview",
   boilerplate: "Start From The Boilerplate",
@@ -686,6 +701,8 @@ const titles: Record<BlockId, string> = {
   views: "Roles & Access",
   sections: "Page Sections",
   design: "Design System",
+  tokens: "Design Tokens — Write These First",
+  ui_conventions: "Interface Craft",
   stack: "Tech Stack",
   structure: "Project Structure",
   conventions: "Conventions",
@@ -756,6 +773,11 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
     views: viewsBlock(doc),
     sections: sectionsBlock(doc),
     design: designBlock(doc),
+    // The design block says what the design is; these two say it in values a
+    // build agent can only satisfy one way. Both stand down for the "basic"
+    // language and for a backend build, by returning an empty body.
+    tokens: tokensBlock(doc, surface),
+    ui_conventions: uiConventionsBlock(doc, surface),
     stack: stackBlock(doc, target.stackDetail),
     structure: structureBlock(doc),
     conventions: conventionsBlock(doc),
@@ -772,6 +794,7 @@ function buildForScope(doc: ProjectDoc, surface: Surface): BuiltPrompt {
   }
 
   const blocks: PromptBlock[] = target.order
+    .filter((id) => !droppedByPriority(doc).has(id))
     .filter((id) => bodies[id].trim().length > 0)
     .map((id) => ({ id, title: titles[id], body: bodies[id].trim() }))
 
