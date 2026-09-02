@@ -31,12 +31,7 @@ import { presetById } from "@/features/theme/data/presets"
 import {
   colorSchemes,
   describeOption,
-  elevations,
-  fontCharacterMap,
-  fontCharacters,
   iconStyles,
-  motions,
-  typeScales,
 } from "@/features/theme/data/typography"
 import {
   describeUiLevel,
@@ -62,7 +57,7 @@ export type BuiltPrompt = {
   warnings: string[]
 }
 
-const radiusWords: Record<string, string> = {
+const _radiusWords: Record<string, string> = {
   none: "square corners (0px)",
   small: "small radius (4px)",
   medium: "medium radius (8px)",

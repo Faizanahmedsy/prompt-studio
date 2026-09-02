@@ -20,8 +20,9 @@
  * lives. Nothing here calls `setState` directly.
  */
 
-import { Check, Contrast, RotateCcw, Shuffle } from "lucide-react"
+import { Check, Contrast, Copy, Quote, RotateCcw, Shuffle } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "sonner"
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ import {
   randomPair,
 } from "@/features/theme/data/font-families"
 import { type Preset, presetById, presets } from "@/features/theme/data/presets"
+import { buildDesignPrompt } from "@/features/theme/design-prompt"
 import { resolveTokens } from "@/features/theme/tokens"
 import { cn } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
@@ -328,6 +330,27 @@ export function ThemeForge({ project }: { project: Project }) {
         </div>
 
         <div className="flex flex-col gap-5 p-4">
+          {/* Why this design, when a pasted file said. Above the preset grid
+              because it is the sentence you read before looking at the
+              choice — and gone entirely when nobody wrote one, rather than
+              sitting there empty. */}
+          {theme.designNote.trim() && (
+            <section className="flex flex-col gap-2">
+              <SectionLabel>Suggested design</SectionLabel>
+              <p className="rounded-lg border border-border bg-muted/40 p-2.5 text-[11px] leading-snug text-muted-foreground">
+                <Quote className="mr-1 inline size-3 -translate-y-px" aria-hidden="true" />
+                {theme.designNote.trim()}
+              </p>
+              <button
+                type="button"
+                onClick={() => set({ designNote: "" })}
+                className="self-start text-[11px] text-muted-foreground hover:text-foreground"
+              >
+                Dismiss
+              </button>
+            </section>
+          )}
+
           <section className="flex flex-col gap-2">
             <SectionLabel>Preset</SectionLabel>
             <div className="grid grid-cols-2 gap-2">
@@ -668,6 +691,24 @@ export function ThemeForge({ project }: { project: Project }) {
               onClick={() => useUiStore.getState().setMode("web")}
             >
               Done — back to the canvas
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              title="The design on its own — the token file and the craft rules, with nothing about this project attached"
+              onClick={() => {
+                void navigator.clipboard
+                  .writeText(buildDesignPrompt(project))
+                  .then(() =>
+                    toast.success("Design prompt copied", {
+                      description: "Tokens and craft rules only — no screens, no stack.",
+                    })
+                  )
+                  .catch(() => toast.error("Could not copy that"))
+              }}
+            >
+              <Copy className="size-3" /> Design only
             </Button>
           </div>
           <p className="text-[11px] leading-snug text-muted-foreground">

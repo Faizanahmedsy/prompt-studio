@@ -24,6 +24,7 @@ import { serializeFlow } from "@/features/flow-lang/serializer"
 import { builtInProfiles } from "@/features/stack/data/profiles"
 import { copyText, downloadFile } from "@/lib/download"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, ProjectDoc } from "@/types/project"
 
 /**
@@ -129,13 +130,27 @@ export function PasteFlowDialog({
       })
     } else {
       let summary = ""
+      let broughtDesign = false
       update((doc) => {
-        summary = describeMerge(mergeDoc(doc, incoming))
+        const report = mergeDoc(doc, incoming, parsed.themeStated)
+        summary = describeMerge(report)
+        broughtDesign = report.themeFields > 0
       })
       toast.success("Flow merged into this project", {
         description: `${summary}${
           parsed.warnings.length ? ` · ${parsed.warnings.length} warnings` : ""
         }`,
+        // A design that arrived with the file is a suggestion, and a suggestion
+        // nobody looks at is the same as no suggestion. The toast is where the
+        // person already is, so the way to it goes here.
+        ...(broughtDesign
+          ? {
+              action: {
+                label: "Review design",
+                onClick: () => useUiStore.getState().setMode("theme"),
+              },
+            }
+          : {}),
       })
     }
 

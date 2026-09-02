@@ -535,6 +535,18 @@ main ones". Instead:
 
 ---
 
+# The design this codebase already has
+
+Read the stylesheet, the tokens file or the component library and name the
+preset from the catalogue it is **closest to** — you are describing what exists,
+not choosing something new. Add a one-line \`note\` saying what the interface is
+like to use, and override only the values the code genuinely contradicts.
+
+If the code has no design worth naming — unstyled, or a stock component library
+with no decisions on top — leave the theme block out entirely. An absent block
+means "no opinion", and the project keeps whatever design it already had; a
+block full of guesses overwrites it.
+
 # Output format
 
 One fenced code block. No preamble, no closing summary, no "here is the flow
@@ -545,7 +557,11 @@ app "Name from package.json" {
   target claude-code
   ui_level 2                # low: this describes real code, not a new design
   builds web                  # every build this repository actually contains
-  theme { design modern-soft; primary #2563eb }
+  theme {
+    preset slate-console        # the catalogue preset this codebase is closest to
+    note "A console people keep open all day, so it is dense and quiet"
+    design modern-soft; primary #2563eb
+  }
 }
 
 flows {

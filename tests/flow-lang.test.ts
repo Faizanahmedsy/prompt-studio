@@ -567,6 +567,7 @@ describe("the theme survives a round trip", () => {
     elevationStrategy: "hairline",
     motionModel: "spring",
     inputStyle: "floating",
+    designNote: "A filing product, so it reads as a printed record.",
   } as const
 
   const themedDoc = () => ({

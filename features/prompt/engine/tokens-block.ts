@@ -50,7 +50,7 @@ export function tokensBlock(doc: ProjectDoc, surface: Surface = "web"): string {
     "",
     `\`${sheet.path}\``,
     "",
-    "```" + sheet.language,
+    `\`\`\`${sheet.language}`,
     sheet.source.trim(),
     "```",
     "",
