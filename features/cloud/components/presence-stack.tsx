@@ -4,7 +4,7 @@ import { Cloud, CloudOff, RefreshCw, Users } from "lucide-react"
 
 import { Hint } from "@/components/ui/misc"
 import type { CollabMember } from "@/features/collab/use-collaboration"
-import { cn } from "@/lib/utils"
+import { cn, relativeTime } from "@/lib/utils"
 
 function initials(name: string, email: string): string {
   const source = name.trim() || email
@@ -68,6 +68,8 @@ export function SyncBadge({
   onReload,
   signedIn = true,
   linked = true,
+  syncedAt = 0,
+  onResync,
 }: {
   status: "idle" | "connecting" | "open" | "reconnecting" | "closed"
   conflict?: boolean
@@ -76,6 +78,10 @@ export function SyncBadge({
   signedIn?: boolean
   /** Whether this project has reached the server yet. */
   linked?: boolean
+  /** When the document last reached the server, as a timestamp. 0 = never. */
+  syncedAt?: number
+  /** Push now, for the person who wants to see it happen. */
+  onResync?: () => void
 }) {
   if (conflict) {
     return (
@@ -92,10 +98,31 @@ export function SyncBadge({
 
   if (status === "open") {
     return (
-      <Hint label="Changes are saved to your account as you work">
+      <Hint
+        label={
+          syncedAt
+            ? `Every change is on the server. Last save ${relativeTime(syncedAt)}.`
+            : "Changes are saved to your account as you work"
+        }
+      >
         <span className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
           <Cloud className="size-3.5 text-primary" aria-hidden="true" />
-          <span className="hidden lg:inline">Synced</span>
+          {/* The time, not just the word. "Synced" alone looks identical
+              whether the last save landed a second ago or before the
+              connection dropped an hour back. */}
+          <span className="hidden lg:inline">
+            {syncedAt ? `Synced ${relativeTime(syncedAt)}` : "Synced"}
+          </span>
+          {onResync && (
+            <button
+              type="button"
+              onClick={onResync}
+              aria-label="Save to the server now"
+              className="text-muted-foreground/70 transition-colors hover:text-foreground"
+            >
+              <RefreshCw className="size-3" aria-hidden="true" />
+            </button>
+          )}
         </span>
       </Hint>
     )
@@ -131,6 +158,15 @@ export function SyncBadge({
         )}
       >
         <CloudOff className="size-3.5" aria-hidden="true" />
+        {onResync && linked && (
+          <button
+            type="button"
+            onClick={onResync}
+            className="order-last font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Retry
+          </button>
+        )}
         <span className="hidden lg:inline">{label}</span>
       </span>
     </Hint>

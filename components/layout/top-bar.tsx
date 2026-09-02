@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { ExperienceToggle } from "@/components/layout/experience-toggle"
 import { Button } from "@/components/ui/button"
 import { Hint, Kbd } from "@/components/ui/misc"
@@ -39,6 +40,7 @@ import {
 } from "@/features/builder/utils/surfaces"
 import { MembersDialog } from "@/features/cloud/components/members-dialog"
 import { PresenceStack, SyncBadge } from "@/features/cloud/components/presence-stack"
+import { resyncNow } from "@/features/cloud/use-project-sync"
 import type { CollabMember } from "@/features/collab/use-collaboration"
 import { FlowActions } from "@/features/flow-lang/components/flow-actions"
 import { ProjectMenu } from "@/features/projects/components/project-menu"
@@ -84,6 +86,14 @@ export function TopBar({
   const me = useAuthStore((s) => s.user)
   const signedIn = useAuthStore((s) => s.status === "authed")
   const remoteId = useSyncStore((s) => s.links[project.id] ?? null)
+  // A minute counter, so "Synced 2 minutes ago" is not stuck at "just now"
+  // until something else happens to re-render the bar.
+  const syncedAt = useSyncStore((s) => s.syncedAt[project.id] ?? 0)
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => tick((count) => count + 1), 30_000)
+    return () => clearInterval(timer)
+  }, [])
   const [sharing, setSharing] = useState(false)
   const advanced = ui.experience === "advanced"
   const update = useProjectStore((s) => s.update)
@@ -199,6 +209,14 @@ export function TopBar({
             onReload={live.reload}
             signedIn={signedIn}
             linked={Boolean(remoteId)}
+            syncedAt={syncedAt}
+            onResync={() => {
+              void resyncNow(project).then((outcome) => {
+                if (outcome === "saved") toast.success("Saved to your account")
+                else if (outcome === "current") toast.success("Already up to date")
+                else toast.error("Could not reach the server — your work is safe here")
+              })
+            }}
           />
         )}
 

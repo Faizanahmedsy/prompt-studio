@@ -114,6 +114,7 @@ async function createRemote(project: Project): Promise<void> {
   })
   // Creating a project makes this account its owner.
   useSyncStore.getState().link(project.id, created.id, created.doc_version, "OWNER")
+  useSyncStore.getState().markSynced(project.id)
 }
 
 /** Returns whether the document actually went to the server. */
@@ -147,6 +148,7 @@ async function pushDoc(localId: string, project: Project): Promise<boolean> {
     })
     useSyncStore.getState().setVersion(remoteId, saved.doc_version)
     useSyncStore.getState().setState(localId, "linked")
+    useSyncStore.getState().markSynced(localId)
     return true
   } catch (failure) {
     const stale = staleDocumentDetail(failure)
@@ -162,6 +164,33 @@ async function pushDoc(localId: string, project: Project): Promise<boolean> {
       .setState(localId, "error", isApiError(failure) ? failure.message : "Could not save")
     return false
   }
+}
+
+/**
+ * Push this project now, whatever the debounce was doing.
+ *
+ * The automatic path is invisible on purpose, which leaves nowhere to go when
+ * somebody doubts it: the badge says "Synced", the person is not sure, and
+ * there is nothing to press. This is that button — it re-sends the document and
+ * answers with what happened, including "it was already there".
+ */
+export async function resyncNow(project: Project): Promise<"saved" | "current" | "failed"> {
+  const sync = useSyncStore.getState()
+  const remoteId = sync.remoteIdOf(project.id)
+  if (!remoteId) {
+    // Never uploaded — the fix is to upload it, not to push into nothing.
+    try {
+      await createRemote(project)
+      return "saved"
+    } catch {
+      return "failed"
+    }
+  }
+  // The socket owns the document while it is open, and `pushDoc` stands down
+  // for it rather than racing. That is not a failure to report: the socket
+  // saves as you type, so the document is already there.
+  if (sync.liveRemoteId === remoteId) return "current"
+  return (await pushDoc(project.id, project)) ? "saved" : "failed"
 }
 
 /**

@@ -24,6 +24,7 @@ export type SyncState = "linked" | "pushing" | "conflict" | "error" | "offline"
 type SyncStore = {
   /** local project id -> server project id */
   links: Record<string, string>
+  syncedAt: Record<string, number>
   /** server project id -> the doc_version we last agreed on */
   versions: Record<string, number>
   /**
@@ -61,6 +62,8 @@ type SyncStore = {
   setOnline: (online: boolean) => void
   setLiveRemoteId: (remoteId: string | null) => void
   link: (localId: string, remoteId: string, version: number, role?: ProjectRole) => void
+  /** Note that this project's document is on the server as of now. */
+  markSynced: (localId: string) => void
   setRole: (remoteId: string, role: ProjectRole) => void
   /** This account's role on a local project, if it is linked and known. */
   roleOf: (localId: string) => ProjectRole | null
@@ -75,6 +78,14 @@ export const useSyncStore = create<SyncStore>()(
   persist(
     (set, get) => ({
       links: {},
+      /**
+       * When each project last reached the server, as a timestamp.
+       *
+       * "Synced" on its own is a claim with no evidence — it looks identical
+       * whether the last save landed a second ago or before the connection
+       * dropped an hour back. The time is what makes it checkable.
+       */
+      syncedAt: {},
       versions: {},
       roles: {},
       state: {},
@@ -88,6 +99,9 @@ export const useSyncStore = create<SyncStore>()(
       setOnline: (online) => set({ online }),
 
       setLiveRemoteId: (liveRemoteId) => set({ liveRemoteId }),
+
+      markSynced: (localId) =>
+        set((store) => ({ syncedAt: { ...store.syncedAt, [localId]: Date.now() } })),
 
       link: (localId, remoteId, version, role) =>
         set((store) => ({
@@ -135,6 +149,9 @@ export const useSyncStore = create<SyncStore>()(
         links: store.links,
         versions: store.versions,
         roles: store.roles,
+        // Persisted: after a reload the honest answer to "is my work saved" is
+        // when it last was, not silence until the next edit happens to push.
+        syncedAt: store.syncedAt,
       }),
       onRehydrateStorage: () => (store) => store?.markHydrated(),
     }

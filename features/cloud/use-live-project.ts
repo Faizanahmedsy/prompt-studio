@@ -169,6 +169,15 @@ export function useLiveProject(project: Project | null): Live {
   // socket was being told when it moved. During a socket-only outage the HTTP
   // path — by then the only writer — sent a stale `base_version` and 409'd on
   // every edit, silently, forever. One writer, one number.
+  // An ack is the server saying it has the document, which is the same event
+  // the HTTP path records — without this, a project edited entirely over the
+  // socket showed a sync time from whenever it was first uploaded.
+  useEffect(() => {
+    if (remoteId && collaboration.docVersion) {
+      useSyncStore.getState().markSynced(project?.id ?? "")
+    }
+  }, [remoteId, collaboration.docVersion, project?.id])
+
   useEffect(() => {
     if (remoteId && collaboration.docVersion) {
       useSyncStore.getState().setVersion(remoteId, collaboration.docVersion)
