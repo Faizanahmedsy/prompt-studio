@@ -8,6 +8,13 @@ import {
   parseOklch,
 } from "@/features/theme/color"
 import {
+  bodyFamilies,
+  displayFamilies,
+  type FontFamily,
+  monoFamilies,
+  randomPair,
+} from "@/features/theme/data/font-families"
+import {
   DEFAULT_PRESET,
   type Preset,
   presetById,
@@ -212,3 +219,47 @@ describe.each(presets.map((preset) => [preset.id, preset] as [string, Preset]))(
     })
   }
 )
+
+/**
+ * The picker has to be able to express what the presets already chose.
+ *
+ * A preset font missing from the lists shows up as a select with no matching
+ * option — the control renders empty, the person changes it to fix that, and
+ * the preset they picked is quietly gone.
+ */
+describe("the font picker covers the catalogue", () => {
+  const lists: Array<[keyof Preset["fonts"], FontFamily[]]> = [
+    ["display", displayFamilies],
+    ["body", bodyFamilies],
+    ["mono", monoFamilies],
+  ]
+
+  for (const [role, families] of lists) {
+    it(`offers every ${role} face a preset names`, () => {
+      const offered = new Set(families.map((family) => family.name))
+      for (const preset of presets) {
+        expect(offered, `${preset.id} uses ${preset.fonts[role]}`).toContain(
+          preset.fonts[role]
+        )
+      }
+    })
+  }
+
+  it("draws a pair rather than two faces of the same kind", () => {
+    // A deterministic sequence, so this asserts the rule and not the dice.
+    const values = [0.9, 0.9, 0.1, 0.5]
+    let i = 0
+    const pick = () => values[i++ % values.length]
+    const pair = randomPair(pick)
+    expect(pair.display.length).toBeGreaterThan(0)
+    expect(pair.body.length).toBeGreaterThan(0)
+    expect(pair.mono.length).toBeGreaterThan(0)
+    const display = displayFamilies.find((f) => f.name === pair.display)
+    const body = bodyFamilies.find((f) => f.name === pair.body)
+    expect(display).toBeDefined()
+    expect(body).toBeDefined()
+    if (pair.display !== pair.body) {
+      expect(body?.category).not.toBe(display?.category)
+    }
+  })
+})

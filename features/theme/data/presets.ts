@@ -1661,6 +1661,7 @@ export const presets: Preset[] = [
       body: "Inter Tight",
       mono: "IBM Plex Mono",
     },
+    // biome-ignore lint/suspicious/noApproximativeNumericConstant: a type ratio that happens to be √2, not the constant
     scaleRatio: 1.414,
     shape: { control: 7, card: 11, overlay: 15, pill: false },
     density: "spacious",
@@ -2219,6 +2220,7 @@ export const presets: Preset[] = [
       body: "Karla",
       mono: "Fira Code",
     },
+    // biome-ignore lint/suspicious/noApproximativeNumericConstant: a type ratio that happens to be √2, not the constant
     scaleRatio: 1.414,
     shape: { control: 14, card: 14, overlay: 18, pill: false },
     density: "spacious",

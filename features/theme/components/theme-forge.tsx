@@ -18,12 +18,19 @@
  * lives. Nothing here calls `setState` directly.
  */
 
-import { Check, Contrast, RotateCcw } from "lucide-react"
+import { Check, Contrast, RotateCcw, Shuffle } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
 import { LC_FLOORS, lc } from "@/features/theme/color/apca"
+import {
+  bodyFamilies,
+  displayFamilies,
+  type FontFamily,
+  monoFamilies,
+  randomPair,
+} from "@/features/theme/data/font-families"
 import { type Preset, presetById, presets } from "@/features/theme/data/presets"
 import { resolveTokens } from "@/features/theme/tokens"
 import { cn } from "@/lib/utils"
@@ -38,6 +45,7 @@ import {
 } from "@/types/project"
 
 import { type PreviewScreen, previewScreens, ThemePreview } from "./theme-preview"
+import { useWebFonts } from "./use-web-fonts"
 
 /**
  * What "default" means, taken from the schema rather than restated.
@@ -46,6 +54,13 @@ import { type PreviewScreen, previewScreens, ThemePreview } from "./theme-previe
  * exactly how `density` ended up shipping with a default nobody could reach.
  */
 const DEFAULT_THEME: Theme = themeSchema.parse({})
+
+/** The note is the whole reason the list is worth reading, so it goes in the label. */
+const fontOptions = (families: FontFamily[]) =>
+  families.map((family) => ({
+    value: family.name,
+    label: `${family.name} — ${family.note}`,
+  }))
 
 /**
  * The token list, grouped the way the shadcn table is.
@@ -210,6 +225,7 @@ export function ThemeForge({ project }: { project: Project }) {
   const [editing, setEditing] = useState<"light" | "dark">("light")
 
   const tokens = useMemo(() => resolveTokens(theme), [theme])
+  useWebFonts([tokens.fonts.display, tokens.fonts.body, tokens.fonts.mono])
   const active = presetById(theme.preset)
 
   const set = (patch: Partial<Theme>) =>
@@ -440,6 +456,49 @@ export function ThemeForge({ project }: { project: Project }) {
               Tracking is computed from the resulting sizes, tightening as they
               grow and going slightly positive at the smallest step. That inverse
               relationship is the clearest signal a person set the type.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <SectionLabel>Typefaces</SectionLabel>
+              <button
+                type="button"
+                onClick={() => set({ fonts: randomPair() })}
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                title="Draw a display face, then a body face from a different category"
+              >
+                <Shuffle className="size-3" />
+                Shuffle
+              </button>
+            </div>
+            <SelectField
+              label="Display"
+              value={tokens.fonts.display}
+              onValueChange={(display) =>
+                set({ fonts: { ...tokens.fonts, display } })
+              }
+              options={fontOptions(displayFamilies)}
+            />
+            <SelectField
+              label="Body"
+              value={tokens.fonts.body}
+              onValueChange={(body) => set({ fonts: { ...tokens.fonts, body } })}
+              options={fontOptions(bodyFamilies)}
+            />
+            <SelectField
+              label="Mono"
+              value={tokens.fonts.mono}
+              onValueChange={(mono) => set({ fonts: { ...tokens.fonts, mono } })}
+              options={fontOptions(monoFamilies)}
+            />
+            <p
+              className="text-[13px] leading-snug text-muted-foreground"
+              style={{ fontFamily: `"${tokens.fonts.body}", system-ui, sans-serif` }}
+            >
+              Every family is on Google Fonts, so the generated project can
+              actually load the face rather than naming one it has no licence
+              for. This line is set in {tokens.fonts.body}.
             </p>
           </section>
 
