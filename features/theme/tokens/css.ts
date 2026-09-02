@@ -25,7 +25,7 @@ import { parseColor, parseOklch, rgbToHex } from "@/features/theme/color/oklch"
 import type { Preset } from "@/features/theme/data/presets"
 import type { Theme } from "@/types/project"
 
-import { type TokenSet, resolveTokens, tokenGroups, tokenNames } from "./resolve"
+import { resolveTokens, type TokenSet, tokenGroups, tokenNames } from "./resolve"
 
 export type Stylesheet = {
   /** where the file belongs in the generated project */

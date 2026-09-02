@@ -21,7 +21,7 @@
 
 import { parseOklch } from "@/features/theme/color/oklch"
 import { type Preset, presetById } from "@/features/theme/data/presets"
-import { themeSchema, type Theme } from "@/types/project"
+import { type Theme, themeSchema } from "@/types/project"
 
 /**
  * The shadcn token names, in the order a stylesheet declares them.

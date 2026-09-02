@@ -235,7 +235,7 @@ describe("layering", () => {
 })
 
 describe("the type scale", () => {
-  for (const ratio of [1.05, 1.2, 1.25, 1.414, 1.7]) {
+  for (const ratio of [1.05, 1.2, 1.25, Math.SQRT2, 1.7]) {
     it(`is a scale at ${ratio}`, () => {
       const { scale } = resolveTokens(themeWith({ scaleRatio: ratio }), fixture)
       expect(scale.map((step) => step.name)).toEqual([
