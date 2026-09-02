@@ -5,6 +5,8 @@
  * what someone draws in one window appears in another window belonging to a
  * different account.
  */
+import { execSync } from "node:child_process"
+
 import { launch } from "./cdp.mjs"
 
 const APP = process.env.APP ?? "http://localhost:3002"
@@ -65,15 +67,35 @@ const screenCount = `
   const project = store.state.projects.find((p) => p.id === store.state.activeId);
   return project ? project.screens.length : -1;`
 
-async function signUp(page, email, name) {
-  await page.goto(`${APP}/register`)
+/**
+ * The invite link the API logged, for the console mail transport.
+ *
+ * An invitation only binds to an account that has proved the address, and
+ * holding the emailed token is the proof — so an invitee who signs up without
+ * it stays pending, which is the rule, not a bug.
+ */
+function inviteTokenFor(email) {
+  try {
+    const log = execSync("docker logs --since 3m prompt-studio-api 2>&1", {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    })
+    const block = log.split(`to=${email}`).pop() ?? ""
+    return block.match(/[?&]invite=([\w.-]+)/)?.[1] ?? ""
+  } catch {
+    return ""
+  }
+}
+
+async function signUp(page, email, name, invite = "") {
+  await page.goto(`${APP}/register${invite ? `?invite=${invite}` : ""}`)
   await page.waitFor(`document.querySelector('input[type=email]')`, { label: "register form" })
   await page.fill('input[autocomplete="name"]', name)
   await page.fill('input[type="email"]', email)
   await page.fill('input[type="password"]', PASSWORD)
   await new Promise((r) => setTimeout(r, 400))
   await page.evaluate(clickLabelled("Create account"))
-  await page.waitFor(`location.pathname === "/"`, { label: `${name} in the studio`, timeout: 25000 })
+  await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: `${name} in the studio`, timeout: 25000 })
   await page.waitFor(
     `(() => { try { return Object.keys(JSON.parse(localStorage.getItem("ps:sync")).state.links).length > 0 } catch { return false } })()`,
     { label: `${name}'s projects linked`, timeout: 30000 }
@@ -102,7 +124,7 @@ async function main() {
     }).then((r) => r.json())
     check("shared with the second address", shared.success === true, JSON.stringify(shared).slice(0, 160))
 
-    await signUp(two, bob, "Bob B")
+    await signUp(two, bob, "Bob B", inviteTokenFor(bob))
     // Bob has his own starter project as well; point him at the shared one.
     // Switching projects is the project menu's job and is not what this test is
     // about, so it is done through the store the menu writes to.

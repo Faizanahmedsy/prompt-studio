@@ -105,18 +105,22 @@ export function SyncBadge({
   // the server has not seen yet, and an actually dropped connection — and only
   // the last one is offline. The other two look like data loss to the person
   // reading it, which is the opposite of what is happening.
-  const label = !signedIn
-    ? "On this device"
-    : !linked
+  // Linked first, and deliberately: a project that has reached the server is
+  // synced whatever the session currently thinks. Asking about the sign-in
+  // before the link labelled a dropped connection "On this device", because
+  // `/users/me` fails while offline too — the one moment the badge exists for.
+  const label = linked
+    ? status === "closed" || status === "idle"
+      ? "Offline"
+      : "Connecting…"
+    : signedIn
       ? "Saving…"
-      : status === "closed" || status === "idle"
-        ? "Offline"
-        : "Connecting…"
-  const hint = !signedIn
-    ? "This project lives in this browser. Sign in and it syncs to your account."
-    : !linked
+      : "On this device"
+  const hint = linked
+    ? "Your work is saved on this device and will sync when the connection returns"
+    : signedIn
       ? "Sending this project to your account for the first time"
-      : "Your work is saved on this device and will sync when the connection returns"
+      : "This project lives in this browser. Sign in and it syncs to your account."
 
   return (
     <Hint label={hint}>

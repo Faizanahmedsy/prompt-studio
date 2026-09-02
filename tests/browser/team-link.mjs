@@ -12,6 +12,8 @@
  *   - someone who was never added is refused, and is not told it exists
  *   - the link survives the bounce through /login
  */
+import { execSync } from "node:child_process"
+
 import { launch } from "./cdp.mjs"
 
 const APP = process.env.APP ?? "http://localhost:3002"
@@ -40,6 +42,28 @@ async function api(path, { method = "GET", token, body } = {}) {
   })
   const payload = await response.json().catch(() => null)
   return { status: response.status, data: payload?.data ?? null }
+}
+
+/**
+ * The confirmation link the API just logged, for the console mail transport.
+ *
+ * Sharing binds to an account once it has proved its address, so an invitee has
+ * to confirm before the project is theirs — the same step a real one takes by
+ * clicking the link in their inbox.
+ */
+function verifyTokenFor(email) {
+  const log = execSync("docker logs --since 3m prompt-studio-api 2>&1", {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  })
+  const block = log.split(`to=${email}`).pop() ?? ""
+  return block.match(/verify-email\?token=([\w.-]+)/)?.[1] ?? ""
+}
+
+async function confirmAddress(email) {
+  const token = verifyTokenFor(email)
+  if (!token) throw new Error(`no confirmation link was sent to ${email}`)
+  await api("/auth/verify-email", { method: "POST", body: { token } })
 }
 
 async function registerAccount(email) {
@@ -72,6 +96,7 @@ async function signIn(page, email) {
 async function main() {
   const ownerToken = await registerAccount(owner)
   await registerAccount(viewer)
+  await confirmAddress(viewer)
   const outsiderToken = await registerAccount(outsider)
 
   const projectName = `Team ${tag}`

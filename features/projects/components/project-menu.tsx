@@ -7,6 +7,7 @@ import {
   Download,
   FilePlus2,
   History,
+  Layers,
   Link2,
   LogOut,
   Pencil,
@@ -47,7 +48,16 @@ import {
 } from "@/types/project"
 import { NewProjectDialog } from "./new-project-dialog"
 
+import { ScopeDialog } from "./scope-dialog"
 import { VersionsDialog } from "./versions-dialog"
+
+/** "Web + Backend", so the menu row answers the question without opening it. */
+function buildNames(project: Project): string {
+  const names = (["web", "mobile", "backend"] as const)
+    .filter((build) => project.builds[build])
+    .map((build) => build[0].toUpperCase() + build.slice(1))
+  return names.join(" + ") || "nothing"
+}
 
 export function ProjectMenu({ project }: { project: Project }) {
   const store = useProjectStore()
@@ -56,6 +66,7 @@ export function ProjectMenu({ project }: { project: Project }) {
   const [name, setName] = useState(project.name)
   const [newOpen, setNewOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
+  const [scopeOpen, setScopeOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [sharing, setSharing] = useState(false)
@@ -146,6 +157,12 @@ export function ProjectMenu({ project }: { project: Project }) {
           <DropdownMenuItem onSelect={() => store.duplicateProject(project.id)}>
             <Copy /> Duplicate
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setScopeOpen(true)}>
+            <Layers /> What you&rsquo;re building…
+            <span className="ml-auto text-[10px] text-muted-foreground">
+              {buildNames(project)}
+            </span>
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setVersionsOpen(true)}>
             <History /> Version history
             <span className="ml-auto text-[10px] text-muted-foreground">
@@ -230,6 +247,8 @@ export function ProjectMenu({ project }: { project: Project }) {
       />
 
       <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} />
+
+      <ScopeDialog open={scopeOpen} onOpenChange={setScopeOpen} project={project} />
 
       <VersionsDialog
         open={versionsOpen}

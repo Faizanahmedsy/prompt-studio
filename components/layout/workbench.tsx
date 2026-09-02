@@ -9,6 +9,7 @@ import { TopBar } from "@/components/layout/top-bar"
 import { Button } from "@/components/ui/button"
 import { TooltipProvider } from "@/components/ui/misc"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { VerifyEmailBanner } from "@/features/auth/components/verify-email-banner"
 import { FlowCanvas } from "@/features/builder/components/flow-canvas"
 import { OutlineList } from "@/features/builder/components/outline-list"
 import { ReadOnlyBanner } from "@/features/cloud/components/read-only-banner"
@@ -29,6 +30,7 @@ import { ThemeForge } from "@/features/theme/components/theme-forge"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
+
 import { useViewUrl } from "./use-view-url"
 
 /** Below this width the three panes become sheets and the canvas becomes a list. */
@@ -135,6 +137,9 @@ export function Workbench({ project }: { project: Project }) {
         {/* Above the panels, not inside one: it is true of the whole document,
             not of whichever pane happens to be open. */}
         <ReadOnlyBanner projectId={project.id} />
+        {/* Above the panels for the same reason: it is true of the account,
+            not of whatever is on screen. */}
+        <VerifyEmailBanner />
 
         {isDesktop ? (
           <PanelGroup

@@ -112,12 +112,32 @@ export function TopBar({
         className="ml-auto sm:ml-2"
       >
         <TabsList>
-          <TabsTrigger value="web" title={surfaceMeta.web.hint}>
+          {/* A build that is switched off still has a tab: you may want to draw
+              it before turning it on. It is dimmed so the difference between
+              "empty" and "not being built" is visible without opening a
+              dialog. */}
+          <TabsTrigger
+            value="web"
+            title={
+              project.builds.web
+                ? surfaceMeta.web.hint
+                : "Not one of this project's builds — its screens are left out of the generated prompt. Change that under “What you’re building”."
+            }
+            className={cn(!project.builds.web && "opacity-50")}
+          >
             <Globe />
             <span className="hidden sm:inline">Web</span>
             <SurfaceCount count={counts.web} />
           </TabsTrigger>
-          <TabsTrigger value="mobile" title={surfaceMeta.mobile.hint}>
+          <TabsTrigger
+            value="mobile"
+            title={
+              project.builds.mobile
+                ? surfaceMeta.mobile.hint
+                : "Not one of this project's builds — its screens are left out of the generated prompt. Change that under “What you’re building”."
+            }
+            className={cn(!project.builds.mobile && "opacity-50")}
+          >
             <Smartphone />
             <span className="hidden sm:inline">Mobile</span>
             <SurfaceCount count={counts.mobile} />
@@ -126,7 +146,15 @@ export function TopBar({
             <LayoutPanelTop />
             <span className="hidden sm:inline">Landing</span>
           </TabsTrigger>
-          <TabsTrigger value="backend" title={surfaceMeta.backend.hint}>
+          <TabsTrigger
+            value="backend"
+            title={
+              project.builds.backend
+                ? surfaceMeta.backend.hint
+                : "Not one of this project's builds — its screens are left out of the generated prompt. Change that under “What you’re building”."
+            }
+            className={cn(!project.builds.backend && "opacity-50")}
+          >
             <Server />
             <span className="hidden sm:inline">Backend</span>
             <SurfaceCount count={counts.backend} />

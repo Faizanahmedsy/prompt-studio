@@ -51,7 +51,7 @@ async function main() {
     await page.fill('input[type="password"]', PASSWORD)
     await new Promise((r) => setTimeout(r, 400))
     await page.evaluate(clickText("Create account"))
-    await page.waitFor(`location.pathname === "/"`, { label: "the studio", timeout: 25000 })
+    await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     await page.waitFor(
       `(() => { try { return Object.keys(JSON.parse(localStorage.getItem("ps:sync")).state.links).length > 0 } catch { return false } })()`,
       { label: "linked to the server", timeout: 30000 }

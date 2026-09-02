@@ -15,7 +15,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,css}\"",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:browser": "node tests/browser/signup-and-share.mjs && node tests/browser/solo-editing.mjs && node tests/browser/journeys.mjs && node tests/browser/collaboration.mjs && node tests/browser/sign-out.mjs && node tests/browser/print-view.mjs && node tests/browser/prompt-editing.mjs && node tests/browser/delete-project.mjs && node tests/browser/multi-build.mjs && node tests/browser/data-model.mjs && node tests/browser/canvas-routing.mjs && node tests/browser/offline.mjs"
+    "test:browser": "node tests/browser/signup-and-share.mjs && node tests/browser/solo-editing.mjs && node tests/browser/journeys.mjs && node tests/browser/collaboration.mjs && node tests/browser/sign-out.mjs && node tests/browser/print-view.mjs && node tests/browser/prompt-editing.mjs && node tests/browser/delete-project.mjs && node tests/browser/multi-build.mjs && node tests/browser/data-model.mjs && node tests/browser/canvas-routing.mjs && node tests/browser/offline.mjs && node tests/browser/design-and-history.mjs && node tests/browser/public-link.mjs && node tests/browser/team-link.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

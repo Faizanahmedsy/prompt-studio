@@ -150,7 +150,7 @@ async function main() {
     await page.fill('input[type="password"]', "Password123")
     await new Promise((r) => setTimeout(r, 400))
     await page.evaluate(clickText("Create account"))
-    await page.waitFor(`location.pathname === "/"`, { label: "the studio", timeout: 25000 })
+    await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     await page.waitFor(`document.querySelector(".react-flow") !== null`, {
       label: "the canvas",
       timeout: 25000,

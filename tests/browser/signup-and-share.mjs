@@ -2,6 +2,8 @@
  * The real end-to-end: a browser signing up, drawing, sharing, and a second
  * browser seeing the edit live.
  */
+import { execSync } from "node:child_process"
+
 import { launch } from "./cdp.mjs"
 
 const APP = process.env.APP ?? "http://localhost:3002"
@@ -24,8 +26,27 @@ const clickText = (text) => `
   return true;
 `
 
-async function signUp(page, email, name) {
-  await page.goto(`${APP}/register`)
+/**
+ * The invite link the API just logged, for the console mail transport.
+ *
+ * Empty when the API is not this machine's container — the test then falls back
+ * to the direct sign-up, which is a real path in its own right.
+ */
+function inviteTokenFor(email) {
+  try {
+    const log = execSync("docker logs --since 3m prompt-studio-api 2>&1", {
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    })
+    const block = log.split(`to=${email}`).pop() ?? ""
+    return block.match(/[?&]invite=([\w.-]+)/)?.[1] ?? ""
+  } catch {
+    return ""
+  }
+}
+
+async function signUp(page, email, name, invite = "") {
+  await page.goto(`${APP}/register${invite ? `?invite=${invite}` : ""}`)
   await page.waitFor(`document.querySelector('input[type=email]')`, { label: "the register form" })
   await page.fill('input[autocomplete="name"]', name)
   await page.fill('input[type="email"]', email)
@@ -57,7 +78,7 @@ async function main() {
 
     console.log("\n== sign up, and the studio opens ==")
     await signUp(one, alice, "Alice A")
-    await one.waitFor(`location.pathname === "/"`, { label: "the studio", timeout: 25000 })
+    await one.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     check("registering signs you straight in", true)
     await one.waitFor(`document.querySelector('[data-testid="flow-canvas"], .react-flow') !== null || document.body.innerText.includes("Prompt Studio")`, { label: "the workbench" })
     check(
@@ -100,8 +121,17 @@ async function main() {
     check("an unregistered address can be added", shared.success === true, JSON.stringify(shared).slice(0, 200))
 
     console.log("\n== the second person signs up and finds the project ==")
-    await signUp(two, bob, "Bob B")
-    await two.waitFor(`location.pathname === "/"`, { label: "the studio for the invitee", timeout: 25000 })
+    // Through the emailed link, which is how an invitee actually arrives. The
+    // token names the address it was issued to, and holding it is what proves
+    // the address belongs to whoever is registering — without it the invitation
+    // stays pending until the address is confirmed, which is asserted below.
+    //
+    // The console mail transport writes the link to the API's own log, so that
+    // is where the test reads it from, exactly as a developer would.
+    const invite = inviteTokenFor(bob)
+    check("the invitation email carries a link", Boolean(invite))
+    await signUp(two, bob, "Bob B", invite)
+    await two.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio for the invitee", timeout: 25000 })
     await two.waitFor(
       `(() => { try { const s = JSON.parse(localStorage.getItem("ps:sync")); return Object.values(s.state.links || {}).includes(${JSON.stringify(remoteId)}) } catch { return false } })()`,
       { label: "the shared project pulled down", timeout: 30000 }
