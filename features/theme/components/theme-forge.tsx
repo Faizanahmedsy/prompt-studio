@@ -34,9 +34,18 @@ import {
   motionModelValues,
   type Project,
   type Theme,
+  themeSchema,
 } from "@/types/project"
 
 import { type PreviewScreen, previewScreens, ThemePreview } from "./theme-preview"
+
+/**
+ * What "default" means, taken from the schema rather than restated.
+ *
+ * Re-listing the fields here would drift the moment one is added — which is
+ * exactly how `density` ended up shipping with a default nobody could reach.
+ */
+const DEFAULT_THEME: Theme = themeSchema.parse({})
 
 /**
  * The token list, grouped the way the shadcn table is.
@@ -235,6 +244,19 @@ export function ThemeForge({ project }: { project: Project }) {
     })
   }
 
+  /**
+   * One undo entry, not forty: this deliberately does not go through `set`,
+   * whose coalescing would fold the reset into whichever slider was dragged
+   * last and make it un-undoable on its own.
+   */
+  const resetAll = () =>
+    update((doc) => {
+      doc.theme = structuredClone(DEFAULT_THEME)
+    })
+
+  const changed = JSON.stringify(theme) !== JSON.stringify(DEFAULT_THEME)
+  const defaultPreset = presetById(DEFAULT_THEME.preset)
+
   const overrideCount =
     Object.keys(theme.palette.light).length + Object.keys(theme.palette.dark).length
 
@@ -250,11 +272,29 @@ export function ThemeForge({ project }: { project: Project }) {
     <div className="flex h-full min-h-0">
       {/* ---------------------------------------------------------- controls */}
       <aside className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card">
-        <div className="flex flex-col gap-1 border-b border-border p-4">
-          <h2 className="text-sm font-semibold">Design</h2>
-          <p className="text-xs text-muted-foreground">
-            Chosen once, then every screen and the generated prompt follow it.
-          </p>
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-semibold">Design</h2>
+            <p className="text-xs text-muted-foreground">
+              Chosen once, then every screen and the generated prompt follow it.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={!changed}
+            onClick={resetAll}
+            title={
+              changed
+                ? `Put every design value back to the default (${defaultPreset.name})`
+                : "Already at the defaults"
+            }
+            className="h-7 shrink-0 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="size-3" />
+            Reset all
+          </Button>
         </div>
 
         <div className="flex flex-col gap-5 p-4">
