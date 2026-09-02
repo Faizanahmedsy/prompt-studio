@@ -48,9 +48,9 @@ import { BOILERPLATE, cloneLines, usesBoilerplate } from "./boilerplate"
 import { dataModelBlock } from "./data-model"
 import { deploymentBlock } from "./deployment"
 import { securityConstraint, verificationNotice } from "./security"
+import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 import { tokensBlock } from "./tokens-block"
 import { uiConventionsBlock } from "./ui-conventions"
-import { type BlockId, getTarget, type ProjectBlockId } from "./targets"
 
 export type PromptBlock = { id: ProjectBlockId; title: string; body: string }
 

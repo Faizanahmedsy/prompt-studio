@@ -404,6 +404,27 @@ export function ThemeForge({ project }: { project: Project }) {
           </section>
 
           <section className="flex flex-col gap-3">
+            <SectionLabel>Spacing</SectionLabel>
+            <SelectField
+              label="Density"
+              value={theme.density}
+              onValueChange={(value) =>
+                set({ density: value as Theme["density"] })
+              }
+              options={[
+                { value: "compact", label: "compact" },
+                { value: "comfortable", label: "comfortable" },
+                { value: "spacious", label: "spacious" },
+              ]}
+            />
+            <p className="text-[11px] leading-snug text-muted-foreground">
+              One padding and one gap, and every other measure in the interface
+              is a multiple of those two. Compact is a work surface someone keeps
+              open all day; spacious is a page they read.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-3">
             <SectionLabel>Depth &amp; motion</SectionLabel>
             <SelectField
               label="Elevation carried by"
@@ -590,7 +611,12 @@ export function ThemeForge({ project }: { project: Project }) {
                       <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                         {tone}
                       </span>
-                      <ThemePreview tokens={tokens} mode={tone} screen={one.id} />
+                      <ThemePreview
+                        tokens={tokens}
+                        mode={tone}
+                        screen={one.id}
+                        density={theme.density}
+                      />
                     </div>
                   ))}
                 </div>

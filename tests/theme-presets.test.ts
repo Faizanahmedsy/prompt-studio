@@ -85,9 +85,9 @@ describe("the token contract", () => {
 })
 
 describe("the catalogue", () => {
-  it("offers fourteen presets with unique ids", () => {
-    expect(presets).toHaveLength(14)
-    expect(new Set(presets.map((preset) => preset.id)).size).toBe(14)
+  it("offers twenty-five presets with unique ids", () => {
+    expect(presets).toHaveLength(25)
+    expect(new Set(presets.map((preset) => preset.id)).size).toBe(25)
   })
 
   it("resolves the default", () => {

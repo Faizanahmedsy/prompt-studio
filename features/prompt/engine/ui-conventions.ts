@@ -55,6 +55,19 @@ const BANNED = [
   "Four identical stat tiles across the top of a dashboard when the product does not have four things worth counting.",
 ]
 
+/**
+ * Density as two numbers rather than a word, because "comfortable" is read
+ * three ways and a padding is read one way.
+ */
+const DENSITY: Record<ProjectDoc["theme"]["density"], string> = {
+  compact:
+    "Density is compact: 28–32px rows and controls, 16px panel padding, 12px between fields, 14px body. This is a surface someone keeps open all day, so vertical space is the scarce resource.",
+  comfortable:
+    "Density is comfortable: 36–40px rows and controls, 24px card padding, 20px between fields, 16px body. The default, and the one to keep unless a screen argues otherwise.",
+  spacious:
+    "Density is spacious: 44–52px rows and controls, 32px card padding, 28px between fields, 16px body at 1.65. Page sections vary between 48px and 96px of vertical padding so the page has rhythm.",
+}
+
 /** Rules about the states most generated interfaces skip entirely. */
 const STATES = [
   "**Empty.** Every list, table and search result has a designed empty state: what this is, why it is empty, and the one action that fills it. Not the word 'None'.",
@@ -118,6 +131,8 @@ export function uiConventionsBlock(
       : "Two families and a monospace, no more. Give every face a real fallback stack, and do not name a face you cannot actually load.",
     "",
     "### Space",
+    "",
+    DENSITY[doc.theme.density],
     "",
     `Spacing steps: ${spacing.join(", ")}. Nothing between them. Gaps come from the flex or grid container, never a margin on each child — margins collapse and double, and that is where uneven spacing comes from.`,
     "",
