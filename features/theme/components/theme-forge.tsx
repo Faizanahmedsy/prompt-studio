@@ -19,7 +19,7 @@
  */
 
 import { Check, Contrast, RotateCcw } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
@@ -168,7 +168,36 @@ export function ThemeForge({ project }: { project: Project }) {
   const theme = project.theme
   const [mode, setMode] = useState<"light" | "dark" | "both">("both")
   const [tokensOpen, setTokensOpen] = useState(false)
+  // Which section is in view, so the buttons read as a position rather than a
+  // filter. Scrolling updates it; clicking one scrolls.
   const [screen, setScreen] = useState<PreviewScreen>("app")
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const sectionRefs = useRef<Partial<Record<PreviewScreen, HTMLElement | null>>>({})
+
+  const scrollTo = (id: PreviewScreen) => {
+    setScreen(id)
+    sectionRefs.current[id]?.scrollIntoView({ block: "start", behavior: "smooth" })
+  }
+
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // The topmost section that is actually on screen wins; without the
+        // sort, whichever entry the browser reported last does, and the label
+        // flickers between two neighbours mid-scroll.
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+        const id = visible?.target.getAttribute("data-screen") as PreviewScreen | null
+        if (id) setScreen(id)
+      },
+      { root, rootMargin: "0px 0px -60% 0px", threshold: 0 }
+    )
+    for (const node of Object.values(sectionRefs.current)) if (node) observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
   const [editing, setEditing] = useState<"light" | "dark">("light")
 
   const tokens = useMemo(() => resolveTokens(theme), [theme])
@@ -391,7 +420,7 @@ export function ThemeForge({ project }: { project: Project }) {
                 set({ inputStyle: value as Theme["inputStyle"] })
                 // Pointless to change a field treatment while looking at a
                 // dashboard, so the preview goes where the change is visible.
-                setScreen("form")
+                scrollTo("form")
               }}
               options={inputStyleValues.map((id) => ({ value: id, label: id }))}
             />
@@ -504,7 +533,7 @@ export function ThemeForge({ project }: { project: Project }) {
                 key={option.id}
                 size="sm"
                 variant={screen === option.id ? "secondary" : "ghost"}
-                onClick={() => setScreen(option.id)}
+                onClick={() => scrollTo(option.id)}
                 className="h-7 px-2.5 text-xs"
               >
                 {option.label}
@@ -525,20 +554,47 @@ export function ThemeForge({ project }: { project: Project }) {
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div
-            className={cn(
-              "grid gap-4",
-              mode === "both" ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"
-            )}
-          >
-            {(mode === "both" ? (["light", "dark"] as const) : [mode]).map((one) => (
-              <div key={one} className="flex flex-col gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-                  {one}
-                </span>
-                <ThemePreview tokens={tokens} mode={one} screen={screen} />
-              </div>
+        {/*
+          Every screen is on the page, one after another, and the buttons above
+          scroll to them. Tabs hid four fifths of the theme behind a click, and
+          the thing you most want to know about a design — whether it holds
+          together across a dashboard, a form and a landing page — is exactly
+          what you cannot see when you can only look at one at a time.
+        */}
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto scroll-smooth p-4">
+          <div className="flex flex-col gap-8">
+            {previewScreens.map((one) => (
+              <section
+                key={one.id}
+                ref={(node) => {
+                  sectionRefs.current[one.id] = node
+                }}
+                // Sits above the section so a jump does not tuck the heading
+                // under the sticky bar it just scrolled out from behind.
+                className="flex scroll-mt-4 flex-col gap-2"
+                data-screen={one.id}
+                aria-label={`${one.label} preview`}
+              >
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-semibold">{one.label}</h3>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+                <div
+                  className={cn(
+                    "grid gap-4",
+                    mode === "both" ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"
+                  )}
+                >
+                  {(mode === "both" ? (["light", "dark"] as const) : [mode]).map((tone) => (
+                    <div key={tone} className="flex flex-col gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                        {tone}
+                      </span>
+                      <ThemePreview tokens={tokens} mode={tone} screen={one.id} />
+                    </div>
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         </div>

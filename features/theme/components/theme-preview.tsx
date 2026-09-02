@@ -74,7 +74,9 @@ function Card({
       style={{
         background: v("card"),
         color: v("card-foreground"),
-        border: `1px solid ${v("border")}`,
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderColor: v("border"),
         borderRadius: v("r-card"),
         ...style,
       }}
@@ -93,7 +95,9 @@ function Action({
 }) {
   const base = {
     borderRadius: v("r-control"),
-    border: "1px solid transparent",
+    borderWidth: 1,
+    borderStyle: "solid" as const,
+    borderColor: "transparent",
   }
   const tones = {
     primary: { background: v("primary"), color: v("primary-foreground") },
@@ -137,12 +141,17 @@ function Field({
   focused?: boolean
 }) {
   const ring = error ? v("destructive") : focused ? v("ring") : null
+  // Longhand throughout. Setting `border` and then `borderColor` is a real
+  // styling bug, not just a React warning: on a re-render the shorthand can be
+  // applied after the longhand and silently drop the colour.
   const box: React.CSSProperties = {
     borderRadius: v("r-field"),
     fontSize: 12,
     color: v("foreground"),
     background: "transparent",
-    border: "1px solid transparent",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "transparent",
     padding: "8px 10px",
   }
 
@@ -150,7 +159,8 @@ function Field({
     box.background = v("muted")
   } else if (style === "underline") {
     box.borderRadius = "0"
-    box.borderBottom = `1px solid ${ring ?? v("border")}`
+    box.borderWidth = "0 0 1px 0"
+    box.borderColor = ring ?? v("border")
     box.padding = "6px 2px"
   } else if (style === "borderless") {
     box.padding = "6px 2px"
