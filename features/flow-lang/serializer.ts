@@ -338,6 +338,7 @@ function themeLines(theme: ProjectDoc["theme"]): string[] {
     depth.push(`elevation_strategy ${theme.elevationStrategy}`)
   }
   if (theme.motionModel !== base.motionModel) depth.push(`motion_model ${theme.motionModel}`)
+  if (theme.inputStyle !== base.inputStyle) depth.push(`inputs ${theme.inputStyle}`)
   if (depth.length) lines.push(`    ${depth.join("; ")}`)
 
   // Overrides only, one block per mode, and nothing at all when the preset was

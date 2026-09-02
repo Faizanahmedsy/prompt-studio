@@ -24,6 +24,7 @@
 
 import type {
   elevationStrategyValues,
+  inputStyleValues,
   motionModelValues,
 } from "@/types/project"
 
@@ -42,6 +43,8 @@ export type Preset = {
   density: "compact" | "comfortable" | "spacious"
   elevationStrategy: (typeof elevationStrategyValues)[number]
   motionModel: (typeof motionModelValues)[number]
+  /** how a text field is drawn, and where its label sits */
+  inputStyle: (typeof inputStyleValues)[number]
   neutralHue: number
   vividness: number
   /** the full shadcn token set as oklch strings, keyed without the leading `--` */
@@ -115,6 +118,7 @@ export const presets: Preset[] = [
     density: "comfortable",
     elevationStrategy: "shadow",
     motionModel: "duration",
+    inputStyle: "outlined",
     neutralHue: 70,
     vividness: 58,
     light: {
@@ -203,6 +207,7 @@ export const presets: Preset[] = [
     density: "compact",
     elevationStrategy: "ladder",
     motionModel: "duration",
+    inputStyle: "borderless",
     neutralHue: 258,
     vividness: 42,
     light: {
@@ -295,6 +300,7 @@ export const presets: Preset[] = [
     density: "spacious",
     elevationStrategy: "hairline",
     motionModel: "duration",
+    inputStyle: "outlined",
     neutralHue: 250,
     vividness: 48,
     light: {
@@ -383,6 +389,7 @@ export const presets: Preset[] = [
     density: "spacious",
     elevationStrategy: "shadow",
     motionModel: "spring",
+    inputStyle: "filled",
     neutralHue: 45,
     vividness: 82,
     light: {
@@ -475,6 +482,7 @@ export const presets: Preset[] = [
     density: "compact",
     elevationStrategy: "grid",
     motionModel: "none",
+    inputStyle: "underline",
     neutralHue: 240,
     vividness: 35,
     light: {
@@ -567,6 +575,7 @@ export const presets: Preset[] = [
     density: "spacious",
     elevationStrategy: "hairline",
     motionModel: "none",
+    inputStyle: "underline",
     neutralHue: 65,
     vividness: 12,
     light: {
@@ -656,6 +665,7 @@ export const presets: Preset[] = [
     density: "compact",
     elevationStrategy: "hairline",
     motionModel: "none",
+    inputStyle: "outlined",
     neutralHue: 0,
     vividness: 92,
     light: {
@@ -748,6 +758,7 @@ export const presets: Preset[] = [
     density: "compact",
     elevationStrategy: "shadow",
     motionModel: "duration",
+    inputStyle: "borderless",
     neutralHue: 155,
     vividness: 75,
     light: {
@@ -836,6 +847,7 @@ export const presets: Preset[] = [
     density: "comfortable",
     elevationStrategy: "tinted",
     motionModel: "spring",
+    inputStyle: "floating",
     neutralHue: 295,
     vividness: 70,
     light: {
@@ -924,6 +936,7 @@ export const presets: Preset[] = [
     density: "comfortable",
     elevationStrategy: "offset",
     motionModel: "duration",
+    inputStyle: "inset",
     neutralHue: 78,
     vividness: 30,
     light: {
@@ -1011,6 +1024,7 @@ export const presets: Preset[] = [
     density: "comfortable",
     elevationStrategy: "ladder",
     motionModel: "duration",
+    inputStyle: "filled",
     neutralHue: 245,
     vividness: 45,
     light: {
@@ -1098,6 +1112,7 @@ export const presets: Preset[] = [
     density: "comfortable",
     elevationStrategy: "tinted",
     motionModel: "spring",
+    inputStyle: "floating",
     neutralHue: 35,
     vividness: 68,
     light: {
@@ -1186,6 +1201,7 @@ export const presets: Preset[] = [
     density: "compact",
     elevationStrategy: "grid",
     motionModel: "duration",
+    inputStyle: "outlined",
     neutralHue: 250,
     vividness: 55,
     light: {
@@ -1278,6 +1294,7 @@ export const presets: Preset[] = [
     density: "spacious",
     elevationStrategy: "glass",
     motionModel: "spring",
+    inputStyle: "filled",
     neutralHue: 265,
     vividness: 25,
     light: {

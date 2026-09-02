@@ -30,12 +30,13 @@ import { cn } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
 import {
   elevationStrategyValues,
+  inputStyleValues,
   motionModelValues,
   type Project,
   type Theme,
 } from "@/types/project"
 
-import { ThemePreview } from "./theme-preview"
+import { type PreviewScreen, previewScreens, ThemePreview } from "./theme-preview"
 
 /**
  * The token list, grouped the way the shadcn table is.
@@ -167,6 +168,7 @@ export function ThemeForge({ project }: { project: Project }) {
   const theme = project.theme
   const [mode, setMode] = useState<"light" | "dark" | "both">("both")
   const [tokensOpen, setTokensOpen] = useState(false)
+  const [screen, setScreen] = useState<PreviewScreen>("app")
   const [editing, setEditing] = useState<"light" | "dark">("light")
 
   const tokens = useMemo(() => resolveTokens(theme), [theme])
@@ -199,6 +201,7 @@ export function ThemeForge({ project }: { project: Project }) {
       neutralHue: preset.neutralHue,
       elevationStrategy: preset.elevationStrategy,
       motionModel: preset.motionModel,
+      inputStyle: preset.inputStyle,
       density: preset.density,
     })
   }
@@ -382,6 +385,17 @@ export function ThemeForge({ project }: { project: Project }) {
               options={elevationStrategyValues.map((id) => ({ value: id, label: id }))}
             />
             <SelectField
+              label="Text fields"
+              value={theme.inputStyle}
+              onValueChange={(value) => {
+                set({ inputStyle: value as Theme["inputStyle"] })
+                // Pointless to change a field treatment while looking at a
+                // dashboard, so the preview goes where the change is visible.
+                setScreen("form")
+              }}
+              options={inputStyleValues.map((id) => ({ value: id, label: id }))}
+            />
+            <SelectField
               label="Motion"
               value={theme.motionModel}
               onValueChange={(value) => set({ motionModel: value as Theme["motionModel"] })}
@@ -484,7 +498,19 @@ export function ThemeForge({ project }: { project: Project }) {
             <span className="text-xs font-semibold">{active.name}</span>
             <span className="text-[11px] text-muted-foreground">{active.character}</span>
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap items-center gap-1">
+            {previewScreens.map((option) => (
+              <Button
+                key={option.id}
+                size="sm"
+                variant={screen === option.id ? "secondary" : "ghost"}
+                onClick={() => setScreen(option.id)}
+                className="h-7 px-2.5 text-xs"
+              >
+                {option.label}
+              </Button>
+            ))}
+            <span className="mx-1 h-4 w-px bg-border" />
             {(["light", "dark", "both"] as const).map((option) => (
               <Button
                 key={option}
@@ -511,7 +537,7 @@ export function ThemeForge({ project }: { project: Project }) {
                 <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                   {one}
                 </span>
-                <ThemePreview tokens={tokens} mode={one} />
+                <ThemePreview tokens={tokens} mode={one} screen={screen} />
               </div>
             ))}
           </div>

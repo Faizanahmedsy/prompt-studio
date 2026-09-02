@@ -76,6 +76,31 @@ export const elevationStrategyValues = [
 export const motionModelValues = ["none", "duration", "spring"] as const
 
 /**
+ * How a text field is drawn, and where its label sits.
+ *
+ * Its own axis rather than a consequence of `buttonStyle`, because a form is
+ * most of what people actually touch in an application and the two decisions
+ * genuinely come apart: a filled button over an underlined field is a common,
+ * deliberate pairing. It also settles a question every generated app answers
+ * differently on every screen — a floating label on one form and a label above
+ * the next is the single clearest sign nobody decided.
+ */
+export const inputStyleValues = [
+  /** a 1px box, the label above it — the safe default */
+  "outlined",
+  /** a tinted fill with no border, the label above */
+  "filled",
+  /** a rule under the field only, the label above */
+  "underline",
+  /** the label starts inside the field and rises on focus */
+  "floating",
+  /** the label sits permanently inside the field, above the value */
+  "inset",
+  /** no chrome at all until hover or focus */
+  "borderless",
+] as const
+
+/**
  * Whether this build is a prototype or the whole system.
  *
  * It changes what the generated prompt *contains*, not merely the order it is
@@ -158,6 +183,7 @@ export const themeSchema = z.object({
   neutralHue: z.number().min(0).max(360).default(160),
   elevationStrategy: z.enum(elevationStrategyValues).default("shadow"),
   motionModel: z.enum(motionModelValues).default("duration"),
+  inputStyle: z.enum(inputStyleValues).default("outlined"),
 })
 
 /**

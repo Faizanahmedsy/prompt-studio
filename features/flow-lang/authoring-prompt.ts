@@ -18,6 +18,7 @@ import {
   elevationValues,
   fontCharacterValues,
   iconStyleValues,
+  inputStyleValues,
   motionModelValues,
   motionValues,
   typeScaleValues,
@@ -292,7 +293,7 @@ app "Product name" {
     shape control 8 card 12 overlay 16    # corner radii in px, plus \`pill\`
     fonts display "Bricolage Grotesque" body "Public Sans" mono "JetBrains Mono"
     scale_ratio 1.25; vividness 60; neutral_hue 160
-    elevation_strategy shadow; motion_model duration
+    elevation_strategy shadow; motion_model duration; inputs floating
     palette light { primary oklch(0.55 0.12 250) }   # overrides only
     palette dark  { primary oklch(0.72 0.10 250) }
   }
@@ -500,6 +501,7 @@ default every product gets.
 - \`neutral_hue\` — 0–360, the hue every grey is biased toward, so the neutrals read as chosen rather than as grey
 - \`elevation_strategy\` — ${elevationStrategyValues.join(", ")}: by what means depth is carried, where \`elevation\` says how much of it there is. A surface \`ladder\`, a \`hairline\` rule or a \`tinted\` panel is usually what separates a design from a shadow ramp
 - \`motion_model\` — ${motionModelValues.join(", ")}: what the transitions are built out of
+- \`inputs\` — ${inputStyleValues.join(", ")}: how a text field is drawn and where its label sits
 - \`palette\` — per-mode overrides of single colour tokens, named as shadcn names them without the \`--\`: \`palette light { primary oklch(0.55 0.12 250) }\`, \`palette dark { … }\`. Overrides **only** — every token you leave out comes from the preset, which is what lets the preset improve later
 
 ## screen templates

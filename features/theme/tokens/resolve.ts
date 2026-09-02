@@ -104,6 +104,33 @@ export type TokenSet = {
   spacing: number[]
   motion: MotionTokens
   elevation: ElevationTokens
+  /** how a text field is drawn, and where its label sits */
+  inputStyle: Theme["inputStyle"]
+  /** one sentence specifying that field treatment, for the prompt */
+  inputRule: string
+}
+
+/**
+ * What each field treatment actually means, in values.
+ *
+ * Written as a spec rather than a name because "floating label" is understood
+ * three different ways, and the one thing worse than no instruction is one each
+ * model interprets differently. The height and padding stay the same across all
+ * six so switching treatment never reflows a form.
+ */
+const INPUT_RULES: Record<Theme["inputStyle"], string> = {
+  outlined:
+    "Text fields are a 1px `--border` box on `--background`, with the label above the field. On focus the border becomes `--ring` and a 2px ring sits outside it.",
+  filled:
+    "Text fields are filled with `--muted` and have no border, with the label above the field. On focus the fill lightens and a 2px `--ring` ring sits outside it.",
+  underline:
+    "Text fields have no box — a 1px `--border` rule under the field only, with the label above it. On focus the rule becomes 2px `--ring`. Do not add a background or a box on focus.",
+  floating:
+    "Text fields start with the label sitting inside them at body size, in `--muted-foreground`. On focus, and whenever the field has a value, the label rises to the top edge of the field at the `micro` size and takes `--ring`. Animate that with the state duration; it is the one place a label moves.",
+  inset:
+    "Text fields carry the label permanently inside them, at the `micro` size in `--muted-foreground`, sitting above the value on its own line. The field is tall enough for both. The label never moves.",
+  borderless:
+    "Text fields have no border and no fill at rest — only the value and, above it, the label. A `--muted` fill appears on hover and a 2px `--ring` ring on focus. Use this only where the form is the page's content rather than a dialog.",
 }
 
 /** Body text is the fixed point; every other size is derived from it. */
@@ -453,6 +480,9 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
   const motionModel = deviates("motionModel", theme.motionModel)
     ? theme.motionModel
     : (preset?.motionModel ?? theme.motionModel)
+  const inputStyle = deviates("inputStyle", theme.inputStyle)
+    ? theme.inputStyle
+    : (preset?.inputStyle ?? theme.inputStyle)
   const shadowHue = deviates("neutralHue", theme.neutralHue)
     ? theme.neutralHue
     : (preset?.neutralHue ?? theme.neutralHue)
@@ -466,6 +496,8 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
     scale: typeScale(scaleRatio),
     spacing: [...SPACING],
     motion: motionTokens(motionModel),
+    inputStyle,
+    inputRule: INPUT_RULES[inputStyle],
     elevation: elevationTokens(elevationStrategy, hueOf(light.primary, shadowHue)),
   }
 }

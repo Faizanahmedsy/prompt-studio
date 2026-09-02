@@ -34,6 +34,7 @@ const fixture: Preset = {
   density: "comfortable",
   elevationStrategy: "shadow",
   motionModel: "duration",
+  inputStyle: "outlined",
   neutralHue: 260,
   vividness: 60,
   light: palette("light"),

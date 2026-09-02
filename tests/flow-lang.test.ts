@@ -566,6 +566,7 @@ describe("the theme survives a round trip", () => {
     neutralHue: 275,
     elevationStrategy: "hairline",
     motionModel: "spring",
+    inputStyle: "floating",
   } as const
 
   const themedDoc = () => ({
@@ -622,6 +623,7 @@ describe("the theme survives a round trip", () => {
     ["neutralHue", { neutralHue: 275 }],
     ["elevationStrategy", { elevationStrategy: "ladder" }],
     ["motionModel", { motionModel: "spring" }],
+    ["inputStyle", { inputStyle: "floating" }],
   ]
 
   for (const [name, patch] of oneAtATime) {

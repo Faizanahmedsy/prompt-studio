@@ -67,6 +67,13 @@ describe("the craft rules are checkable, not advisory", () => {
     expect(craft).toContain("lorem ipsum")
   })
 
+  it("specifies the field treatment rather than naming it", () => {
+    // "floating label" is understood three ways; the block has to say which.
+    expect(craft).toContain("### Forms")
+    expect(craft).toMatch(/Text fields are|Text fields have|Text fields start|Text fields carry/)
+    expect(craft).toContain("Every field in the product uses that treatment")
+  })
+
   it("designs the states most generated interfaces skip", () => {
     expect(craft).toContain("Empty.")
     expect(craft).toContain("Loading.")

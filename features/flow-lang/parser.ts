@@ -29,6 +29,7 @@ import {
   fieldKindValues,
   fontCharacterValues,
   iconStyleValues,
+  inputStyleValues,
   type ModuleEdge,
   motionModelValues,
   motionValues,
@@ -1651,6 +1652,19 @@ function applyThemeProp(
         normalised,
         motionModelValues,
         doc.theme.motionModel,
+        key,
+        line,
+        warnings
+      )
+      return
+    case "inputs":
+    case "inputstyle":
+    case "input_style":
+    case "fields":
+      doc.theme.inputStyle = pickThemeValue(
+        normalised,
+        inputStyleValues,
+        doc.theme.inputStyle,
         key,
         line,
         warnings
