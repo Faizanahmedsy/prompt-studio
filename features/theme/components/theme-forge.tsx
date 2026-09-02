@@ -251,6 +251,11 @@ export function ThemeForge({ project }: { project: Project }) {
     set({
       preset: preset.id,
       palette: { light: {}, dark: {} },
+      // And the brand colours, for the same reason: every starter writes a
+      // primary in its Flow, so without this a preset chosen in the editor kept
+      // the starter's colour and looked like it had only half applied.
+      primaryColor: DEFAULT_THEME.primaryColor,
+      secondaryColor: DEFAULT_THEME.secondaryColor,
       shape: { ...preset.shape },
       fonts: { ...preset.fonts },
       scaleRatio: preset.scaleRatio,
@@ -276,8 +281,14 @@ export function ThemeForge({ project }: { project: Project }) {
   const changed = JSON.stringify(theme) !== JSON.stringify(DEFAULT_THEME)
   const defaultPreset = presetById(DEFAULT_THEME.preset)
 
+  // The brand colours count: they override the preset's primary and accent just
+  // as a hand-picked token does, so leaving them out made the reset line say
+  // "no custom values" while the preset was visibly not the preset.
   const overrideCount =
-    Object.keys(theme.palette.light).length + Object.keys(theme.palette.dark).length
+    Object.keys(theme.palette.light).length +
+    Object.keys(theme.palette.dark).length +
+    (theme.primaryColor === DEFAULT_THEME.primaryColor ? 0 : 1) +
+    (theme.secondaryColor === DEFAULT_THEME.secondaryColor ? 0 : 1)
 
   const setToken = (which: "light" | "dark", key: string, value: string) =>
     set({
