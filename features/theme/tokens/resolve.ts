@@ -19,7 +19,7 @@
  * move colours somebody had already corrected by hand.
  */
 
-import { parseOklch } from "@/features/theme/color/oklch"
+import { clampToGamut, formatOklch, parseOklch } from "@/features/theme/color/oklch"
 import { type Preset, presetById } from "@/features/theme/data/presets"
 import { type Theme, themeSchema } from "@/types/project"
 
@@ -350,6 +350,48 @@ function resolveFonts(theme: Theme, preset: Preset | undefined): Theme["fonts"] 
   return { display, body: named || (theme.bodyFont === "pair" ? display : ""), mono }
 }
 
+
+/** A token with almost no chroma is a neutral, and neutrals take the hue dial. */
+const NEUTRAL_CHROMA = 0.03
+
+/**
+ * Apply the two colour dials the editor exposes.
+ *
+ * Without this the sliders move a number that reaches only the tinted shadow,
+ * which is worse than not offering them: a control that visibly does nothing
+ * teaches people the whole editor is decorative. They are applied only when the
+ * document has moved them off the preset's own value, so a preset's palette is
+ * never quietly "corrected" the moment it loads.
+ *
+ * Chroma scales rather than being set, because the palette's internal ratios —
+ * a muted surface against a primary against a chart ramp — are a design
+ * decision the dial has no business flattening. Neutrals are rotated rather
+ * than scaled, since their whole job is to carry a faint bias toward the hue
+ * the accent sits at.
+ */
+function applyDials(
+  tokens: Record<string, string>,
+  vividnessRatio: number,
+  neutralHue: number | null
+): Record<string, string> {
+  if (vividnessRatio === 1 && neutralHue === null) return tokens
+  const out: Record<string, string> = {}
+  for (const [name, value] of Object.entries(tokens)) {
+    const parsed = parseOklch(value)
+    // Anything the palette states some other way — a hex, an alpha border —
+    // is left exactly as written rather than approximated into oklch.
+    if (!parsed || parsed.alpha !== 1) {
+      out[name] = value
+      continue
+    }
+    const neutral = parsed.c <= NEUTRAL_CHROMA
+    const h = neutral && neutralHue !== null ? neutralHue : parsed.h
+    const c = neutral ? parsed.c : parsed.c * vividnessRatio
+    out[name] = formatOklch(clampToGamut({ l: parsed.l, c, h }))
+  }
+  return out
+}
+
 /**
  * The schema's own defaults, read once rather than restated.
  *
@@ -374,8 +416,28 @@ function deviates<K extends keyof Theme>(key: K, value: Theme[K]): boolean {
  */
 export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
   const preset = preview ?? presetById(theme.preset)
-  const light = layer(preset?.light, theme.palette.light)
-  const dark = layer(preset?.dark, theme.palette.dark)
+
+  // A dial counts as moved when it differs from the preset it is sitting on,
+  // not from the schema default — otherwise every preset whose own vividness
+  // is not 60 would be re-chromatised the instant it was selected.
+  const presetVividness = preset?.vividness ?? THEME_DEFAULTS.vividness
+  const vividnessRatio =
+    theme.vividness === presetVividness || presetVividness === 0
+      ? 1
+      : theme.vividness / presetVividness
+  const presetHue = preset?.neutralHue ?? THEME_DEFAULTS.neutralHue
+  const hueShift = theme.neutralHue === presetHue ? null : theme.neutralHue
+
+  const light = applyDials(
+    layer(preset?.light, theme.palette.light),
+    vividnessRatio,
+    hueShift
+  )
+  const dark = applyDials(
+    layer(preset?.dark, theme.palette.dark),
+    vividnessRatio,
+    hueShift
+  )
 
   // Structural fields follow the preset unless the document has moved them,
   // exactly as the colours do. Without this, naming a preset in Flow — the one
@@ -391,7 +453,7 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
   const motionModel = deviates("motionModel", theme.motionModel)
     ? theme.motionModel
     : (preset?.motionModel ?? theme.motionModel)
-  const neutralHue = deviates("neutralHue", theme.neutralHue)
+  const shadowHue = deviates("neutralHue", theme.neutralHue)
     ? theme.neutralHue
     : (preset?.neutralHue ?? theme.neutralHue)
 
@@ -404,6 +466,6 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
     scale: typeScale(scaleRatio),
     spacing: [...SPACING],
     motion: motionTokens(motionModel),
-    elevation: elevationTokens(elevationStrategy, hueOf(light.primary, neutralHue)),
+    elevation: elevationTokens(elevationStrategy, hueOf(light.primary, shadowHue)),
   }
 }

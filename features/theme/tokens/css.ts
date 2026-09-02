@@ -559,6 +559,7 @@ function tailwindOnly(theme: Theme, tokens: TokenSet): string {
     rule(":root", [
       "/* Named by role, never by colour — the value behind --accent can",
       "   change without a rename, and nothing in a component reads a hue. */",
+      "",
       ...radiusLines(tokens.shape),
       "",
       ...fontLines(theme, tokens),
@@ -703,6 +704,7 @@ function cssModules(theme: Theme, tokens: TokenSet): string {
     rule(":root", [
       "/* Imported once at the application root, before any module. Modules",
       "   reference var(--x) and never a literal. */",
+      "",
       ...radiusLines(tokens.shape),
       "",
       ...fontLines(theme, tokens),
@@ -733,6 +735,7 @@ function plainTokens(theme: Theme, tokens: TokenSet): string {
       "/* The design, as values. Where the platform does not read CSS, this",
       "   is still the list the platform's own theme is transcribed from —",
       "   one file to change when a colour is wrong. */",
+      "",
       ...radiusLines(tokens.shape),
       "",
       ...fontLines(theme, tokens),
