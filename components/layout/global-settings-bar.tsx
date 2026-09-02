@@ -11,17 +11,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { RequirementsPanel } from "@/features/prompt/components/requirements-panel"
-import { ThemeEditor } from "@/features/theme/components/theme-editor"
-import { describeDesignLanguage } from "@/features/theme/data/design-languages"
+import { presetById } from "@/features/theme/data/presets"
 import { cn } from "@/lib/utils"
+import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
-type Sheet = "design" | "brief" | null
+type Sheet = "brief" | null
 
 /**
- * Design and Brief apply to the whole project, not to whatever is selected, so
- * in Easy mode they sit in a floating bar over the canvas rather than in the
- * inspector — where they would read as properties of the selected screen.
+ * Brief applies to the whole project, not to whatever is selected, so in Easy
+ * mode it sits in a floating bar over the canvas rather than in the inspector —
+ * where it would read as a property of the selected screen.
+ *
+ * Design used to open a second editor here. It now goes to the Design tab,
+ * which is the only place design is edited: two editors writing overlapping
+ * fields is how a project ended up describing one design in the prompt and
+ * rendering another in the preview.
  */
 export function GlobalSettingsBar({ project }: { project: Project }) {
   const [open, setOpen] = useState<Sheet>(null)
@@ -36,8 +41,8 @@ export function GlobalSettingsBar({ project }: { project: Project }) {
             icon={<Palette className="size-4" />}
             label="Design"
             detail={design}
-            active={open === "design"}
-            onClick={() => setOpen("design")}
+            active={false}
+            onClick={() => useUiStore.getState().setMode("theme")}
           />
           <span className="h-6 w-px bg-border" />
           <BarButton
@@ -56,21 +61,13 @@ export function GlobalSettingsBar({ project }: { project: Project }) {
       >
         <DialogContent className="flex h-[82dvh] w-[min(560px,calc(100vw-1.5rem))] max-w-none flex-col gap-3">
           <DialogHeader>
-            <DialogTitle>
-              {open === "brief" ? "Brief" : "Design"}
-            </DialogTitle>
+            <DialogTitle>Brief</DialogTitle>
             <DialogDescription>
-              {open === "brief"
-                ? "Requirements and rules applied to the whole build."
-                : "The visual character of every screen in this project."}
+              Requirements and rules applied to the whole build.
             </DialogDescription>
           </DialogHeader>
           <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
-            {open === "brief" ? (
-              <RequirementsPanel project={project} />
-            ) : (
-              <ThemeEditor project={project} />
-            )}
+            <RequirementsPanel project={project} />
           </div>
         </DialogContent>
       </Dialog>
@@ -112,7 +109,7 @@ function BarButton({
 }
 
 function describeSummary(project: Project) {
-  // Via the catalogue rather than the raw id, so an unknown or missing value
-  // still reads as something.
-  return describeDesignLanguage(project.theme?.designLanguage ?? "").name
+  // The preset, because that is what the design is now. An unknown id resolves
+  // to the default rather than reading as blank.
+  return presetById(project.theme?.preset ?? "").name
 }

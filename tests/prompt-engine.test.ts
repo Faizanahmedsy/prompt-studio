@@ -776,27 +776,30 @@ describe("the design block", () => {
     return buildPrompt({ ...base, theme: { ...base.theme, ...patch } }).text
   }
 
-  it("carries the typography and finish settings", () => {
-    const text = themed({
-      headingFont: "slab",
-      bodyFont: "humanist",
-      typeScale: "expressive",
-      iconStyle: "duotone",
-      elevation: "layered",
-      motion: "none",
-      colorScheme: "dark-first",
-    })
-    expect(text).toContain("a slab serif")
-    expect(text).toContain("a humanist sans")
-    expect(text).toContain("expressive type scale")
-    expect(text).toContain("duotone icons")
-    expect(text).toContain("elevation scale")
-    expect(text).toContain("no animation")
-    expect(text).toContain("dark first")
+  it("describes the preset the design editor actually writes", () => {
+    // The legacy option fields used to be the design block. They are still in
+    // the schema, and Flow still writes them, but the editor writes a preset —
+    // so a Telegraph project was shipping "Corners: fully rounded, Headings:
+    // geometric sans" from untouched defaults directly above a stylesheet with
+    // 2px radii and a slab serif. The block follows the resolved theme now.
+    const text = themed({ preset: "telegraph" })
+    expect(text).toContain("Telegraph")
+    expect(text).toContain("Roboto Slab")
+    expect(text).toContain("2px on controls")
   })
 
-  it("lets the body font follow the heading", () => {
-    expect(themed({ bodyFont: "pair" })).toContain("pairs with the heading")
+  it("takes its corners from the shape tokens, pills included", () => {
+    const text = themed({ preset: "azure" })
+    expect(text).toContain("10px on controls")
+    expect(text).toContain("actions are full pills")
+  })
+
+  it("names the resolved primary rather than a field nothing reads", () => {
+    const text = themed({ preset: "telegraph" })
+    expect(text).toMatch(/Primary: `oklch\([^`]+\)` in light/)
+    // The untouched default must not appear beside the preset's own primary:
+    // two colours named for one job is the contradiction this replaced.
+    expect(text).not.toContain("#4f46e5")
   })
 
   it("Basic tells the agent not to design, and drops every colour decision", () => {
@@ -808,8 +811,10 @@ describe("the design block", () => {
     expect(text).toContain("the browser's defaults")
   })
 
-  it("still names the primary colour for every other language", () => {
-    expect(themed({ primaryColor: "#ff0000" })).toContain("#ff0000")
+  it("names a colour somebody actually chose, and says what it resolved to", () => {
+    const text = themed({ primaryColor: "#ff0000" })
+    expect(text).toContain("#ff0000")
+    expect(text).toMatch(/#ff0000, resolved to `oklch\(/)
   })
 
   it("asks for a token system before any styling", () => {

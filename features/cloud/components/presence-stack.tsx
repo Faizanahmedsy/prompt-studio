@@ -66,10 +66,16 @@ export function SyncBadge({
   status,
   conflict,
   onReload,
+  signedIn = true,
+  linked = true,
 }: {
   status: "idle" | "connecting" | "open" | "reconnecting" | "closed"
   conflict?: boolean
   onReload?: () => void
+  /** Whether there is an account to sync to at all. */
+  signedIn?: boolean
+  /** Whether this project has reached the server yet. */
+  linked?: boolean
 }) {
   if (conflict) {
     return (
@@ -95,9 +101,25 @@ export function SyncBadge({
     )
   }
 
-  const label = status === "closed" || status === "idle" ? "Offline" : "Connecting…"
+  // "Offline" was shown for three different situations — signed out, a project
+  // the server has not seen yet, and an actually dropped connection — and only
+  // the last one is offline. The other two look like data loss to the person
+  // reading it, which is the opposite of what is happening.
+  const label = !signedIn
+    ? "On this device"
+    : !linked
+      ? "Saving…"
+      : status === "closed" || status === "idle"
+        ? "Offline"
+        : "Connecting…"
+  const hint = !signedIn
+    ? "This project lives in this browser. Sign in and it syncs to your account."
+    : !linked
+      ? "Sending this project to your account for the first time"
+      : "Your work is saved on this device and will sync when the connection returns"
+
   return (
-    <Hint label="Your work is saved on this device and will sync when the connection returns">
+    <Hint label={hint}>
       <span
         className={cn(
           "flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground",

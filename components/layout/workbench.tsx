@@ -3,7 +3,6 @@
 import { Keyboard, Library, PanelRight } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
-
 import { GlobalSettingsBar } from "@/components/layout/global-settings-bar"
 import { Inspector } from "@/components/layout/inspector"
 import { TopBar } from "@/components/layout/top-bar"
@@ -30,11 +29,15 @@ import { ThemeForge } from "@/features/theme/components/theme-forge"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project, Surface } from "@/types/project"
+import { useViewUrl } from "./use-view-url"
 
 /** Below this width the three panes become sheets and the canvas becomes a list. */
 const DESKTOP = 1024
 
 function useIsDesktop() {
+  // The tab is in the URL, so a link to the design editor is a link.
+  useViewUrl()
+
   const [isDesktop, setIsDesktop] = useState(true)
   useEffect(() => {
     const query = window.matchMedia(`(min-width: ${DESKTOP}px)`)

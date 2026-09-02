@@ -3,10 +3,12 @@
 /**
  * The full-page design editor.
  *
- * The existing ThemeEditor is a sidebar of selects and it stays — it is the
- * right thing when you want to nudge one value while looking at the canvas.
- * This is the other job: choosing the design in the first place, which needs
- * the result at a size you can actually judge.
+ * This is now the only place design is edited. There used to be a second
+ * editor — a sidebar of selects, rendered both in the inspector and behind the
+ * floating bar — writing an overlapping set of fields, which is how a project
+ * ended up describing one design in its prompt and rendering another in its
+ * preview. Choosing a design needs the result at a size you can judge, so the
+ * sidebar version was the one to lose.
  *
  * It is a work mode rather than a route on purpose. Every cloud hook — sync,
  * sharing, presence, and the read-only guard — is mounted inside Workbench, so
@@ -35,6 +37,7 @@ import { type Preset, presetById, presets } from "@/features/theme/data/presets"
 import { resolveTokens } from "@/features/theme/tokens"
 import { cn } from "@/lib/utils"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useUiStore } from "@/stores/use-ui-store"
 import {
   elevationStrategyValues,
   inputStyleValues,
@@ -637,6 +640,29 @@ export function ThemeForge({ project }: { project: Project }) {
               separately rather than inverted.
             </p>
           </section>
+        </div>
+
+        {/* ------------------------------------------------------ what next */}
+        <div className="sticky bottom-0 mt-auto flex flex-col gap-2 border-t border-border bg-card p-4">
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            There is no save button — every change here is written to the
+            project as you make it, and the badge in the header says whether it
+            has reached the server yet. This design is what every screen and the
+            generated prompt follow.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="h-8 flex-1 text-xs"
+              onClick={() => useUiStore.getState().setMode("web")}
+            >
+              Done — back to the canvas
+            </Button>
+          </div>
+          <p className="text-[11px] leading-snug text-muted-foreground">
+            Then draw your screens, and use <strong>Copy prompt</strong> in the
+            header when you want the build prompt.
+          </p>
         </div>
       </aside>
 

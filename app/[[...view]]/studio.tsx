@@ -81,7 +81,7 @@ function Studio() {
   return <Workbench project={project} />
 }
 
-export default function StudioPage() {
+export function StudioApp() {
   return (
     <AuthGate>
       <Studio />

@@ -19,7 +19,13 @@
  * move colours somebody had already corrected by hand.
  */
 
-import { clampToGamut, formatOklch, parseOklch } from "@/features/theme/color/oklch"
+import { LC_FLOORS, lc } from "@/features/theme/color/apca"
+import {
+  clampToGamut,
+  formatOklch,
+  hexToOklch,
+  parseOklch,
+} from "@/features/theme/color/oklch"
 import { type Preset, presetById } from "@/features/theme/data/presets"
 import { type Theme, themeSchema } from "@/types/project"
 
@@ -420,6 +426,123 @@ function applyDials(
 }
 
 /**
+ * The brand colours, applied over the preset's palette.
+ *
+ * `primaryColor` and `secondaryColor` predate the preset system and were, until
+ * this, written to the document and read by nothing — the editor showed two
+ * colour fields that moved a value the stylesheet never consulted. A control
+ * that visibly does nothing is worse than an absent one: it teaches people the
+ * rest of the editor is decorative too.
+ *
+ * Applied only when moved off the schema default, for the same reason the dials
+ * are: otherwise every preset would turn indigo the moment it loaded.
+ *
+ * Dark mode is re-derived rather than reused. A brand colour at its own
+ * lightness sits at roughly L 0.5, which against a 0.16 ground is a dark fill
+ * with dark text on it — so dark mode takes the hue, moves lightness to where
+ * the catalogue puts it, and brings chroma down, exactly as every preset does
+ * by hand.
+ */
+
+/** White, or the darkest ink at this hue — whichever the label can actually be read on. */
+function labelFor(fill: string, hue: number): string {
+  const ink = formatOklch(clampToGamut({ l: 0.16, c: 0.02, h: hue }))
+  const onWhite = Math.abs(lc("oklch(1 0 0)", fill))
+  const onInk = Math.abs(lc(ink, fill))
+  return onWhite >= onInk ? "oklch(1 0 0)" : ink
+}
+
+function shade(l: number, c: number, h: number): string {
+  return formatOklch(clampToGamut({ l, c, h }))
+}
+
+/**
+ * The nearest lightness to the one asked for that can actually carry a label.
+ *
+ * A saturated hue has no polarity that works at its own lightness — magenta at
+ * L 0.63 reaches Lc 64 against white and less against black, so a button in it
+ * has an unreadable label whichever way you set the text. Rather than refuse
+ * the colour or silently ship it, the fill moves along its own hue until a
+ * label clears the floor, taking the smallest step that does.
+ */
+function readableFill(l: number, c: number, h: number): string {
+  let nearest = shade(l, c, h)
+  let best = Math.abs(lc(labelFor(nearest, h), nearest))
+  if (best >= LC_FLOORS.body) return nearest
+
+  for (let step = 0.02; step <= 0.45; step += 0.02) {
+    // Darker first: a brand colour darkened still reads as the brand, where the
+    // same colour lightened toward white usually does not.
+    for (const candidate of [l - step, l + step]) {
+      if (candidate < 0.12 || candidate > 0.97) continue
+      const fill = shade(candidate, c, h)
+      const measured = Math.abs(lc(labelFor(fill, h), fill))
+      if (measured >= LC_FLOORS.body) return fill
+      if (measured > best) {
+        best = measured
+        nearest = fill
+      }
+    }
+  }
+  // Nothing cleared it — hand back the closest attempt rather than the original,
+  // which was further from readable than this is.
+  return nearest
+}
+
+function applyBrand(
+  tokens: Record<string, string>,
+  mode: "light" | "dark",
+  primary: string | null,
+  secondary: string | null
+): Record<string, string> {
+  if (!primary && !secondary) return tokens
+  const out = { ...tokens }
+
+  if (primary) {
+    const brand = hexToOklch(primary)
+    if (brand) {
+      const { c, h } = brand
+      // The dead zone (L 0.68–0.76) takes no label at all, so a brand colour
+      // landing in it is pulled to the readable side rather than shipped.
+      const fill =
+        mode === "dark"
+          ? shade(0.86, Math.min(c, 0.06), h)
+          : readableFill(brand.l, c, h)
+      const label = mode === "dark" ? shade(0.14, 0.015, h) : labelFor(fill, h)
+      out.primary = fill
+      out["primary-foreground"] = label
+      out["sidebar-primary"] = fill
+      out["sidebar-primary-foreground"] = label
+      out.ring = shade(mode === "dark" ? 0.66 : 0.62, c * 0.6, h)
+      out["chart-1"] = shade(mode === "dark" ? 0.71 : 0.62, c * 0.76, h)
+    }
+  }
+
+  if (secondary) {
+    const brand = hexToOklch(secondary)
+    if (brand) {
+      const { c, h } = brand
+      out["chart-2"] = shade(mode === "dark" ? 0.71 : 0.62, c * 0.7, h)
+      // Accent is a hover fill and an active row, not a brand moment: it takes
+      // the hue at a fraction of the chroma, or every list in the product
+      // shouts. Its label is re-derived so the pair still clears the floor.
+      const tint = shade(
+        mode === "dark" ? 0.32 : 0.94,
+        Math.min(c * 0.25, mode === "dark" ? 0.04 : 0.05),
+        h
+      )
+      const label = shade(mode === "dark" ? 0.9 : 0.3, 0.02, h)
+      out.accent = tint
+      out["accent-foreground"] = label
+      out["sidebar-accent"] = tint
+      out["sidebar-accent-foreground"] = label
+    }
+  }
+
+  return out
+}
+
+/**
  * The schema's own defaults, read once rather than restated.
  *
  * A field still sitting on its default has not been decided by anyone, so the
@@ -447,23 +570,50 @@ export function resolveTokens(theme: Theme, preview?: Preset): TokenSet {
   // A dial counts as moved when it differs from the preset it is sitting on,
   // not from the schema default — otherwise every preset whose own vividness
   // is not 60 would be re-chromatised the instant it was selected.
+  // A dial still on the schema default has not been decided by anyone, so the
+  // preset keeps its own value. Without that check every preset whose vividness
+  // is not exactly 60 was re-chromatised on load — a project that had touched
+  // nothing did not render the preset it named.
   const presetVividness = preset?.vividness ?? THEME_DEFAULTS.vividness
   const vividnessRatio =
-    theme.vividness === presetVividness || presetVividness === 0
+    !deviates("vividness", theme.vividness) ||
+    theme.vividness === presetVividness ||
+    presetVividness === 0
       ? 1
       : theme.vividness / presetVividness
   const presetHue = preset?.neutralHue ?? THEME_DEFAULTS.neutralHue
-  const hueShift = theme.neutralHue === presetHue ? null : theme.neutralHue
+  const hueShift =
+    !deviates("neutralHue", theme.neutralHue) || theme.neutralHue === presetHue
+      ? null
+      : theme.neutralHue
 
-  const light = applyDials(
-    layer(preset?.light, theme.palette.light),
-    vividnessRatio,
-    hueShift
+  // Brand colours land after the dials and before the per-token overrides are
+  // considered final: a hand-picked token is still the last word, because
+  // somebody who typed a hex into the token list meant that exact value.
+  const brandPrimary = deviates("primaryColor", theme.primaryColor)
+    ? theme.primaryColor
+    : null
+  const brandSecondary = deviates("secondaryColor", theme.secondaryColor)
+    ? theme.secondaryColor
+    : null
+
+  const light = layer(
+    applyBrand(
+      applyDials(layer(preset?.light, {}), vividnessRatio, hueShift),
+      "light",
+      brandPrimary,
+      brandSecondary
+    ),
+    theme.palette.light
   )
-  const dark = applyDials(
-    layer(preset?.dark, theme.palette.dark),
-    vividnessRatio,
-    hueShift
+  const dark = layer(
+    applyBrand(
+      applyDials(layer(preset?.dark, {}), vividnessRatio, hueShift),
+      "dark",
+      brandPrimary,
+      brandSecondary
+    ),
+    theme.palette.dark
   )
 
   // Structural fields follow the preset unless the document has moved them,

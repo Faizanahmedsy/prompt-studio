@@ -82,6 +82,7 @@ export function TopBar({
 }) {
   const ui = useUiStore()
   const me = useAuthStore((s) => s.user)
+  const signedIn = useAuthStore((s) => s.status === "authed")
   const remoteId = useSyncStore((s) => s.links[project.id] ?? null)
   const [sharing, setSharing] = useState(false)
   const advanced = ui.experience === "advanced"
@@ -164,7 +165,13 @@ export function TopBar({
       <div className="ml-auto flex items-center gap-1.5">
         {live && <PresenceStack members={live.members} youId={me?.id} />}
         {live && (
-          <SyncBadge status={live.status} conflict={live.conflict} onReload={live.reload} />
+          <SyncBadge
+            status={live.status}
+            conflict={live.conflict}
+            onReload={live.reload}
+            signedIn={signedIn}
+            linked={Boolean(remoteId)}
+          />
         )}
 
         <Hint label="Share this project with an email address">

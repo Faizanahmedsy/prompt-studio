@@ -12,7 +12,6 @@ import { EntityInspector } from "@/features/data/components/entity-inspector"
 import { SectionInspector } from "@/features/landing/components/section-inspector"
 import { RequirementsPanel } from "@/features/prompt/components/requirements-panel"
 import { StackPanel } from "@/features/stack/components/stack-panel"
-import { ThemeEditor } from "@/features/theme/components/theme-editor"
 import { useUiStore } from "@/stores/use-ui-store"
 import type { Project } from "@/types/project"
 
@@ -82,7 +81,6 @@ export function Inspector({
         <div className="shrink-0 px-3 pt-2">
           <TabsList className="w-full">
             <TabsTrigger value="selection">Selection</TabsTrigger>
-            <TabsTrigger value="design">Design</TabsTrigger>
             {advanced && <TabsTrigger value="stack">Stack</TabsTrigger>}
             <TabsTrigger value="brief">Brief</TabsTrigger>
           </TabsList>
@@ -90,12 +88,6 @@ export function Inspector({
 
         <TabsContent value="selection" className="min-h-0">
           <PanelBody>{selection}</PanelBody>
-        </TabsContent>
-
-        <TabsContent value="design" className="min-h-0">
-          <PanelBody>
-            <ThemeEditor project={project} />
-          </PanelBody>
         </TabsContent>
 
         {advanced && (

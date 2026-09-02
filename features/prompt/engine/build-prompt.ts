@@ -27,6 +27,7 @@ import {
 } from "@/features/stack/data/stack-catalogue"
 import { structureMap } from "@/features/stack/data/structures"
 import { describeDesignLanguage } from "@/features/theme/data/design-languages"
+import { presetById } from "@/features/theme/data/presets"
 import {
   colorSchemes,
   describeOption,
@@ -42,7 +43,8 @@ import {
   UI_LEVEL_PREAMBLE,
   uiLevelOf,
 } from "@/features/theme/data/ui-levels"
-import type { ProjectDoc, Surface, UserStory } from "@/types/project"
+import { resolveTokens } from "@/features/theme/tokens"
+import { type ProjectDoc, type Surface, themeSchema, type UserStory } from "@/types/project"
 
 import { BOILERPLATE, cloneLines, usesBoilerplate } from "./boilerplate"
 import { dataModelBlock } from "./data-model"
@@ -432,6 +434,9 @@ function sectionsBlock(doc: ProjectDoc): string {
   return `${body}\n\nRender the sections in exactly this order, each as its own full-width band with consistent vertical rhythm.`
 }
 
+/** Read once: a legacy colour field still on its default was never chosen. */
+const THEME_FIELD_DEFAULTS = themeSchema.parse({})
+
 function designBlock(doc: ProjectDoc): string {
   const t = doc.theme
   const language = describeDesignLanguage(t.designLanguage)
@@ -453,30 +458,50 @@ function designBlock(doc: ProjectDoc): string {
     ].join("\n")
   }
 
-  const heading = describeOption(fontCharacters, t.headingFont)
-  const bodyFont =
-    t.bodyFont === "pair"
-      ? `a face that pairs with the heading — either the same family at text weights, or a neutral grotesque beneath it`
-      : (fontCharacterMap[t.bodyFont]?.promptDetails ?? heading.promptDetails)
+  // Everything below is derived from the resolved theme rather than from the
+  // legacy option fields it used to read.
+  //
+  // Those fields are still in the schema and Flow still writes them, but the
+  // design editor writes a preset — so a project on Telegraph was shipping
+  // "Corners: fully rounded, Headings: geometric sans" from untouched defaults
+  // directly above a stylesheet with 2px radii and a slab serif. Two design
+  // systems in one prompt, and the agent follows whichever it reads last.
+  const preset = presetById(t.preset)
+  const tokens = resolveTokens(t)
+  const shape = tokens.shape
+  const corners = shape.pill
+    ? `${shape.control}px on controls, ${shape.card}px on cards, ${shape.overlay}px on overlays — and actions are full pills`
+    : `${shape.control}px on controls, ${shape.card}px on cards, ${shape.overlay}px on overlays`
 
   return [
     `Design language — **${language.name}**: ${language.promptDetails}`,
     "",
+    `Preset — **${preset.name}**: ${preset.character}`,
+    "",
     list([
-      `Primary colour: ${t.primaryColor} — used for primary actions, active states and focus rings.`,
-      `Secondary / accent colour: ${t.secondaryColor} — supporting highlights and charts.`,
-      `Corners: ${radiusWords[t.borderRadius] ?? t.borderRadius}.`,
-      `Buttons: ${buttonWords[t.buttonStyle] ?? t.buttonStyle}.`,
-      `Density: ${densityWords[t.density] ?? t.density}.`,
-      `Headings: ${heading.promptDetails}.`,
-      `Body text: ${bodyFont}.`,
-      `Type scale: ${describeOption(typeScales, t.typeScale).promptDetails}.`,
-      `Icons: ${describeOption(iconStyles, t.iconStyle).promptDetails}.`,
-      `Elevation: ${describeOption(elevations, t.elevation).promptDetails}.`,
-      `Motion: ${describeOption(motions, t.motion).promptDetails}. Respect \`prefers-reduced-motion\` regardless.`,
-      `Themes: ${describeOption(colorSchemes, t.colorScheme).promptDetails}.`,
-      "Define every colour, radius, shadow and font size once as CSS custom properties; components reference the tokens, never raw values.",
+      ...preset.axes,
     ]),
+    "",
+    list([
+      // The hex only appears when somebody actually chose it. Printing the
+      // untouched default beside a preset's own primary is how the block ends
+      // up naming two different colours for the same job.
+      `Primary: ${
+        t.primaryColor === THEME_FIELD_DEFAULTS.primaryColor
+          ? ""
+          : `${t.primaryColor}, resolved to `
+      }\`${tokens.light.primary}\` in light and \`${tokens.dark.primary}\` in dark — primary actions, active states and focus rings, and nothing else.`,
+      `Supporting colour: \`${tokens.light["chart-2"]}\` — charts and highlights. The accent token is a tint for hover and active rows, not a second brand colour.`,
+      `Corners: ${corners}.`,
+      `Density: ${densityWords[t.density] ?? t.density}.`,
+      tokens.fonts.display
+        ? `Typefaces: **${tokens.fonts.display}** for display, **${tokens.fonts.body}** for body, **${tokens.fonts.mono}** for figures and code. Load them from Google Fonts with a real fallback stack.`
+        : "Typefaces: two families and a monospace, no more.",
+      `Themes: ${describeOption(colorSchemes, t.colorScheme).promptDetails}.`,
+      "Define every colour, radius, shadow and font size once as CSS custom properties; components reference the tokens, never raw values. The stylesheet below is that file — use it rather than deriving your own.",
+    ]),
+    "",
+    preset.promptDetails,
     "",
     "",
     "**Design it before you style it.** Write the token system down first — 4–6 named colours, the two typefaces and their roles, and the layout idea in a sentence — and derive every value below from that. Ground it in what this product actually is: the vocabulary, materials and instruments of its subject are where a specific design comes from. A page that could belong to any product in this category has not been designed.",
