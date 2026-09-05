@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { QuestionCard } from "@/features/discovery/components/question-card"
 import {
+  artifactTabs,
   byKey,
   defaultedDependencies,
   isAnswered,
@@ -31,22 +32,6 @@ import type { Project } from "@/types/project"
 /** What the centre column is showing. */
 type Focus = { kind: "roots" } | { kind: "rules" } | { kind: "module"; name: string }
 
-/**
- * The artifact tabs, in the order somebody reads them: what exists, what it
- * means, what it should do, what is wrong with it, how it moves. Kinds the
- * server invents later still get a tab — appended, labelled with the raw kind —
- * because a file nobody can open is a file that may as well not have been
- * written.
- */
-const KIND_LABEL: Record<string, string> = {
-  inventory: "Inventory",
-  kb: "KB",
-  features: "Features",
-  issues: "Issues",
-  flows: "Flows",
-  weave: ".weave",
-}
-const KIND_ORDER = Object.keys(KIND_LABEL)
 
 export function DiscoveryView({ project }: { project: Project }) {
   const remoteId = useSyncStore((s) => s.links[project.id] ?? null)
@@ -286,25 +271,19 @@ function ArtifactPane({
   const { artifacts, bodies, openArtifact } = discovery
   const setMode = useUiStore((s) => s.setMode)
 
-  const kinds = useMemo(() => {
-    const present = [...new Set(artifacts.map((file) => file.kind))]
-    return present.sort((a, b) => {
-      const left = KIND_ORDER.indexOf(a)
-      const right = KIND_ORDER.indexOf(b)
-      return (left === -1 ? KIND_ORDER.length : left) - (right === -1 ? KIND_ORDER.length : right)
-    })
-  }, [artifacts])
+  const tabs = useMemo(() => artifactTabs(artifacts), [artifacts])
 
-  const [kind, setKind] = useState<string>("")
-  const active = kind || kinds[0] || ""
-  const inKind = artifacts.filter((file) => file.kind === active)
+  const [label, setLabel] = useState<string>("")
+  const tab = tabs.find((row) => row.label === label) ?? tabs[0]
+  const active = tab?.label ?? ""
+  const inTab = tab?.names ?? []
   const [name, setName] = useState<string>("")
-  const file = inKind.find((row) => row.name === name) ?? inKind[0]
+  const file = inTab.includes(name) ? name : inTab[0]
 
   // Bodies are not in the list response, so the first look at a tab fetches
   // one. Nobody pays for the KB unless they open the KB.
   useEffect(() => {
-    if (file) void openArtifact(file.name)
+    if (file) void openArtifact(file)
   }, [file, openArtifact])
 
   return (
@@ -340,43 +319,43 @@ function ArtifactPane({
         <Tabs
           value={active}
           onValueChange={(value) => {
-            setKind(value)
+            setLabel(value)
             setName("")
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
           <div className="overflow-x-auto px-2 pt-2">
             <TabsList>
-              {kinds.map((row) => (
-                <TabsTrigger key={row} value={row}>
-                  {KIND_LABEL[row] ?? row}
+              {tabs.map((row) => (
+                <TabsTrigger key={row.label} value={row.label}>
+                  {row.label}
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
 
           {/* Only the open tab is rendered: the file list below belongs to
-              `active`, and drawing it under every kind would be the same list
+              `active`, and drawing it under every tab would be the same list
               six times over. */}
           {[active].map((row) => (
             <TabsContent key={row} value={row} className="min-h-0">
-              {inKind.length > 1 && (
+              {inTab.length > 1 && (
                 <div className="flex flex-wrap gap-1 px-3 pt-2">
-                  {inKind.map((option) => (
+                  {inTab.map((option) => (
                     <button
-                      key={option.name}
+                      key={option}
                       type="button"
-                      onClick={() => setName(option.name)}
+                      onClick={() => setName(option)}
                       className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:border-primary aria-[current=true]:text-foreground"
-                      aria-current={option.name === file?.name}
+                      aria-current={option === file}
                     >
-                      {option.name}
+                      {option}
                     </button>
                   ))}
                 </div>
               )}
               <PanelBody>
-                {file ? <ArtifactBody name={file.name} body={bodies[file.name]} /> : null}
+                {file ? <ArtifactBody name={file} body={bodies[file]} /> : null}
               </PanelBody>
             </TabsContent>
           ))}

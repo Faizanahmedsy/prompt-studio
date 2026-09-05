@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   answeredByDefault,
+  artifactTabs,
   byKey,
   defaultedDependencies,
   isRoot,
@@ -185,5 +186,61 @@ describe("the decision grammar", () => {
 
   it("is empty for empty text, so the Save button stays disabled", () => {
     expect(waiveDecision("   ", true)).toBe("")
+  })
+})
+
+/**
+ * The tabs used to key on `kind`, and the kinds they named — `inventory`, `kb`,
+ * `features`, `issues`, `flows` — are not kinds anything stores. Every document
+ * is `md`, so all four landed in one tab and the tab labels matched nothing.
+ * The file names are the contract weaver writes to, so these key on those.
+ */
+describe("artifactTabs", () => {
+  const files = (...names: string[]) => names.map((name) => ({ name }))
+
+  it("names the four documents and orders them the way they are read", () => {
+    const tabs = artifactTabs(
+      files(
+        "discovery/issues.md",
+        "discovery/kb.md",
+        "discovery/features.md",
+        "discovery/inventory.md"
+      )
+    )
+    expect(tabs.map((tab) => tab.label)).toEqual(["Inventory", "KB", "Features", "Issues"])
+  })
+
+  it("puts every diagram in one Flows tab, the integrations map first", () => {
+    const tabs = artifactTabs(
+      files("flow-invoice.mmd", "integrations.mmd", "flow-checkout.mmd")
+    )
+    expect(tabs).toEqual([
+      {
+        label: "Flows",
+        names: ["integrations.mmd", "flow-checkout.mmd", "flow-invoice.mmd"],
+      },
+    ])
+  })
+
+  it("gives the schema and the .weave their own tabs, in that order", () => {
+    const tabs = artifactTabs(files("project.weave", "schema.dbml"))
+    expect(tabs.map((tab) => tab.label)).toEqual(["Schema", ".weave"])
+  })
+
+  it("shows Coverage only when it was written", () => {
+    expect(artifactTabs(files("discovery/kb.md")).map((tab) => tab.label)).toEqual(["KB"])
+    expect(
+      artifactTabs(files("discovery/kb.md", "discovery/coverage.md")).map((tab) => tab.label)
+    ).toEqual(["KB", "Coverage"])
+  })
+
+  it("keeps anything unrecognised, under Other, at the end", () => {
+    const tabs = artifactTabs(files("prototype/seed.json", "schema.flow", "discovery/kb.md"))
+    expect(tabs.map((tab) => tab.label)).toEqual(["KB", "Other"])
+    expect(tabs[1].names).toEqual(["prototype/seed.json", "schema.flow"])
+  })
+
+  it("is empty when nothing was pushed", () => {
+    expect(artifactTabs([])).toEqual([])
   })
 })

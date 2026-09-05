@@ -47,3 +47,22 @@ export function viewUrl(mode: WorkMode, projectId?: string | null): string {
   const path = `/${VIEW_SLUGS[mode]}`
   return projectId ? `${path}?p=${encodeURIComponent(projectId)}` : path
 }
+
+/**
+ * The local project a `?p=` link means.
+ *
+ * Two id spaces exist for one project: the local one this browser invented and
+ * the remote one the server assigned. Every tool, skill and MCP reply prints
+ * the remote id — it is the only one that exists off this machine — while the
+ * project store is keyed by the local id. So a link is either already local, or
+ * it names the remote half of something local, and the sync store knows which.
+ * `null` when neither: a link from somebody else's machine still opens the tab.
+ */
+export function projectFromLink(
+  wanted: string | null | undefined,
+  isLocal: (id: string) => boolean,
+  localIdOf: (remoteId: string) => string | null
+): string | null {
+  if (!wanted) return null
+  return isLocal(wanted) ? wanted : localIdOf(wanted)
+}

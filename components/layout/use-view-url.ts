@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { modeFromSlug, viewUrl } from "@/lib/view-url"
+import { modeFromSlug, projectFromLink, viewUrl } from "@/lib/view-url"
 import { useProjectStore } from "@/stores/use-project-store"
+import { useSyncStore } from "@/stores/use-sync-store"
 import { useUiStore } from "@/stores/use-ui-store"
 
 /**
@@ -36,11 +37,13 @@ export function useViewUrl(): void {
 
     // A project id this browser has never seen is not an error — the link came
     // from somebody else's machine, and the tab in it is still worth honouring.
-    const wanted = url.searchParams.get("p")
     const store = useProjectStore.getState()
-    if (wanted && wanted !== store.activeId && store.projects.some((p) => p.id === wanted)) {
-      store.setActive(wanted)
-    }
+    const wanted = projectFromLink(
+      url.searchParams.get("p"),
+      (id) => store.projects.some((p) => p.id === id),
+      (remoteId) => useSyncStore.getState().localIdOf(remoteId)
+    )
+    if (wanted && wanted !== store.activeId) store.setActive(wanted)
   }, [hydrated])
 
   useEffect(() => {

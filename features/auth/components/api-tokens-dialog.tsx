@@ -25,6 +25,10 @@ import * as tokensApi from "@/lib/api/tokens"
  * screen rather than implied: there are no scopes, and a token handed to a
  * script is that person's whole account.
  *
+ * A token is not a session, either: "sign out everywhere" leaves them all
+ * running, deliberately, so a laptop logout does not stop CI — which is why the
+ * dialog says the revoking happens here.
+ *
  * The secret appears exactly once, at creation. The server keeps a fingerprint
  * and cannot show it again — so the created row stays on screen with a copy
  * button until it is dismissed, instead of being folded into the list.
@@ -101,7 +105,7 @@ export function ApiTokensDialog({
           <DialogDescription>
             For scripts that cannot sign in — <code>weaver push</code>, CI, curl. A token has
             the same rights you do, so treat it like your password and give each machine its
-            own.
+            own. Signing out everywhere does not revoke these tokens — revoke them here.
           </DialogDescription>
         </DialogHeader>
 

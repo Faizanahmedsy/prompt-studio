@@ -176,3 +176,55 @@ export function waiveDecision(freeText: string, hadOptions: boolean): string {
 export function stripWaive(text: string): string {
   return text.replace(/^waive:\s*/i, "")
 }
+
+/**
+ * The artifact tabs, grouped by file name rather than by kind.
+ *
+ * Grouping by `kind` looked right and was useless: the stored kinds are
+ * `md|dbml|mermaid|weave|json|flow`, so the four documents a person actually
+ * reads — the inventory, the KB, the features, the issues — all landed in one
+ * tab called "md" and had to be found by filename. The names are the contract
+ * weaver writes to, so the names are what the tabs key on.
+ *
+ * Anything unrecognised still gets a tab, at the end: a file nobody can open
+ * is a file that may as well not have been written.
+ */
+export type ArtifactTab = { label: string; names: string[] }
+
+const NAMED_TABS: [label: string, file: string][] = [
+  ["Inventory", "discovery/inventory.md"],
+  ["KB", "discovery/kb.md"],
+  ["Features", "discovery/features.md"],
+  ["Issues", "discovery/issues.md"],
+  ["Coverage", "discovery/coverage.md"],
+]
+
+// The integrations map is the one diagram that describes the whole system, so
+// it leads; the per-flow diagrams follow it in name order.
+function flowRank(name: string): number {
+  if (name === "integrations.mmd") return 0
+  return name.startsWith("flow-") ? 1 : 2
+}
+
+export function artifactTabs(artifacts: { name: string }[]): ArtifactTab[] {
+  const names = artifacts.map((file) => file.name)
+  const taken = new Set<string>()
+  const tabs: ArtifactTab[] = []
+  const add = (label: string, picked: string[]) => {
+    if (!picked.length) return
+    for (const name of picked) taken.add(name)
+    tabs.push({ label, names: picked })
+  }
+
+  for (const [label, file] of NAMED_TABS) add(label, names.filter((name) => name === file))
+  add(
+    "Flows",
+    names
+      .filter((name) => name.endsWith(".mmd"))
+      .sort((a, b) => flowRank(a) - flowRank(b) || a.localeCompare(b))
+  )
+  add("Schema", names.filter((name) => name === "schema.dbml"))
+  add(".weave", names.filter((name) => name === "project.weave"))
+  add("Other", names.filter((name) => !taken.has(name)).sort())
+  return tabs
+}

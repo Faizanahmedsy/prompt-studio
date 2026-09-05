@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { modeFromSlug, VIEW_SLUGS, viewUrl } from "@/lib/view-url"
+import { modeFromSlug, projectFromLink, VIEW_SLUGS, viewUrl } from "@/lib/view-url"
 import type { WorkMode } from "@/stores/use-ui-store"
 
 /**
@@ -44,5 +44,30 @@ describe("tab URLs", () => {
 
   it("escapes an id rather than pasting it into the query", () => {
     expect(viewUrl("data", "a b&c")).toBe("/data?p=a%20b%26c")
+  })
+})
+
+/**
+ * `?p=` carries whichever id the link's author had, and every tool, skill and
+ * MCP reply prints the remote one — so matching only local ids meant every
+ * printed link opened the wrong project, silently.
+ */
+describe("the project in a link", () => {
+  const local = (id: string) => id === "local-1"
+  const remoteMap: Record<string, string> = { "remote-1": "local-1" }
+  const localIdOf = (remoteId: string) => remoteMap[remoteId] ?? null
+
+  it("takes a local id as it stands", () => {
+    expect(projectFromLink("local-1", local, localIdOf)).toBe("local-1")
+  })
+
+  it("maps a remote id back to the local project it belongs to", () => {
+    expect(projectFromLink("remote-1", local, localIdOf)).toBe("local-1")
+  })
+
+  it("gives up on an id from somebody else's machine rather than guessing", () => {
+    expect(projectFromLink("remote-other", local, localIdOf)).toBeNull()
+    expect(projectFromLink("", local, localIdOf)).toBeNull()
+    expect(projectFromLink(null, local, localIdOf)).toBeNull()
   })
 })
