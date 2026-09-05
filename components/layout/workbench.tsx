@@ -17,6 +17,7 @@ import { useLiveProject } from "@/features/cloud/use-live-project"
 import { useProjectSync } from "@/features/cloud/use-project-sync"
 import { DataCanvas } from "@/features/data/components/data-canvas"
 import { EntityList } from "@/features/data/components/entity-list"
+import { DiscoveryView } from "@/features/discovery/components/discovery-view"
 import { FlowCodeView } from "@/features/flow-lang/components/flow-code-view"
 import { LandingPreview } from "@/features/landing/components/landing-preview"
 import { LibraryPanel } from "@/features/library/components/library-panel"
@@ -78,7 +79,10 @@ export function Workbench({ project }: { project: Project }) {
   // being judged is the pixels themselves, and a preview squeezed into the
   // centre column between a library and a prompt panel is a preview nobody can
   // read a colour off.
-  const fullBleed = ui.mode === "theme"
+  // Discovery is full-bleed for the same reason, from the other direction: it
+  // brings its own three panes, and nesting them inside the workbench's would
+  // put five resizable columns on screen.
+  const fullBleed = ui.mode === "theme" || ui.mode === "discovery"
   const showLeft = ui.leftOpen && !fullBleed
 
   // Opening a screen on a phone should surface the inspector, not hide it.
@@ -94,6 +98,8 @@ export function Workbench({ project }: { project: Project }) {
   const canvas =
     ui.mode === "theme" ? (
       <ThemeForge project={project} />
+    ) : ui.mode === "discovery" ? (
+      <DiscoveryView project={project} />
     ) : ui.mode === "code" ? (
       <FlowCodeView project={project} />
     ) : ui.mode === "data" ? (

@@ -22,6 +22,7 @@ export const VIEW_SLUGS: Record<WorkMode, string> = {
   landing: "landing",
   data: "data",
   code: "code",
+  discovery: "discovery",
   theme: "design",
 }
 

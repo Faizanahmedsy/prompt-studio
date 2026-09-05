@@ -3,6 +3,7 @@
 import {
   Code2,
   Command,
+  Compass,
   Database,
   Globe,
   LayoutPanelTop,
@@ -196,6 +197,18 @@ export function TopBar({
           <TabsTrigger value="code">
             <Code2 />
             <span className="hidden sm:inline">Code</span>
+          </TabsTrigger>
+          {/*
+            Not a surface either — the questions weaver asks before any of the
+            surfaces can be built. It sits last because it is where you start
+            and then leave, not somewhere you switch back and forth to.
+          */}
+          <TabsTrigger
+            value="discovery"
+            title="The question tree from the last discovery run — answer it before building"
+          >
+            <Compass />
+            <span className="hidden sm:inline">Discovery</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

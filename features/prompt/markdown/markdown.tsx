@@ -1,5 +1,6 @@
 "use client"
 
+import { MermaidBlock } from "@/features/prompt/markdown/mermaid-block"
 import { type Block, type Inline, parseMarkdown } from "@/features/prompt/markdown/parse"
 import { cn } from "@/lib/utils"
 
@@ -97,7 +98,12 @@ function BlockView({ block }: { block: Block }) {
         </ol>
       )
     case "code":
-      return (
+      // The one fence that is drawn rather than printed. Discovery ships
+      // `flow-*.mmd` and `integrations.mmd`, and a state chart read as forty
+      // lines of monospace is a state chart nobody checks.
+      return block.language === "mermaid" ? (
+        <MermaidBlock code={block.value} />
+      ) : (
         <pre className="code-surface my-3 overflow-x-auto break-inside-avoid text-[11.5px] leading-relaxed">
           <code>{block.value}</code>
         </pre>

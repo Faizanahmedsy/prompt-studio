@@ -16,6 +16,9 @@ export type WorkMode =
   | "landing"
   | "data"
   | "code"
+  // Not a surface either: the discovery questionnaire weaver writes, answered
+  // here. It is a tab because answering 178 decisions needs the whole window.
+  | "discovery"
   // Not a surface and not a document view: the design itself, which every
   // surface inherits. It is a tab because choosing it needs the whole window —
   // a colour judged in a 340px sidebar is a colour judged wrong.
