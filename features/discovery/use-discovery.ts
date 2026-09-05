@@ -8,8 +8,8 @@ import type {
   AnswerCreate,
   ArtifactSummary,
   DiscoveryItem,
-  DiscoveryRun,
   ItemAnswer,
+  RunSummary,
 } from "@/lib/api/discovery"
 import * as discoveryApi from "@/lib/api/discovery"
 
@@ -31,14 +31,13 @@ function message(failure: unknown, fallback: string): string {
   return isApiError(failure) ? failure.message : fallback
 }
 
-/** What the row shows while the POST is in flight. Replaced by the server's
- *  row on success — the id is the giveaway that this one is not real yet. */
+/** What the row shows while the POST is in flight, replaced by the server's
+ *  own row on success. */
 function pendingAnswer(body: AnswerCreate): ItemAnswer {
   return {
-    id: "pending",
     decision: body.decision,
     choice_key: body.choice_key ?? null,
-    note: body.note ?? null,
+    note: body.note ?? "",
     created_at: new Date().toISOString(),
   }
 }
@@ -46,7 +45,7 @@ function pendingAnswer(body: AnswerCreate): ItemAnswer {
 export function useDiscovery(remoteId: string | null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [run, setRun] = useState<DiscoveryRun | null>(null)
+  const [run, setRun] = useState<RunSummary | null>(null)
   const [items, setItems] = useState<DiscoveryItem[]>([])
   const [artifacts, setArtifacts] = useState<ArtifactSummary[]>([])
   /** artifact name -> body, filled on first open and kept for the session. */
@@ -107,8 +106,10 @@ export function useDiscovery(remoteId: string | null) {
       const before = item.answer
       patch(item.id, pendingAnswer(body))
       try {
+        // The route answers with the whole item; the answer on it is the
+        // server's version of what was just optimistically drawn.
         const saved = await discoveryApi.answerItem(remoteId, run.id, item.id, body)
-        patch(item.id, saved)
+        patch(item.id, saved.answer)
       } catch (failure) {
         patch(item.id, before)
         toast.error(message(failure, "That answer did not save"))
@@ -140,9 +141,10 @@ export function useDiscovery(remoteId: string | null) {
 
       try {
         const result = await discoveryApi.acceptDefaults(remoteId, run.id, [...ids])
-        // The server skips anything already answered — by another tab, or by
-        // the agent between the load and the click. Those roll back on their
-        // own so the row stops claiming an answer this browser invented.
+        // The server skips any id it had nothing to accept for. That should be
+        // empty — the batch is filtered on `proposed` before it is sent — but a
+        // row that came back skipped must stop claiming an answer this browser
+        // invented.
         if (result.skipped.length) {
           const skipped = new Set(result.skipped)
           setItems((current) =>

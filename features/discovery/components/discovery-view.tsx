@@ -183,7 +183,7 @@ export function DiscoveryView({ project }: { project: Project }) {
                   disabled={!rules.some((rule) => !rule.answer && rule.proposed !== null)}
                   onClick={() => void discovery.acceptDefaults(rules)}
                 >
-                  Accept all
+                  Accept all rules
                 </Button>
               </div>
               <button
@@ -223,6 +223,9 @@ export function DiscoveryView({ project }: { project: Project }) {
                   </span>
                 </button>
               ))}
+              {!modules.length && (
+                <p className="px-1.5 text-[11px] text-muted-foreground">None in this run.</p>
+              )}
             </section>
           </PanelBody>
         </div>

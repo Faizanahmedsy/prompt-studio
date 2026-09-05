@@ -30,13 +30,20 @@ export type RunProgress = {
   modules: Record<string, ModuleProgress>
 }
 
-export type DiscoveryRun = {
+/** What `GET /runs` returns: no progress, no `done` — those cost a count query
+ *  each and the list route does not pay for them. */
+export type RunSummary = {
   id: Uuid
-  project_id: Uuid
   label: string
   source: string
   created_at: string
+  updated_at: string
+}
+
+/** `GET /runs/{id}`, and the 201 from creating one. */
+export type RunDetail = RunSummary & {
   progress: RunProgress
+  /** Every item answered. The gate, and the only thing that closes a run. */
   done: boolean
 }
 
@@ -48,17 +55,17 @@ export type ItemOption = {
   decision: string
 }
 
+/** The current decision on an item — the newest of however many were written.
+ *  It has no id of its own: the item is what you address. */
 export type ItemAnswer = {
-  id: Uuid
   decision: string
   choice_key: string | null
-  note: string | null
+  note: string
   created_at: string
 }
 
 export type DiscoveryItem = {
   id: Uuid
-  run_id: Uuid
   key: string
   family: ItemFamily
   kind: string
@@ -84,20 +91,15 @@ export type AnswerCreate = {
 export type BulkAnswerResult = { accepted: number; skipped: string[] }
 
 export type ArtifactSummary = {
+  id: Uuid
   name: string
   kind: string
   sha: string
-  size: number
   updated_at: string
 }
 
-export type Artifact = {
-  name: string
-  kind: string
-  body: string
-  sha: string
-  updated_at: string
-}
+/** The same row with its body. Listing deliberately omits it. */
+export type Artifact = ArtifactSummary & { body: string }
 
 export type ItemQuery = {
   module?: string
@@ -109,12 +111,12 @@ export type ItemQuery = {
 const base = (projectId: Uuid) => `/projects/${projectId}/discovery`
 
 /** Newest first — the studio only ever opens `[0]`. */
-export function listRuns(projectId: Uuid): Promise<DiscoveryRun[]> {
-  return get<DiscoveryRun[]>(`${base(projectId)}/runs`)
+export function listRuns(projectId: Uuid): Promise<RunSummary[]> {
+  return get<RunSummary[]>(`${base(projectId)}/runs`)
 }
 
-export function getRun(projectId: Uuid, runId: Uuid): Promise<DiscoveryRun> {
-  return get<DiscoveryRun>(`${base(projectId)}/runs/${runId}`)
+export function getRun(projectId: Uuid, runId: Uuid): Promise<RunDetail> {
+  return get<RunDetail>(`${base(projectId)}/runs/${runId}`)
 }
 
 /** Unpaginated by design — a run is a few hundred rows and the tree needs all
@@ -127,17 +129,19 @@ export function listItems(
   return get<DiscoveryItem[]>(`${base(projectId)}/runs/${runId}/items`, { ...query })
 }
 
+/** Answers with the whole updated item, not just the answer — so the caller
+ *  reconciles from `item.answer` and cannot drift from the server's view. */
 export function answerItem(
   projectId: Uuid,
   runId: Uuid,
   itemId: Uuid,
   body: AnswerCreate
-): Promise<ItemAnswer> {
-  return post<ItemAnswer>(`${base(projectId)}/runs/${runId}/items/${itemId}/answer`, body)
+): Promise<DiscoveryItem> {
+  return post<DiscoveryItem>(`${base(projectId)}/runs/${runId}/items/${itemId}/answer`, body)
 }
 
-/** Accept each item's `proposed` default. Already-answered ids come back in
- *  `skipped` rather than being overwritten. */
+/** Accept each item's `proposed` default. An id with nothing to accept — no
+ *  `proposed` on the item — comes back in `skipped` instead. */
 export function acceptDefaults(
   projectId: Uuid,
   runId: Uuid,

@@ -8,17 +8,18 @@ import {
   moduleProgress,
   orderItems,
   runCounts,
+  stripWaive,
   UNASSIGNED_MODULE,
   unanswered,
+  waiveDecision,
 } from "@/features/discovery/progress"
 import type { DiscoveryItem, ItemAnswer } from "@/lib/api/discovery"
 
 function answer(over: Partial<ItemAnswer> = {}): ItemAnswer {
   return {
-    id: "a1",
     decision: "yes",
     choice_key: null,
-    note: null,
+    note: "",
     created_at: "2026-09-01T00:00:00Z",
     ...over,
   }
@@ -27,7 +28,6 @@ function answer(over: Partial<ItemAnswer> = {}): ItemAnswer {
 function item(over: Partial<DiscoveryItem> = {}): DiscoveryItem {
   return {
     id: over.key ?? "i1",
-    run_id: "r1",
     key: "q1",
     family: "QUESTION",
     kind: "decision",
@@ -164,5 +164,26 @@ describe("defaults", () => {
     ]
     const child = items[2]
     expect(defaultedDependencies(child, byKey(items)).map((row) => row.key)).toEqual(["root"])
+  })
+})
+
+describe("the decision grammar", () => {
+  it("files free text over offered options as a waiver", () => {
+    expect(waiveDecision("  needs legal sign-off ", true)).toBe("waive: needs legal sign-off")
+  })
+
+  it("leaves an item that offered nothing to waive alone", () => {
+    // There is no option being declined here — the text is the decision.
+    expect(waiveDecision("soft delete, 30 days", false)).toBe("soft delete, 30 days")
+  })
+
+  it("does not stack a prefix when a waiver is edited again", () => {
+    const once = waiveDecision("needs legal sign-off", true)
+    expect(waiveDecision(stripWaive(once), true)).toBe(once)
+    expect(waiveDecision(once, true)).toBe(once)
+  })
+
+  it("is empty for empty text, so the Save button stays disabled", () => {
+    expect(waiveDecision("   ", true)).toBe("")
   })
 })

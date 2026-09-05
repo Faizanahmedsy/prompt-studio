@@ -154,3 +154,25 @@ export function defaultedDependencies(
 export function byKey(items: DiscoveryItem[]): Map<string, DiscoveryItem> {
   return new Map(items.map((item) => [item.key, item]))
 }
+
+/**
+ * The gate's decision grammar: `resolve: <option>` or `waive: <reason>`.
+ *
+ * An option's `decision` already arrives in the first form, so it is passed
+ * through. Free text is a waiver and gets the prefix here rather than the
+ * person being asked to type it — except on an item that offered no options at
+ * all, where there is nothing to waive and the text *is* the decision.
+ *
+ * Lives here rather than in the card because it is the wire format, and the one
+ * part of answering that is worth a test.
+ */
+export function waiveDecision(freeText: string, hadOptions: boolean): string {
+  const text = freeText.trim()
+  if (!text) return ""
+  return hadOptions ? `waive: ${stripWaive(text)}` : text
+}
+
+/** Undo `waiveDecision`, so re-editing a waiver does not stack prefixes. */
+export function stripWaive(text: string): string {
+  return text.replace(/^waive:\s*/i, "")
+}
