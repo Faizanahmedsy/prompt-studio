@@ -65,7 +65,7 @@ export function buildFragmentPrompt(doc: ProjectDoc): string {
         .join("\n")
     : "_(this project has no tables yet)_"
 
-  const anchorExample = doc.screens[0]?.key ?? "dashboard"
+  const anchorExample = doc.screens[0]?.key ?? "home"
   const anchorFlows = doc.screens[0]?.flows.map((id) => flowKeyOf.get(id)).filter(Boolean) ?? []
   const flowExample = doc.flows[0]?.key ?? "billing"
   const screenLayoutIds = allLayouts
