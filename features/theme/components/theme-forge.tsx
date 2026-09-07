@@ -20,7 +20,7 @@
  * lives. Nothing here calls `setState` directly.
  */
 
-import { Check, Contrast, Copy, Quote, RotateCcw, Shuffle } from "lucide-react"
+import { Check, Contrast, Copy, Palette, Quote, RotateCcw, Shuffle, Wand2 } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { ColorField, SelectField } from "@/components/shared/form"
@@ -352,6 +352,88 @@ export function ThemeForge({ project }: { project: Project }) {
           )}
 
           <section className="flex flex-col gap-2">
+            <SectionLabel>Who decides the design</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  {
+                    id: "auto" as const,
+                    title: "Let Claude decide",
+                    detail:
+                      "The agent reads the product, the roles and the journeys, and designs from those.",
+                  },
+                  {
+                    id: "preset" as const,
+                    title: "Choose it here",
+                    detail:
+                      "A preset and its values, shipped to the agent as a stylesheet it must follow.",
+                  },
+                ]
+              ).map((option) => {
+                const chosen = theme.designMode === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => set({ designMode: option.id })}
+                    className={cn(
+                      "flex flex-col gap-1 rounded-lg border p-2.5 text-left transition-colors",
+                      chosen
+                        ? "border-primary bg-primary-soft/40"
+                        : "border-border hover:bg-muted"
+                    )}
+                  >
+                    <span className="flex items-center gap-1.5 text-xs font-semibold">
+                      {option.id === "auto" ? (
+                        <Wand2 className="size-3.5 shrink-0" />
+                      ) : (
+                        <Palette className="size-3.5 shrink-0" />
+                      )}
+                      {option.title}
+                      {chosen && <Check className="ml-auto size-3.5 text-primary" />}
+                    </span>
+                    <span className="text-[11px] leading-snug text-muted-foreground">
+                      {option.detail}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          {theme.designMode === "auto" ? (
+            <section className="flex flex-col gap-2">
+              <SectionLabel>What the agent is told</SectionLabel>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                It reads the product, the roles and the stories, writes a line
+                per role saying what that person came to do, then commits to a
+                palette, two typefaces, one shape rule and one depth rule —
+                before any component — and ranks each screen against those role
+                lines.
+              </p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                Then it has to check its own plan: would this be the same answer
+                for any product of this kind? If yes, it is a default rather
+                than a decision, and it says what it changed. That test is worth
+                more than a list of banned looks, which goes out of date — the
+                2025 lists all named the purple gradient, and the look they
+                recommended instead is now the one to watch for.
+              </p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                The preview below is not what you will get: nothing here is
+                chosen yet. Switch to <strong>Choose it here</strong> to decide
+                it yourself.
+              </p>
+            </section>
+          ) : null}
+
+          <section
+            className={cn(
+              "flex flex-col gap-2",
+              theme.designMode === "auto" && "pointer-events-none opacity-40"
+            )}
+            aria-hidden={theme.designMode === "auto"}
+          >
             <SectionLabel>Preset</SectionLabel>
             <div className="grid grid-cols-2 gap-2">
               {presets.map((preset: Preset) => {
@@ -696,13 +778,20 @@ export function ThemeForge({ project }: { project: Project }) {
               size="sm"
               variant="outline"
               className="h-8 gap-1.5 text-xs"
-              title="The design on its own — the token file and the craft rules, with nothing about this project attached"
+              title={
+                theme.designMode === "auto"
+                  ? "The design brief on its own — what the product is, who it is for, and how to decide the design"
+                  : "The design on its own — the token file and the craft rules, with nothing about this project attached"
+              }
               onClick={() => {
                 void navigator.clipboard
                   .writeText(buildDesignPrompt(project))
                   .then(() =>
                     toast.success("Design prompt copied", {
-                      description: "Tokens and craft rules only — no screens, no stack.",
+                      description:
+                        theme.designMode === "auto"
+                          ? "The brief and the product — no screens, no stack."
+                          : "Tokens and craft rules only — no screens, no stack.",
                     })
                   )
                   .catch(() => toast.error("Could not copy that"))

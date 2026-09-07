@@ -14,12 +14,41 @@
  * would agree about everything except the thing that changed.
  */
 
+import { designBriefBlock } from "@/features/prompt/engine/design-brief"
 import { tokensBlock } from "@/features/prompt/engine/tokens-block"
 import { uiConventionsBlock } from "@/features/prompt/engine/ui-conventions"
 import { presetById } from "@/features/theme/data/presets"
 import type { ProjectDoc } from "@/types/project"
 
 export function buildDesignPrompt(doc: ProjectDoc): string {
+  // Nobody has chosen a design, so the reader is being asked to choose one.
+  // The same brief the build prompt carries, with the product named — a design
+  // decided without knowing who it is for is the failure this tool exists to
+  // stop — and no screens, journeys or stack, which is what makes it a
+  // separate button.
+  if (doc.theme.designMode === "auto") {
+    const roles = doc.views.map((view) => view.name.trim()).filter(Boolean)
+    const brief = doc.requirements.split("\n").find((line) => line.trim())?.trim() ?? ""
+    return [
+      "## Design this",
+      "",
+      `**${doc.name || "This product"}**${brief ? ` — ${brief}` : ""}`,
+      roles.length ? `Used by ${roles.join(", ")}.` : "",
+      "",
+      "No design has been chosen. You are choosing it — and what you hand back",
+      "is the decision itself: the palette as named values, the two typefaces,",
+      "the scale, the shape and depth rules, written as CSS custom properties,",
+      "plus one screen rendered in it so the decision can be judged. Not an",
+      "application.",
+      "",
+      "---",
+      "",
+      designBriefBlock(doc, "web", { intro: false }),
+    ]
+      .filter((line) => line !== "")
+      .join("\n")
+  }
+
   const preset = presetById(doc.theme.preset)
   const tokens = tokensBlock(doc)
   const craft = uiConventionsBlock(doc)

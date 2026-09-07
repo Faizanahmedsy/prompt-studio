@@ -568,6 +568,7 @@ describe("the theme survives a round trip", () => {
     motionModel: "spring",
     inputStyle: "floating",
     designNote: "A filing product, so it reads as a printed record.",
+    designMode: "preset",
   } as const
 
   const themedDoc = () => ({
