@@ -32,6 +32,7 @@ const modeOf = `
   return String(project.theme.designMode);`
 
 async function clickAria(page, label) {
+  await clearToasts(page)
   const box = await page.evaluate(`
     const node = [...document.querySelectorAll("button")]
       .find((b) => (b.getAttribute("aria-label") || "") === ${JSON.stringify(label)});
@@ -45,7 +46,23 @@ async function clickAria(page, label) {
   await new Promise((r) => setTimeout(r, 700))
 }
 
+/**
+ * Toasts sit above everything, so a real mouse click can land on one instead of
+ * the control underneath. They are waited out rather than removed: they belong
+ * to React, and pulling them out of the DOM makes the next render throw.
+ */
+async function clearToasts(page) {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const present = await page.evaluate(
+      `return document.querySelectorAll("[data-sonner-toast]").length > 0`
+    )
+    if (!present) return
+    await new Promise((r) => setTimeout(r, 500))
+  }
+}
+
 async function clickButton(page, text) {
+  await clearToasts(page)
   const box = await page.evaluate(`
     const node = [...document.querySelectorAll("button")]
       .find((b) => (b.textContent || "").toLowerCase().includes(${JSON.stringify(text.toLowerCase())}));
@@ -91,6 +108,27 @@ async function main() {
       "and the panel says what the agent is told",
       await page.evaluate(`return document.body.innerText.toLowerCase().includes("what the agent is told")`)
     )
+    // The right-hand pane must stop showing a preset it is not using: nothing
+    // on it would be what the build looks like.
+    await page.waitFor(`document.querySelector("article") !== null`, {
+      label: "the brief pane",
+      timeout: 15000,
+    })
+    const pane = await page.evaluate(`
+      const article = document.querySelector("article");
+      return (document.body.innerText.includes("The brief the agent gets") ? "HEADER|" : "") + (article ? article.innerText : "");`)
+    check("the preview is replaced by the brief itself", pane.startsWith("HEADER|"))
+    check(
+      "and the preset screens are gone",
+      !(await page.evaluate(`return document.body.innerText.includes("No runs match these filters")`))
+    )
+    check(
+      "the brief is readable, not a wall of markdown",
+      // The headings render uppercase, so this compares case-insensitively.
+      pane.toLowerCase().includes("write the design plan before any code") &&
+        !pane.includes("###"),
+      JSON.stringify(pane.slice(0, 160))
+    )
 
     console.log("\n== the design-only prompt ==")
     await page.evaluate(CAPTURE)
@@ -128,6 +166,10 @@ async function main() {
     })
     await clickButton(page, "Choose it here")
     check("the choice is reversible", (await page.evaluate(modeOf)) === "preset")
+    check(
+      "and the screens come back",
+      await page.evaluate(`return document.body.innerText.includes("No runs match these filters")`)
+    )
     await page.evaluate(CAPTURE)
     await clickButton(page, "Design only")
     const tokens = await page.evaluate(`return window.__copied`)

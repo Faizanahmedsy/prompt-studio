@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import { ColorField, SelectField } from "@/components/shared/form"
 import { SectionLabel } from "@/components/shared/layout"
 import { Button } from "@/components/ui/button"
+import { designBriefBlock } from "@/features/prompt/engine/design-brief"
 import { LC_FLOORS, lc } from "@/features/theme/color/apca"
 import {
   bodyFamilies,
@@ -229,6 +230,11 @@ export function ThemeForge({ project }: { project: Project }) {
   }, [])
   const [editing, setEditing] = useState<"light" | "dark">("light")
 
+  const autoDesign = theme.designMode === "auto"
+  const brief = useMemo(
+    () => (autoDesign ? designBriefBlock(project, "web") : ""),
+    [autoDesign, project]
+  )
   const tokens = useMemo(() => resolveTokens(theme), [theme])
   useWebFonts([tokens.fonts.display, tokens.fonts.body, tokens.fonts.mono])
   const active = presetById(theme.preset)
@@ -420,9 +426,10 @@ export function ThemeForge({ project }: { project: Project }) {
                 recommended instead is now the one to watch for.
               </p>
               <p className="text-[11px] leading-snug text-muted-foreground">
-                The preview below is not what you will get: nothing here is
-                chosen yet. Switch to <strong>Choose it here</strong> to decide
-                it yourself.
+                On the right is the brief itself, not a preview — there is
+                nothing to preview until the agent decides. Switch to{" "}
+                <strong>Choose it here</strong> to decide it yourself and get
+                the screens back.
               </p>
             </section>
           ) : null}
@@ -811,10 +818,16 @@ export function ThemeForge({ project }: { project: Project }) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-muted/30">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
           <div className="flex flex-col">
-            <span className="text-xs font-semibold">{active.name}</span>
-            <span className="text-[11px] text-muted-foreground">{active.character}</span>
+            <span className="text-xs font-semibold">
+              {autoDesign ? "The brief the agent gets" : active.name}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {autoDesign
+                ? "No colours, type or radii are chosen here — this is what decides them."
+                : active.character}
+            </span>
           </div>
-          <div className="flex flex-wrap items-center gap-1">
+          <div className={cn("flex flex-wrap items-center gap-1", autoDesign && "hidden")}>
             {previewScreens.map((option) => (
               <Button
                 key={option.id}
@@ -848,6 +861,64 @@ export function ThemeForge({ project }: { project: Project }) {
           together across a dashboard, a form and a landing page — is exactly
           what you cannot see when you can only look at one at a time.
         */}
+        {autoDesign ? (
+          /*
+            A preset preview here would be a lie: nothing on screen is what the
+            build will look like, because nothing has been chosen. The honest
+            preview of "the agent decides" is the instruction it decides from,
+            so that is what this shows — the same text the build prompt carries,
+            read straight out of the engine rather than restated.
+          */
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <article className="mx-auto max-w-[68ch] rounded-xl border border-border bg-card p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] text-muted-foreground">
+                  Goes into the build prompt in place of a stylesheet.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1.5 text-[11px]"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(brief)
+                      .then(() => toast.success("Brief copied"))
+                      .catch(() => toast.error("Could not copy that"))
+                  }}
+                >
+                  <Copy className="size-3" /> Copy
+                </Button>
+              </div>
+              {brief.split("\n").map((line, index) => {
+                const key = `${index}-${line.slice(0, 24)}`
+                if (!line.trim()) return <div key={key} className="h-2" />
+                if (line.startsWith("### ")) {
+                  return (
+                    <h3
+                      key={key}
+                      className="mt-4 mb-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {line.slice(4)}
+                    </h3>
+                  )
+                }
+                if (line.startsWith("- ")) {
+                  return (
+                    <p key={key} className="mb-1 flex gap-2 text-[13px] leading-relaxed">
+                      <span className="text-muted-foreground">—</span>
+                      <span>{emphasise(line.slice(2))}</span>
+                    </p>
+                  )
+                }
+                return (
+                  <p key={key} className="mb-1.5 text-[13px] leading-relaxed">
+                    {emphasise(line)}
+                  </p>
+                )
+              })}
+            </article>
+          </div>
+        ) : (
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto scroll-smooth p-4">
           <div className="flex flex-col gap-8">
             {previewScreens.map((one) => (
@@ -890,7 +961,29 @@ export function ThemeForge({ project }: { project: Project }) {
             ))}
           </div>
         </div>
+        )}
       </div>
     </div>
   )
+}
+
+/**
+ * `**bold**`, and nothing else.
+ *
+ * The brief is written as Markdown for the agent that reads it, and pulling in
+ * a renderer to show six bold runs would be a dependency for one effect. Every
+ * other marker in the text — the headings and the dashes — is handled above.
+ */
+function emphasise(line: string): React.ReactNode[] {
+  return line.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    const key = `${index}-${part.slice(0, 16)}`
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return (
+        <strong key={key} className="font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    return <span key={key}>{part}</span>
+  })
 }
