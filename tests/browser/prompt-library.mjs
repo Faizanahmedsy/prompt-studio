@@ -108,8 +108,8 @@ async function main() {
 
     console.log("\n== the flagship design prompt ==")
     check(
-      "opens on the design prompt from the five-way test",
-      await page.evaluate(`return document.body.innerText.includes("The instrument look")`)
+      "opens on the master design brief",
+      await page.evaluate(`return document.body.innerText.includes("Master design brief")`)
     )
     const rendered = await page.evaluate(`
       const article = document.querySelector("article");
@@ -117,24 +117,39 @@ async function main() {
     check("its body is rendered, not a raw dump", rendered.length > 2000, String(rendered.length))
     check(
       "headings are drawn rather than left as hashes",
-      !rendered.includes("## ") && rendered.toLowerCase().includes("the one idea"),
+      !rendered.includes("## ") && rendered.toLowerCase().includes("classify, then choose"),
       JSON.stringify(rendered.slice(0, 120))
     )
     check("bold markers do not leak through", !rendered.includes("**"))
     check(
+      "nor italics, nor the part headings",
+      !rendered.includes("*audience*") && !rendered.includes("# PART 0"),
+      JSON.stringify(rendered.slice(rendered.indexOf("PART 0") - 40, rendered.indexOf("PART 0") + 40))
+    )
+    check(
       "the slot you fill in is marked",
-      rendered.includes("[describe your product in two or three sentences"),
+      rendered.includes("[describe your product in two or three sentences")
+    )
+    check(
+      "the monospace rule that broke a school site is stated as a hard rule",
+      rendered.includes("MONOSPACE IS OFF BY DEFAULT")
+    )
+    check(
+      "and all eight directions are there to choose between",
+      ["EDITORIAL INSTITUTIONAL", "TECHNICAL CONSOLE", "QUIET LUXURY", "EXPRESSIVE APP"].every(
+        (name) => rendered.includes(name)
+      )
     )
 
     console.log("\n== copying ==")
     await page.evaluate(CAPTURE)
-    await clickAria(page, "Copy the The instrument look prompt")
+    await clickAria(page, "Copy the Master design brief prompt")
     const copied = await page.evaluate(`return window.__copied`)
     // What lands on the clipboard is the source, not what was drawn: the
     // renderer strips the markdown, and a person pasting it into an assistant
     // needs the structure back.
-    check("copies the raw prompt", copied.includes("## The one idea"), copied.slice(0, 80))
-    check("and the whole thing, not the visible part", copied.length > 5000, String(copied.length))
+    check("copies the raw prompt", copied.includes("## 1.2 Type"), copied.slice(0, 80))
+    check("and the whole thing, not the visible part", copied.length > 18000, String(copied.length))
     check(
       "the button says it worked",
       await page.evaluate(`return document.body.innerText.includes("Copied")`)
@@ -160,7 +175,7 @@ async function main() {
       const list = document.querySelector("aside ul");
       return list ? list.innerText : "EMPTY";`)
     check("search narrows to the match", searched.includes("Find the cause before the fix"), searched)
-    check("and drops the rest", !searched.includes("The instrument look"), searched)
+    check("and drops the rest", !searched.includes("Master design brief"), searched)
     check(
       "the pane follows the search rather than going blank",
       await page.evaluate(
@@ -183,7 +198,7 @@ async function main() {
     const filtered = await page.evaluate(`
       const list = document.querySelector("aside ul");
       return list ? list.innerText : "EMPTY";`)
-    check("a category shows only its own", !filtered.includes("The instrument look"), filtered)
+    check("a category shows only its own", !filtered.includes("Master design brief"), filtered)
     check("and keeps its own", filtered.includes("Find the cause before the fix"), filtered)
 
     await clickText(page, "All")
@@ -191,20 +206,19 @@ async function main() {
     check(
       "All brings the rest back",
       await page.evaluate(
-        `return document.querySelector("aside ul").innerText.includes("The instrument look")`
+        `return document.querySelector("aside ul").innerText.includes("Master design brief")`
       )
     )
 
-    console.log("\n== the two flavour prompts ==")
-    await clickText(page, "Dark console")
-    const dark = await page.evaluate(`return document.querySelector("article").innerText`)
-    check("the dark ground prompt carries the shared principles", dark.toLowerCase().includes("the one idea"))
-    check("and commits them to a ground", dark.toLowerCase().includes("near-black"))
+    console.log("\n== the other design prompts ==")
+    await clickText(page, "Critique a design you already have")
+    const critique = await page.evaluate(`return document.querySelector("article").innerText`)
+    check("the critique asks about register first", critique.includes("Register."))
+    check("and counts the monospace", critique.includes("Monospace."))
 
-    await clickText(page, "Light product page")
-    const light = await page.evaluate(`return document.querySelector("article").innerText`)
-    check("so does the light one", light.toLowerCase().includes("the one idea"))
-    check("with its own ground", light.toLowerCase().includes("white for the page"))
+    await clickText(page, "Decide what the home screen is")
+    const home = await page.evaluate(`return document.querySelector("article").innerText`)
+    check("the entry-screen prompt is still here", home.includes("Who opens this?"))
 
     console.log("\n== it does not disturb the project ==")
     // The library writes nothing. A page that quietly touched the document

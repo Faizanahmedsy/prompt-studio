@@ -258,14 +258,27 @@ function PromptBody({ body }: { body: string }) {
         const key = `${index}-${line.slice(0, 12)}`
         if (!line.trim()) return <div key={key} className="h-1" />
 
-        if (line.startsWith("## ")) {
+        // Two levels. The master brief is long enough to need both: `#` for
+        // its parts and `##` for the rules inside them.
+        if (line.startsWith("# ")) {
           return (
             <h3
+              key={key}
+              className="border-b border-border pt-8 pb-2 text-base font-semibold tracking-tight text-foreground"
+            >
+              {line.slice(2)}
+            </h3>
+          )
+        }
+
+        if (line.startsWith("## ")) {
+          return (
+            <h4
               key={key}
               className="pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
             >
               {line.slice(3)}
-            </h3>
+            </h4>
           )
         }
 
@@ -312,15 +325,29 @@ function PromptBody({ body }: { body: string }) {
   )
 }
 
-/** `**bold**` — the only inline mark these prompts use. */
+/**
+ * `**bold**` and `*italic*`, the two inline marks these prompts use.
+ *
+ * One pass over both rather than bold first and italic after: splitting on
+ * `*` after the bold pass would find the halves of every `**` it had already
+ * consumed, and the page would fill with stray asterisks.
+ */
 function emphasise(text: string) {
-  return text.split(/\*\*(.+?)\*\*/g).map((part, index) =>
-    index % 2 === 1 ? (
-      <strong key={index} className="font-semibold text-foreground">
-        {part}
-      </strong>
-    ) : (
-      <span key={index}>{part}</span>
-    )
-  )
+  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={index} className="font-semibold text-foreground">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+      return (
+        <em key={index} className="italic">
+          {part.slice(1, -1)}
+        </em>
+      )
+    }
+    return <span key={index}>{part}</span>
+  })
 }

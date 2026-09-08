@@ -71,53 +71,134 @@ describe("the library holds usable prompts", () => {
   })
 })
 
-describe("the design prompts carry the tested principles", () => {
-  const design = libraryPrompts.filter((p) => p.category === "Design")
-  const shared = promptById.get("instrument-ui")
+describe("the master design prompt", () => {
+  const master = promptById.get("master-design")
+  const body = master?.body ?? ""
 
-  it("keeps the flagship first in the list", () => {
-    expect(libraryPrompts[0].id).toBe("instrument-ui")
+  it("is the first thing in the library", () => {
+    expect(libraryPrompts[0].id).toBe("master-design")
   })
 
-  it("offers a dark ground, a light ground, and the principles alone", () => {
-    for (const id of ["instrument-ui", "dark-console", "light-saas"]) {
-      expect(design.some((p) => p.id === id), `${id} missing`).toBe(true)
+  it("replaced the three single-look prompts rather than joining them", () => {
+    // Three prompts each asserting one aesthetic as universal is how a school
+    // came back built as a console. There is one design brief now.
+    for (const gone of ["instrument-ui", "dark-console", "light-saas"]) {
+      expect(promptById.has(gone), `${gone} should be gone`).toBe(false)
     }
+    expect(libraryPrompts.filter((p) => p.category === "Design")).toHaveLength(3)
+  })
+
+  it("makes the model classify and name a direction before any code", () => {
+    const classify = body.indexOf("PART 0")
+    const laws = body.indexOf("PART 1")
+    const directions = body.indexOf("PART 2")
+    expect(classify).toBeGreaterThan(-1)
+    expect(classify).toBeLessThan(laws)
+    expect(laws).toBeLessThan(directions)
+    expect(body).toMatch(/Direction: \[name\]\. Chosen because:/)
+    expect(body).toMatch(/Do not blend two directions/)
   })
 
   it.each([
-    ["one accent", /exactly one accent/i],
-    ["placeholder ban", /Never ship placeholder content/],
-    ["monospace as machine voice", /machine says/],
-    ["uneven grid", /uneven grid/i],
-    ["a working hero", /hero shows the product working/i],
-    ["one motion idea", /one signature move/i],
-    ["the inversion", /opposite ground/i],
-    ["a self-check", /Before you finish/],
-  ])("states the %s principle", (_name, pattern) => {
-    expect(shared?.body).toMatch(pattern)
+    "EDITORIAL INSTITUTIONAL",
+    "LIGHT PRODUCT",
+    "TECHNICAL CONSOLE",
+    "OPERATIONAL DENSE",
+    "WARM CONSUMER",
+    "QUIET LUXURY",
+    "UTILITY BRUTAL",
+    "EXPRESSIVE APP",
+  ])("offers the %s direction", (name) => {
+    expect(body).toContain(`DIRECTION`)
+    expect(body).toContain(name)
   })
 
-  it("names the generic signatures it is steering away from", () => {
+  it("tells you when each direction is wrong, not only when it is right", () => {
+    // A catalogue of eight looks with no exclusions is eight ways to guess.
+    const chooseWhen = body.match(/\*\*Choose when\*\*/g)?.length ?? 0
+    const neverChoose = body.match(/\*\*Never choose when\*\*/g)?.length ?? 0
+    const failModes = body.match(/\*\*Fail mode/g)?.length ?? 0
+    expect(chooseWhen).toBe(8)
+    expect(neverChoose).toBe(8)
+    expect(failModes).toBe(8)
+  })
+
+  it("routes an institution away from the console look", () => {
+    // The bug this rewrite exists for: a school built as telemetry.
+    expect(body).toMatch(/schools, universities, museums/)
+    expect(body).toMatch(/An institution does not report its own vital signs/)
+    expect(body).toMatch(/impersonating one/)
+  })
+})
+
+describe("the monospace rule that let a school render as a dashboard", () => {
+  const body = promptById.get("master-design")?.body ?? ""
+
+  it("turns monospace off by default rather than recommending it", () => {
+    expect(body).toContain("MONOSPACE IS OFF BY DEFAULT")
+    // The old wording survives only as the mistake being corrected, which is
+    // what stops a reader reintroducing it.
+    expect(body).toContain("A previous version of this brief called monospace")
+  })
+
+  it("caps how many roles may use it", () => {
+    expect(body).toMatch(/pick \*\*at most two\*\* of these roles/)
+    expect(body).toMatch(/five percent of the visible words/)
+  })
+
+  it("names the places it is never allowed", () => {
     for (const banned of [
-      /centred hero/i,
-      /identical feature cards/i,
-      /gradient/i,
-      /Emoji as icons/i,
+      "body text",
+      "navigation",
+      "buttons",
+      "form labels",
+      "card titles",
+      "stat labels",
+      "mottos",
+      "people's names",
     ]) {
-      expect(shared?.body).toMatch(banned)
+      expect(body, `${banned} should be on the never list`).toContain(banned)
     }
   })
 
-  it("carries the principles into both flavour prompts rather than restating them loosely", () => {
-    const dark = promptById.get("dark-console")?.body ?? ""
-    const light = promptById.get("light-saas")?.body ?? ""
-    // Both are the shared brief plus a ground, so the brief must be intact in
-    // each — a flavour prompt that drifted from it is the bug here.
-    expect(dark).toContain("## The one idea")
-    expect(light).toContain("## The one idea")
-    expect(dark).toMatch(/near-black/i)
-    expect(light).toMatch(/White for the page/i)
+  it("gives the correct fix for aligning numbers instead", () => {
+    expect(body).toMatch(/tabular-nums/)
+  })
+
+  it("counts it in the audit rather than only asking about it", () => {
+    expect(body).toMatch(/Monospace count/)
+  })
+
+  it("says so in the critique prompt too", () => {
+    const critique = promptById.get("design-critique")?.body ?? ""
+    expect(critique).toMatch(/Monospace\./)
+    expect(critique).toMatch(/Register\./)
+  })
+})
+
+describe("the laws that survived from the five-way test", () => {
+  const body = promptById.get("master-design")?.body ?? ""
+
+  it.each([
+    ["one accent", /One accent colour carries every piece of emphasis/],
+    ["an accent ceiling", /under five percent of the pixels/],
+    ["no placeholder content", /Never ship placeholder content/],
+    ["an uneven grid", /let the grid be uneven/],
+    ["varied rhythm", /Vary vertical rhythm between sections/],
+    ["one motion idea", /Pick one signature move/],
+    ["radius stepping down", /step it \*down\* as you nest/],
+    ["an accessibility floor", /the floor — non-negotiable/i],
+    ["a designed narrow layout", /not as the wide one stacked/],
+  ])("keeps the %s law", (_name, pattern) => {
+    expect(body).toMatch(pattern)
+  })
+
+  it("carries components and a never-list, not principles alone", () => {
+    expect(body).toContain("PART 3 — COMPONENTS")
+    expect(body).toContain("PART 4 — NEVER SHIP THESE")
+    expect(body).toContain("PART 5 — AUDIT BEFORE YOU ANSWER")
+    // The never-list is numbered, so it can be checked one line at a time.
+    expect(body).toMatch(/^25\. /m)
   })
 })
 
