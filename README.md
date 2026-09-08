@@ -21,6 +21,10 @@ pnpm build
 
 Sign-in needs the API running — see [Accounts and collaboration](#accounts-and-collaboration).
 
+> **Picking this up cold?** Read [`docs/kt.md`](docs/kt.md) — the full
+> knowledge transfer: architecture, routes, the traps, what is half-done, and
+> the working agreements.
+
 ## The loop it is built for
 
 1. **Copy prompt for diagram syntax** → paste into ChatGPT with the client's

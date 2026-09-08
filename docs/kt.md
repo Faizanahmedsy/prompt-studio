@@ -1,331 +1,471 @@
-# Prompt Studio — knowledge transfer / resume prompt
+# Prompt Studio — knowledge transfer
 
-Read this once and you can pick the project up cold. It describes what is
-actually on disk and working, not a plan.
+Read this once and you can pick the project up cold. It describes what is on
+disk and working, not a plan. Where something is half-done or known-broken it
+says so, because the alternative is you finding out at the worst moment.
 
----
-
-## 1. What this product is
-
-An internal tool for turning a product idea, or an existing codebase, into a
-**build prompt for a coding agent** — by way of an editable flow diagram.
-
-The diagram is the interface; the prompt is the deliverable. Nothing here calls
-an AI. The app is entirely frontend: everything lives in `localStorage`.
-
-Three ways a diagram starts, one per prompt the app hands out:
-
-1. **New flow from requirements** — paste the prompt into ChatGPT with a
-   client's requirements; it writes a `.flow` file; paste that back.
-2. **From an existing codebase** — run the prompt with Claude Code *inside* a
-   repo; it reads the code and writes the real flow (frontend routes/components,
-   or backend services/endpoints).
-3. **Fragment to merge in** — the prompt embeds the current project's screen
-   keys, so a model returns a piece that attaches to screens you already have.
-
-Then: edit on the canvas → **Generate prompt** → paste into Claude Code.
+Last verified: 8 September 2026, against `sprint-2` at `2753276` plus the
+uncommitted work described in §14.
 
 ---
 
-## 2. Decisions already made (do not re-litigate)
+## 1. What this is
 
-- **Frontend only.** No server, no database, no auth. `localStorage` + share
-  links (native `CompressionStream` gzip + base64url, no library).
-- **Zod is the trust boundary.** Anything from storage, a `.json` import, a
-  share link or a `.flow` paste is parsed through `types/project.ts` first. The
-  store's `merge` re-parses on rehydrate — that is what stops a field added
-  later from crashing an old saved project. Do not remove it.
-- **`.flow` is hand-written and tolerant.** No parser generator. Unknown ids are
-  fuzzy-matched and warned about, never dropped. `parseFlow(serializeFlow(doc))`
-  must equal `doc` — there is a test per starter.
-- **Two experience modes.** Easy hides the left rail and puts Design/Brief in a
-  floating bar; Advanced adds stack, conventions, Flow source, diffs, versions.
-- **The user owns git.** Never run `git commit` / `git push`.
-- Never edit `../frontend` or `../backend` — separate repos, separate owners.
+An internal tool that turns a product idea — or an existing codebase — into a
+**build prompt for a coding agent**, by way of an editable flow diagram.
 
----
+The diagram is the interface. The prompt is the deliverable. **Nothing in this
+app calls an AI.** It composes text. That is the single most important thing to
+understand before changing anything: every "generate" button in this product is
+a pure function from a document to a string.
 
-## 3. Domain model — `types/project.ts`
+The loop it is built for:
 
-`SCHEMA_VERSION = 5`. Every field has a `.default()`, which is what makes an
-older saved project load instead of failing — there is no migration function,
-and 4 → 5 needed none.
+1. Copy the **authoring prompt** → paste into any assistant with a client's
+   requirements → it answers with a `.flow` file.
+2. **Paste Flow** back here → the diagram appears, editable, with warnings for
+   anything the model got wrong.
+3. Edit on the canvas: screens, journeys, stories, data model, stack, design.
+4. **Generate prompt** → one build prompt per surface → paste into Claude Code,
+   Cursor, v0, Lovable.
 
-```
-ProjectDoc
-  name, target, creativity
-  views[]        { id, key, name, note }            // role perspectives
-  flows[]        { id, key, name, story, note, order }     // user journeys
-  screens[]      { id, key, title, template, layout, note, surface,
-                   views[], flows[], story, x, y }
-  edges[]        { id, from, to, trigger, views[] } // screen → screen
-  modules[]      { id, screenId, key, name, kind, trigger, note, order }
-  moduleEdges[]  { id, from, to, trigger }          // module → module, one screen
-  sections[]     { id, type, name, layout, note, order }   // landing page
-  theme, conventions, requirements, snippetIds
-  stack, structure                                 // the WEB surface's
-  surfaces { mobile: {stack,structure}, backend: {…} }
-
-UserStory { role, want, soThat, criteria[] }        // on a screen and on a flow
-```
-
-**Modules are the "inside of a screen"** — a table, its filter bar, the modal it
-opens. They are optional and hidden by default; a project with none looks and
-behaves exactly as it did before they existed. Stored flat (not nested inside
-`Screen`) so undo, merge and rehydrate stay simple.
-
-Module `key` is unique **per screen**, not per project — two screens may each
-own a `table`.
-
-**Views are role perspectives over one graph**, not separate diagrams. The rule
-everywhere (`features/builder/utils/views.ts`): **an empty `views` array means
-every view**. Most screens in a real app are shared, and tagging each with all
-five roles would go stale the moment a sixth appears — so tagging is how you say
-"only these roles". The canvas filters at render; the project always holds the
-whole app, so switching role can never lose anything and positions stay put.
-
-**Stories are written by the model, not typed here.** A `UserStory` hangs off
-both a screen and a flow. It is three fields rather than one sentence because
-the `.flow` grammar has three keys and the app has to render them: parsing
-"As a … I want … so that …" back out of free text works right up until a model
-phrases it differently, and then it fails silently. All three inbound prompts
-(`authoring-prompt.ts`, `reverse-prompt.ts`, `fragment-prompt.ts`) ask for a
-story per screen and per flow, so the inspector is where one gets *corrected*,
-not authored — nobody was ever going to type ninety-six of them.
-
-**Flows are a second axis, independent of views** (`features/builder/utils/flows.ts`).
-A view answers *who can reach this screen*; a flow answers *what journey is it
-part of*. A screen has one role set and belongs to several flows at once — Sign
-In starts authentication and is also the first step of onboarding — so they are
-two controls on the toolbar, and the canvas composes both filters.
-
-The membership rule is deliberately the **opposite** of the views rule: an
-untagged screen belongs to *every* view, but to *no* flow. "Sign In is shared"
-is the common and correct case for a role; a screen in no journey is a gap worth
-seeing, which is why the picker has an **Ungrouped** bucket rather than hiding
-them.
-
-Membership lives on the screen (`screen.flows`) and nowhere else. The `flows`
-block only declares a journey and its story — with a screen list on both sides
-they eventually disagree and nothing can say which was meant. Nothing derives a
-group from the graph, either: a derived group re-computes when an edge is added,
-so it changes under the person looking at it, and there is no way to say "no,
-that screen is not part of checkout". A tag can just be removed.
-
-**Surfaces are separate builds of one product** — web, mobile, backend. The
-tabs switch between them; each has its own stack, folder structure and generated
-prompt, and they share the theme, brief and role views. `stack`/`structure` stay
-at the top level as the web surface's so older projects still mean what they
-said. A `flow` arrow never crosses a surface — that is an integration, and it
-belongs in a note. Mobile and backend arrive pre-seeded (Expo + NativeWind,
-`src-layered` with the UI choices blank) because a Next.js default on the Mobile
-tab is six dropdowns to correct before the tab is usable.
-
-`addScreen` reads the active surface from the UI store rather than taking it
-from each caller — six call sites add screens, and one forgetting would drop a
-screen onto Web where the user cannot see it.
+There is a second, newer product inside the same app: a **public prompt
+library** of hand-written prompts that have nothing to do with any project
+(§10). It needs no account.
 
 ---
 
-## 4. Layout of the code
+## 2. The three repositories
 
-```
-app/                     shell, print route
-components/
-  layout/                top-bar, workbench, inspector, global-settings-bar
-  ui/                    radix primitives
-  shared/                form / layout / feedback helpers
-features/
-  builder/               canvas + actions + graph maths
-    utils/actions.ts     EVERY project mutation lives here
-    utils/graph.ts       analyseGraph (order, entries, cycles) + autoLayout
-    utils/views.ts       inView / screensInView / edgesInView
-    utils/surfaces.ts    stackFor / structureFor / countsBySurface
-    utils/node-geometry.ts  card + well measurements
-    components/          flow-canvas, screen-node, module-node, flow-edge,
-                         view-switcher, screen-inspector, module-inspector,
-                         outline-list
-  flow-lang/             the .flow language
-    tokenize / parser / serializer
-    authoring-prompt.ts  prompt 1 — new flow from requirements
-    reverse-prompt.ts    prompt 2 — read an existing repo
-    fragment-prompt.ts   prompt 3 — a piece to merge in
-    merge.ts             match-by-key graft of a fragment onto a project
-  library/data/          templates, layouts, module-kinds, snippets, starters
-  prompt/engine/         build-prompt.ts, targets.ts, diff.ts
-  stack/data/            stack catalogue, structures, conventions, profiles
-    platforms.ts         web / react-native / ios — derived from the framework
-  theme/data/            design-languages.ts (9, each with a live preview —
-                           "basic" is the one that tells the agent NOT to design)
-                         typography.ts (font character, scale, icons,
-                           elevation, motion, themes)
-  theme/figma-prompt.ts  the Import-from-Figma prompt. Nothing comes back into
-                           the app — Claude Code writes the stylesheet straight
-                           into the developer's repo, so the prompt has to emit
-                           a complete file with its path and import line
-stores/
-  use-project-store.ts   persisted; undo/redo, versions, profiles
-  use-ui-store.ts        view state — expanded screens, activeViewId (role),
-                           activeFlowId (journey) and flowFaded
+| Path | What it is |
+|---|---|
+| `prompt-studio` | This repo. Next.js 16 frontend. The whole product surface. |
+| `prompt-studio-backend` | FastAPI + Postgres. Accounts, projects, sharing, live collaboration. Its own `docs/kt.md`. |
+| `prompt-studio-mcp` | MCP server exposing the studio to a coding agent. Contains a **vendored copy** of this repo's engine under `src/studio/`. |
+
+There is also a stale second MCP server at `prompt-studio/mcp/` in this repo.
+It predates `prompt-studio-mcp` and nothing uses it. Do not develop against it;
+deleting it is a good small task nobody has done.
+
+**The vendoring trap.** `prompt-studio-mcp/scripts/sync-studio.mjs ../prompt-studio`
+copies ~50 files out of this repo into the MCP's `src/studio/`. If you change
+the prompt engine, the flow language, the layout catalogue or `types/project.ts`
+and do not re-run it, the MCP server keeps writing documents against last
+sprint's schema and **silently strips fields it does not know about**. That has
+happened once and cost eleven design fields on every MCP write.
+`prompt-studio-mcp/tests/vendor.test.ts` is the guard.
+
+---
+
+## 3. Running it
+
+`pnpm` is broken on this machine. **Use `npx`.**
+
+```bash
+npx next dev                 # http://localhost:3000
+npx vitest run               # 36 files, 1078 tests, ~3s
+npx tsc --noEmit             # must be clean
+npx biome check --write .    # lint + format + import order
+npx next build               # must be clean before you push
 ```
 
-**All catalogues are single-sourced.** The authoring prompts list valid ids by
-mapping over the same arrays the parser validates against, so the language and
-the app cannot drift.
+The backend must be running for sign-in. From `../prompt-studio-backend`:
 
----
-
-## 5. How the pieces fit
-
-**Editing.** Every mutation goes through `features/builder/utils/actions.ts`,
-which calls `useProjectStore.update(mutate, opts)`. `opts.coalesce` collapses a
-drag into one undo step.
-
-**Canvas.** `flow-canvas.tsx` builds controlled `nodes`/`edges` from the project
-each render. An expanded screen becomes an xyflow container (`style.width/height`
-set from `expandedHeight()`), and its modules are child nodes (`parentId`,
-`extent: "parent"`, `draggable: false` — their order is data, not position).
-Module ports are top/bottom because they are a vertical stack; left/right made
-every inner arrow loop outside the card.
-
-Which screens are expanded lives in `use-ui-store`, is **not** persisted, and is
-**not** in the project — expanding must not dirty undo, the diff or the prompt.
-
-**Views.** `activeViewId` lives in `use-ui-store` (view state, not persisted).
-The switcher sits in the canvas toolbar and only appears once a project defines
-a view. `viewsBlock` in the prompt engine describes each role's own path and
-what only they see.
-
-**Platforms.** `platformOf(stack)` derives web / react-native / ios from the
-chosen framework — never stored, so it cannot disagree with the stack. It swaps
-the requirements baseline wholesale (safe areas, hardware back, offline,
-permissions vs. responsive/keyboard/focus), adds a platform definition-of-done,
-drops web-only conventions, and rewords `a11y-baseline` / `tokens-only`. Mobile
-screens use the `mobile-*` layouts; `stackWarnings` flags a web-only library
-picked for a native build (shadcn, Recharts, Playwright…).
-
-**Prompt.** `build-prompt.ts` composes blocks; `targets.ts` decides order and
-format (XML for Claude Code, markdown headings elsewhere). Modules are emitted
-under their screen only when they exist. `houseRuleIds` are appended to the
-conventions block unconditionally — git ownership, story docs, KT doc, component
-reuse — plus `next-proxy` when the framework is Next.
-
-**Merge.** `merge.ts` matches incoming screens by `key`, reuses the existing
-screen's id, remaps the fragment's edges and modules onto it, dedupes, and only
-ever fills blank fields. It is idempotent — merging the same fragment twice adds
-nothing. This is what makes prompt 3 work; blind concatenation would produce a
-second copy of every screen it touched.
-
----
-
-## 6. The `.flow` language
-
-```
-app "Product" {
-  target claude-code
-  creativity 6
-  theme { design modern-soft; primary #2563eb; radius md }
-}
-
-views {                           # WHO can reach a screen
-  super_admin "Super Admin"
-  admin       "Org Admin"
-}
-
-flows {                           # WHAT JOURNEY a screen is part of
-  flow client_admin "Managing clients" {
-    story {
-      as     "an org admin"
-      want   "keep the client list accurate"
-      so     "the team never works from stale records"
-      accept [
-        "clearing a filter returns to page 1"
-        "an empty result says what to change, not 'no data'"
-      ]
-    }
-  }
-}
-
-screen clients "Clients" {
-  template table
-  layout   table-advanced
-  note     "server-driven paging"
-  in    [admin]                   # omit entirely = every role
-  flows [client_admin]            # omit = ungrouped, which is shown, not hidden
-  story {
-    as   "an org admin"
-    want "find a client and open their record"
-    so   "I can answer a question without leaving the console"
-  }
-
-  module filters   "Filter bar"   { kind filters; on "page load" }
-  module table     "Client table" { kind table }
-  module add_modal "Add client"   { kind modal; on "click Add Client" }
-
-  inner {                         # movement with no route change
-    filters   -> table     : "on filter change, refetch page 1"
-    table     -> add_modal : "click Add Client"
-    add_modal -> table     : "on save, close and refetch"
-  }
-}
-
-flow {                            # movement between screens
-  login -> clients : "on successful login"
-  login -> orgs    : "as super admin" @super_admin   # role-specific transition
-}
-
-landing { section hero "Hero" layout hero-two-column }
-
-stack { framework next-16; styling tailwind4-shadcn }
-structure feature-based
-conventions [kebab-files, alias-@]
-snippets [a11y, states, tables]
-requirements """free text"""
+```bash
+docker compose up -d db redis api
 ```
 
-Braces and semicolons optional. `->` `=>` `→` all connect. `# ` starts a
-comment (but `#2563eb` survives). `"""` fences multi-line text.
+Ports on this machine, all deliberately non-default because other stacks own
+the usual ones:
 
-Inside a `story`, `accept [ … ]` may run over several lines with one quoted
-criterion per line. The field keys are synonym-tolerant (`as`/`role`/`as_a`,
-`want`/`i_want`, `so`/`so_that`, `accept`/`criteria`/`ac`) and a one-line
-`story "As a … I want … so that …"` is parsed apart — this text is written by a
-language model, and a parser that dies on a synonym sends the user back to
-ChatGPT to try again.
+| Port | What |
+|---|---|
+| 3000 | `next dev` |
+| 3002 | `next start`, used by the browser tests |
+| 8010 | the API |
+| 5442 | Postgres |
+| 6382 | Redis |
 
-A fragment is the same grammar with the `app`/`stack`/`theme` blocks left out.
-
----
-
-## 7. Tests
-
-`pnpm vitest run` — 103 tests, 5 files:
-
-- `flow-lang.test.ts` — round-trip per starter, parser tolerance, modules,
-  per-screen key scoping, inner-vs-flow separation, views and `@role` tags.
-- `merge.test.ts` — attach by key, edge rewiring, idempotence, no field clobber.
-- `prompt-engine.test.ts` — graph maths, prompt blocks, modules, house rules.
-- `share-codec.test.ts` — gzip round-trip, and a legacy-persisted-project suite.
-- `prompts.test.ts` — every fenced example inside all three prompts is run
-  through the real parser: zero errors AND zero fuzzy-match warnings, so a typo
-  in an example cannot silently teach the model bad syntax.
-
-Also: `npx tsc --noEmit` and `npx next build` both clean.
+Frontend env: `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_WS_URL`. Both are inlined
+at build time by Next, so a Vercel build that ships without them **looks
+deployed and is not** — the app silently falls back to localhost.
 
 ---
 
-## 8. Working agreements
+## 4. Routes
 
-- The user commits. Never run `git commit` or `git push`.
-- Add a mutation? It goes in `features/builder/utils/actions.ts`, nowhere else.
-- Add a field to the schema? Give it a `.default()`, or you break every saved
-  project on the next deploy.
-- Add a catalogue entry (module kind, layout, convention)? It appears in the
-  authoring prompts automatically. Do not hand-maintain a second list. When a
-  real run of the reverse prompt invents an id, that is the signal the
-  catalogue is short — `list` (template) and `calendar`/`map`/`timeline`
-  (kinds) were all added that way.
-- Connection labels are read by people. The reverse prompt has a table of
-  bad-vs-good examples; keep it, it is what stopped output like
-  `redirect() (app/(authenticated)/layout.tsx)` appearing on arrows.
-- Update this file at the end of any session that changes the shape of the app.
+Changed recently (§14). The public web and the app are now separate.
+
+| Route | Auth | What |
+|---|---|---|
+| `/` | public | Landing page. `features/marketing/components/landing-page.tsx`. |
+| `/prompts` | public | The prompt library. Needs no account and no project. |
+| `/[...view]` | **behind `AuthGate`** | The studio, one path per tab: `/web`, `/mobile`, `/backend`, `/landing`, `/data`, `/code`, `/design`. |
+| `/login` `/register` `/forgot-password` `/reset-password` `/set-password` `/verify-email` | public | Auth. |
+| `/print` | behind auth | The generated prompt as printable prose. |
+| `/v/[token]` | public | A read-only published project. |
+
+`lib/view-url.ts` owns the mapping. Two things live there:
+
+- `VIEW_SLUGS` — `WorkMode` → path segment. The tab is called `theme`
+  internally and `design` in the URL; that is deliberate, nobody in the product
+  says "theme".
+- `STUDIO_HOME = "/web"` — where a signed-in person goes. **Every post-auth
+  redirect must use this**, not `"/"`, because `/` is marketing now. Getting
+  this wrong sends someone who just signed in to a page inviting them to sign
+  up.
+
+The catch-all is `[...view]` (required), not `[[...view]]` (optional), so `/`
+is free for `app/page.tsx`. The route validates its segment and calls
+`notFound()` — without that, every unknown path would render the whole app and
+answer 200, so nothing on the site could ever 404.
+
+`components/layout/use-view-url.ts` keeps the URL and the store in step. It
+reads **once on mount** and writes with `history.replaceState`. Do not make it
+read continuously: every tab click writes the URL, and a watcher would read
+its own write back as an instruction. Do not switch it to `router.replace`
+either — that remounts the workbench and drops the canvas viewport.
+
+---
+
+## 5. State
+
+Four Zustand stores, all persisted to `localStorage` with `skipHydration`, all
+rehydrated in `app/providers.tsx` after mount so the server and first client
+render match.
+
+| Store | Key | Holds |
+|---|---|---|
+| `use-project-store` | `ps:v1` | Every project document. The undo/redo stack. |
+| `use-ui-store` | `ps:ui` | Current tab, panel open/closed, selection, experience level. |
+| `use-sync-store` | `ps:sync` | local project id → server row id, and last-synced times. |
+| `use-prompt-draft-store` | — | Hand-edits to a generated prompt, so a rewritten paragraph survives F5. |
+
+`use-auth-store` is **not persisted, on purpose**. Tokens live in
+`lib/api/token-store.ts`; the user object is re-derived from the server by
+`bootstrap()` on every page load. A cached user object outliving the account it
+described is a bug you cannot see.
+
+**Every write to a project goes through `useProjectStore.update`.** That is
+where the read-only guard lives — the one that stops a public viewer editing a
+stranger's project. Nothing calls `setState` on the project store directly.
+
+---
+
+## 6. The document — `types/project.ts`
+
+Zod is the trust boundary. Anything arriving from storage, a `.json` import, a
+share link, a `.flow` paste, the API or the websocket is parsed through
+`projectDocSchema` first. The store's `merge` re-parses on rehydrate, which is
+what stops a field added this sprint from crashing a project saved last sprint.
+**Do not remove it.**
+
+Shape, roughly:
+
+- `screens[]` — key, title, template, layout, `surface` (`web` | `mobile` |
+  `backend`), `views[]` (roles), `flows[]` (journeys), `story`.
+- `modules[]` — things inside a screen, with their own edges.
+- `edges[]` / `moduleEdges[]` — transitions, each with a trigger label.
+- `views[]` — who can reach a screen. A role.
+- `flows[]` — a named user journey. Orthogonal to views: a screen has one role
+  set and belongs to several journeys.
+- `entities[]` — the data model, shared by every surface.
+- `landing` — marketing sections.
+- `stack`, `conventions`, `structure`, `boilerplate`, `deployment`.
+- `theme` — see §9.
+- `builds` — which of web / mobile / landing / backend this product ships.
+
+Surfaces are separate builds of one product. `buildPrompt(doc, {surface})`
+narrows the document to one surface and generates one prompt. A prompt covering
+all three would describe an app nobody is writing.
+
+---
+
+## 7. The prompt engine — `features/prompt/engine/`
+
+Pure functions, heavily tested, no I/O.
+
+| File | Job |
+|---|---|
+| `build-prompt.ts` | The whole thing. Block ids, per-target ordering, assembly. |
+| `design-brief.ts` | The "let the agent decide" block, when `theme.designMode === "auto"`. |
+| `tokens-block.ts` | The CSS custom properties, when the design is chosen here. |
+| `ui-conventions.ts` | Craft rules and the banned-signature list. |
+| `screen-prompt.ts` | One screen, for a focused follow-up. |
+| `data-model.ts`, `security.ts`, `deployment.ts`, `boilerplate.ts`, `monorepo.ts`, `diff.ts` | The named sections. |
+| `targets.ts` | Per-target block order — claude-code, v0, cursor, lovable, generic. |
+
+Two rules that were learned the hard way:
+
+- **Blocks whose body is empty are dropped**, not rendered as a heading with
+  nothing under it. `list()` filters empty entries.
+- **The design block derives from the resolved theme**, never from the legacy
+  option fields. There was a period when the prompt contained two design
+  systems arguing: legacy fields the editor no longer wrote, sitting directly
+  above a stylesheet that said otherwise.
+
+`navigationBlock` names the entry screen and then tells the agent what belongs
+on it — that its own content is the first and largest thing on the page, not a
+welcome panel or a grid of tiles. That rule exists because a bucket-list app
+came back with a metric dashboard for a home screen.
+
+---
+
+## 8. The `.flow` language — `features/flow-lang/`
+
+Hand-written tokenizer → parser → serializer → merge. No parser generator.
+
+- Unknown ids are **fuzzy-matched and warned about, never dropped**.
+- `parseFlow(serializeFlow(doc))` must equal `doc`. There is a test per starter.
+- Four prompts are generated from the same catalogues the app uses, so the list
+  of valid ids can never drift from the code:
+  - `authoring-prompt.ts` — requirements → a whole `.flow` file.
+  - `fragment-prompt.ts` — a feature to merge into an existing project.
+  - `reverse-prompt.ts` — run inside a repo; *reports* the flow that is there.
+  - `theme/design-prompt.ts` — design only, no flow.
+
+`authoring-prompt.ts` opens by making the model decide **who opens the product
+and what single thing they came to do**, before any rule about screens, and
+closes with a self-check on the entry screen. That section is load-bearing;
+without it the model reaches for `dashboard-cards` for everything.
+
+---
+
+## 9. Design — `features/theme/`
+
+- `data/presets.ts` — 25 presets. **Every light-mode preset has a white ground**
+  (`background` 0.99, `card` 1.0, chroma ≤ 0.003). A tinted light ground was a
+  bug, not a style.
+- `tokens/resolve.ts` — the resolver. `applyBrand()` derives primary / ring /
+  chart / sidebar from one colour and picks a readable label with APCA.
+  `readableFill()` walks lightness until the label clears `LC_FLOORS.body`.
+  There is a legacy fallback layer with precedence: modern field moved →
+  legacy field moved → preset → default.
+- Dials apply **only when they deviate from the schema default**. A vividness
+  default of 60 against a preset's 58 silently re-chromatised every preset once.
+- `color/apca.ts` — APCA-W3 contrast. Body floor Lc 75, secondary 60. Avoid the
+  dead zone L 0.68–0.76.
+- Presets must stay **inside sRGB**. Three shipped outside it and had to be
+  pulled back (brass, orange, teal).
+- `components/theme-forge.tsx` — the full-page design editor. This is the *only*
+  place design is edited. A second editor once existed in the inspector and the
+  floating bar, writing an overlapping set of fields, which is how a project
+  ended up describing one design in its prompt and rendering another in its
+  preview.
+
+`theme.designMode` is `"preset"` or `"auto"`. In `auto` the right-hand pane
+shows **the brief the agent will get**, read straight out of `designBriefBlock`
+rather than restated, so the two cannot drift.
+
+---
+
+## 10. The prompt library — `features/prompt-library/`
+
+Public, project-free, hand-written prompts. Ten of them across Design, Build,
+Debug, Review and Plan.
+
+| File | Holds |
+|---|---|
+| `data/master-design-prompt.ts` | The master design brief. ~35KB of prompt. |
+| `data/design-prompts.ts` | Master, critique, entry-screen. |
+| `data/work-prompts.ts` | Debug, review, spec, codebase, tests, refactor, decide. |
+| `data/prompts.ts` | The index, the category order, and `searchPrompts`. |
+| `components/prompt-library.tsx` | Master/detail reader. Renders markdown; **copies the raw source**. |
+
+The master design brief has a history worth knowing, because it is the same
+mistake twice:
+
+1. It began as three prompts each describing one look, with no way to choose
+   between them. A school website came back built as a telemetry console —
+   monospaced navigation, a live attendance counter in the hero. Fixed by
+   forcing a classification and a named direction (Part 0) and offering eight
+   directions with the signals that rule each in *and out* (Part 2).
+2. Monospace was described as "the most useful signal you have", with six
+   permitted roles, no cap and no never-list. The model maximised it. Now it is
+   **off by default**, allowed in three of eight directions, two roles maximum,
+   with a never-list and a five-percent word count checked in the audit.
+
+The lesson generalises: **any treatment asserted as universal will be applied
+universally.** Part 4 (illustration) was written with that in mind and says
+explicitly which directions take it and which take none.
+
+---
+
+## 11. Cloud and collaboration — `features/cloud/`, `features/collab/`
+
+The editor is local-first. With the API down it degrades to exactly what it was
+before the backend existed: a browser-only tool. Do not break that.
+
+- `use-project-sync.ts` — everything the account can see, over HTTP.
+- `use-live-project.ts` — the one project on screen, over a websocket.
+- `use-collaboration.ts` — the socket itself. `flushDoc` sends
+  `base_version: pendingBaseRef.current ?? docVersionRef.current ?? null`.
+
+Two writers existed for one document — the socket and the debounced HTTP push
+— and they raced, so a person dragging a node was told "someone else saved a
+newer version" every few seconds. The someone else was their own other code
+path. If you touch either writer, re-run `tests/browser/solo-editing.mjs`.
+
+`presence-stack.tsx` — the sync badge's label precedence is **linked first**
+(Offline / Connecting…), *then* signed-in, then "On this device". It used to
+check signed-in first and reported "On this device" while genuinely offline,
+because `/users/me` fails offline.
+
+`prompt-studio-backend/docs/frontend/collab/use-collaboration.ts` is a **copy**
+of the collab client kept in the backend repo, and `test_client_drift.py` fails
+if the two diverge. If you edit the hook, sync that file (its imports differ:
+`@/lib/api/` → `../api/`).
+
+---
+
+## 12. Tests
+
+**Never use Playwright.** The user has said so twice. Browser tests are a
+hand-rolled Chrome DevTools Protocol harness in `tests/browser/cdp.mjs`.
+
+- **36 unit files, 1078 tests.** `npx vitest run`, ~3 seconds.
+- **18 browser scripts.** `tests/browser/README.md` says what each one proves.
+  Run one at a time: `node tests/browser/<name>.mjs`.
+
+Browser-harness lore, all of it earned:
+
+- `node.click()` does not trigger some controls. Dispatch a real
+  `Input.dispatchMouseEvent` at the element's centre.
+- `navigator.clipboard.readText` throws "Document is not focused" in a headless
+  tab. Wrap `writeText` and read a global instead.
+- Toasts sit above the controls and eat clicks. **Wait for them to disappear.**
+  Removing them from the DOM throws — they belong to React, and the next render
+  fails with `insertBefore`.
+- Headings render uppercase via CSS, so `innerText` assertions must be
+  case-insensitive.
+- A stale `next start` on 3002 serves an old bundle and produces phantom
+  failures. `fuser -k 3002/tcp` before restarting.
+- Two "Copy prompt" buttons can exist on one screen (the top bar's and the
+  library's). Click by `aria-label`.
+
+---
+
+## 13. Shipping
+
+Branches: **`sprint-2` → `develop` → `main`.** All three are kept identical;
+`main` is what deploys. `sprint-1` is a frozen v1.
+
+```bash
+git push origin sprint-2
+git push origin sprint-2:develop
+git push origin sprint-2:main
+```
+
+Refspec pushes rather than checkout-and-merge — the checkout is sometimes
+blocked by the tool sandbox, and the result is the same fast-forward.
+
+**Commit authorship matters.** Author as `faizanahmed.s@devstree.in` or Vercel's
+Hobby plan blocks the deploy as an unrecognised committer.
+
+**The Vercel CLI on this machine is signed into the wrong account**
+(`faizanahmedsys-projects`). It lists a different, older project. Do not trust
+it to tell you whether a deploy landed. The Vercel MCP connector is the right
+tool and currently needs re-authorising — `/mcp` in an interactive session.
+
+**Render** deploys the API. `render.yaml` says `branch: main`, but the service
+was hand-created and therefore ignores the blueprint; the dashboard still has
+it on `feat/backend`. Someone must change it in **Settings → Build & Deploy →
+Branch**. Until then a finished sprint deploys nothing and the repo gives no
+clue why.
+
+---
+
+## 14. State right now — read this before you start
+
+**There is uncommitted work in the tree.** `git status` will show it. It is
+finished and verified, not half-done:
+
+- `/` became the public landing page; the studio moved to `/[...view]`.
+- `/prompts` became a public route; the in-app Prompts tab was removed.
+- `STUDIO_HOME` introduced and every post-auth redirect repointed.
+- 14 browser tests updated from `${APP}/` to `${APP}/web`.
+- Part 4 (illustration) added to the master design prompt.
+
+Verified: 1078 unit tests, 33/33 in `tests/browser/prompt-library.mjs`,
+typecheck, Biome, `next build`.
+
+**`tests/browser/signup-and-share.mjs` cannot complete on this machine.** It
+reads the invite link out of `docker logs prompt-studio-api`, and that
+container's log stream is frozen at 7 Sep 14:24 while the API serves requests
+normally. It is a container logging problem, not a product problem — the API
+calls inside the same test succeed. Restart the container and it should pass.
+
+### Work agreed but not started
+
+The master design brief needs a second round. The user runs this loop:
+
+> 1. I give them a prompt. 2. They run it through an LLM. 3. They check the
+> output. 4. They list what is wrong with the UI. 5. I find the line in our
+> prompt responsible. 6. I brainstorm the fix. 7. I fix it. 8. They check
+> locally. 9. **Only after they approve do I push.**
+
+Round two produced this diagnosis and these agreed fixes, none of them written:
+
+- **A.** No stack instruction anywhere in the brief, so the model hand-rolled
+  native `<select>` and `<input type="date">`. Needs a three-tier stack block
+  (shadcn+Radix when installable, CDN, hand-built to spec) plus written specs
+  for select / date picker / tabs / dialog so tiers 2 and 3 can obey "never a
+  native control".
+- **B.** Direction D (Operational Dense) is defined **entirely by subtraction**
+  — no hero, no signature move, no motion, no type pairing. It is the only
+  direction with no positive craft instruction, and it produced a Bootstrap
+  admin panel. Rewrite it with the same six craft slots the others get.
+- **C.** Add Direction I — Refined Operational, the Linear/Stripe register:
+  dense *and* crafted. Nothing in the eight offered it.
+- **D.** Semantic colour was declared free ("does not count as a second
+  accent"), so six saturated fills landed on one screen. Cap it: soft by
+  default, one solid fill per row.
+- **E.** Type scales are words ("three sizes"), not numbers. Everything landed
+  13–16px.
+- **F.** No chrome budget — seven horizontal bands stacked before content.
+- **G.** The audit hunts violations and never asks whether the result is dull.
+- **H.** ~8 never-list items for native controls and default focus rings.
+- **Part 0 has no output channel in build-first products.** AI Studio, v0 and
+  Lovable have no conversation, so "write this line out" produces nothing
+  visible — and an instruction with no visible output is one that can be
+  skipped for free. Agreed fix: emit a **decision record as a comment block at
+  the top of the primary file**, carrying direction, register, stack tier,
+  accent count, monospace percentage, band count and the one memorable thing.
+  Print it in chat too, if a chat exists.
+- Two open questions for the user: whether to ship a ~6KB compact variant for
+  products with small prompt fields, and a better name than "Refined
+  Operational".
+
+---
+
+## 15. Working agreements
+
+- **Never commit or push unless asked.** The user commits their own work. The
+  exception is this repo and the other two prompt-studio repos, where they do
+  ask for commit / push / deploy — but wait to be asked.
+- **Never edit `../backend`.** Different team, different product.
+- **Never Playwright.**
+- Match the surrounding code: comments explain *why*, in prose, and often name
+  the bug that made the line necessary. Read a neighbouring file before writing
+  a new one.
+- Run `npx tsc --noEmit`, `npx vitest run`, `npx biome check` and `npx next
+  build` before claiming anything is done. Report failures with the output.
+
+---
+
+## 16. Known issues nobody has fixed
+
+Reported, acknowledged, not scheduled:
+
+- HTTP saves and version restores do not notify open sockets.
+- `restore_version` takes no `base_version`.
+- `X-Forwarded-For` trusts the first hop.
+- `/auth/register` enumerates accounts.
+- A platform ADMIN can reset a member's password and impersonate them.
+- Redis presence can ghost — the TTL is key-level.
+- The COMMENTER role exists with no comment UI.
+- MCP `build_prompt` requires `project_id` though its description says
+  "linked"; `sync_status` returns `""` for an unknown id; `VERSION` is
+  hardcoded `"1.0.0"`.
+- The stale MCP server at `prompt-studio/mcp/`.
+- Version-history delete is local-only.
