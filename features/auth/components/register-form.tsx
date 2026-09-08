@@ -6,6 +6,7 @@ import { TextField } from "@/components/shared/form"
 import { Button } from "@/components/ui/button"
 import { AuthError } from "@/features/auth/components/auth-error"
 import { AuthLink, AuthShell } from "@/features/auth/components/auth-shell"
+import { STUDIO_HOME } from "@/lib/view-url"
 import { useAuthStore } from "@/stores/use-auth-store"
 
 /** The server's rule, restated here so the failure is caught before a round trip. */
@@ -47,7 +48,7 @@ export function RegisterForm() {
         full_name: fullName,
         ...(invite ? { invite_token: invite } : {}),
       })
-      router.push("/")
+      router.push(STUDIO_HOME)
     } catch {
       // handled by the store
     } finally {

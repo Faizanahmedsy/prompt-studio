@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  BookOpen,
   Code2,
   Command,
   Database,
@@ -197,18 +196,6 @@ export function TopBar({
           <TabsTrigger value="code">
             <Code2 />
             <span className="hidden sm:inline">Code</span>
-          </TabsTrigger>
-          {/*
-            The one tab that is not about the open project: hand-written
-            prompts to copy elsewhere. Last, because it is a reference you
-            visit rather than a step in the work.
-          */}
-          <TabsTrigger
-            value="prompts"
-            title="Ready-made prompts to paste into any assistant"
-          >
-            <BookOpen />
-            <span className="hidden sm:inline">Prompts</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

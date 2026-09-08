@@ -6,9 +6,10 @@ import { TextField } from "@/components/shared/form"
 import { Button } from "@/components/ui/button"
 import { AuthError } from "@/features/auth/components/auth-error"
 import { AuthLink, AuthShell } from "@/features/auth/components/auth-shell"
+import { STUDIO_HOME } from "@/lib/view-url"
 import { useAuthStore } from "@/stores/use-auth-store"
 
-export function SignInForm({ redirectTo = "/" }: { redirectTo?: string }) {
+export function SignInForm({ redirectTo = STUDIO_HOME }: { redirectTo?: string }) {
   const router = useRouter()
   const login = useAuthStore((s) => s.login)
   const error = useAuthStore((s) => s.error)

@@ -95,7 +95,7 @@ async function signUp(page, email, name, invite = "") {
   await page.fill('input[type="password"]', PASSWORD)
   await new Promise((r) => setTimeout(r, 400))
   await page.evaluate(clickLabelled("Create account"))
-  await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: `${name} in the studio`, timeout: 25000 })
+  await page.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: `${name} in the studio`, timeout: 25000 })
   await page.waitFor(
     `(() => { try { return Object.keys(JSON.parse(localStorage.getItem("ps:sync")).state.links).length > 0 } catch { return false } })()`,
     { label: `${name}'s projects linked`, timeout: 30000 }
@@ -135,7 +135,7 @@ async function main() {
       store.state.activeId = localId;
       localStorage.setItem("ps:v1", JSON.stringify(store));
       return localId;`)
-    await two.goto(`${APP}/`)
+    await two.goto(`${APP}/web`)
     await two.waitFor(`document.querySelector(".react-flow") !== null`, { label: "Bob's canvas", timeout: 25000 })
 
     const before = await two.evaluate(screenCount)

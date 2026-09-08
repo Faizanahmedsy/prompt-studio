@@ -9,6 +9,7 @@ import { buildPrompt } from "@/features/prompt/engine/build-prompt"
 import { getTarget } from "@/features/prompt/engine/targets"
 import { Markdown } from "@/features/prompt/markdown/markdown"
 import { formatDate } from "@/lib/utils"
+import { STUDIO_HOME } from "@/lib/view-url"
 import { useActiveProject, useProjectStore } from "@/stores/use-project-store"
 import { usePromptDraftStore } from "@/stores/use-prompt-draft-store"
 
@@ -42,7 +43,7 @@ export default function PrintPage() {
     <main className="print-page mx-auto max-w-3xl px-6 py-8">
       <div className="no-print mb-6 flex items-center justify-between gap-3">
         <Button variant="outline" size="sm" asChild>
-          <Link href="/">Back to the studio</Link>
+          <Link href={STUDIO_HOME}>Back to the studio</Link>
         </Button>
         <span className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setRendered((on) => !on)}>

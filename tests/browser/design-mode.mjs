@@ -89,7 +89,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 400))
     await clickButton(page, "create account")
     await page.waitFor(
-      `["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`,
+      `["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`,
       { label: "the studio", timeout: 25000 }
     )
 

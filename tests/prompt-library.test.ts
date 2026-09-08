@@ -6,7 +6,7 @@ import {
   promptCategories,
   searchPrompts,
 } from "@/features/prompt-library/data/prompts"
-import { modeFromSlug, VIEW_SLUGS } from "@/lib/view-url"
+import { modeFromSlug, STUDIO_HOME, VIEW_SLUGS } from "@/lib/view-url"
 
 /**
  * The library ships prompts, not components — so the tests that matter are
@@ -15,9 +15,13 @@ import { modeFromSlug, VIEW_SLUGS } from "@/lib/view-url"
  * failure this file exists to catch.
  */
 describe("the library holds usable prompts", () => {
-  it("has a tab of its own in the URL", () => {
-    expect(VIEW_SLUGS.prompts).toBe("prompts")
-    expect(modeFromSlug("prompts")).toBe("prompts")
+  it("lives on a public route, not on a studio tab", () => {
+    // The library needs no account and no project, so /prompts is a page of
+    // its own rather than a mode of the workbench. If it were a studio slug
+    // the catch-all would claim the path and put it back behind the login.
+    expect(modeFromSlug("prompts")).toBeNull()
+    expect(Object.values(VIEW_SLUGS)).not.toContain("prompts")
+    expect(STUDIO_HOME).toBe("/web")
   })
 
   it("gives every prompt a unique id", () => {
@@ -176,6 +180,53 @@ describe("the monospace rule that let a school render as a dashboard", () => {
   })
 })
 
+describe("the illustration language", () => {
+  const body = promptById.get("master-design")?.body ?? ""
+
+  it("insists the art is built, not bought", () => {
+    expect(body).toMatch(/No image files, no icon library scaled up/)
+    expect(body).toMatch(/inline SVG in the codebase/)
+  })
+
+  it("makes the art re-skin with the palette instead of hard-coding it", () => {
+    expect(body).toMatch(/color-mix\(in oklch/)
+    expect(body).toMatch(/Colour comes from tokens, never from literals/)
+  })
+
+  it("names the four moves that make the soft-3D look", () => {
+    for (const move of [
+      /A contact shadow/,
+      /Light from the top-left/,
+      /A gloss/,
+      /Generous radii/,
+    ]) {
+      expect(body).toMatch(move)
+    }
+  })
+
+  it("carries the id-collision trap, which looks like a rendering bug", () => {
+    expect(body).toMatch(/Ids must be namespaced/)
+    expect(body).toMatch(/silently steal each other's gradients/)
+  })
+
+  it("labels by meaning rather than by drawing", () => {
+    expect(body).toMatch(/aria-label="Waiting for approval"/)
+    expect(body).toMatch(/never `aria-label="Clipboard with clock"`/)
+  })
+
+  it("is not universal — it says which directions take it and which take none", () => {
+    // The same mistake as the console look: one treatment asserted everywhere.
+    expect(body).toMatch(/Illustration is not universal/)
+    expect(body).toMatch(/Quiet Luxury\*\* — none/)
+    expect(body).toMatch(/Utility Brutal\*\* — none at all/)
+    expect(body).toMatch(/Clay objects make an institution look like a startup/)
+  })
+
+  it("is checked in the audit", () => {
+    expect(body).toMatch(/\*\*Illustration\.\*\* Any stock art/)
+  })
+})
+
 describe("the laws that survived from the five-way test", () => {
   const body = promptById.get("master-design")?.body ?? ""
 
@@ -195,8 +246,9 @@ describe("the laws that survived from the five-way test", () => {
 
   it("carries components and a never-list, not principles alone", () => {
     expect(body).toContain("PART 3 — COMPONENTS")
-    expect(body).toContain("PART 4 — NEVER SHIP THESE")
-    expect(body).toContain("PART 5 — AUDIT BEFORE YOU ANSWER")
+    expect(body).toContain("PART 4 — ILLUSTRATION")
+    expect(body).toContain("PART 5 — NEVER SHIP THESE")
+    expect(body).toContain("PART 6 — AUDIT BEFORE YOU ANSWER")
     // The never-list is numbered, so it can be checked one line at a time.
     expect(body).toMatch(/^25\. /m)
   })

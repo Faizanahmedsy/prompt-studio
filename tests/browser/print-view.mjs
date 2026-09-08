@@ -28,7 +28,7 @@ async function main() {
     await page.evaluate(
       `[...document.querySelectorAll("button")].find((b) => b.textContent.includes("Create account")).click(); return true`
     )
-    await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
+    await page.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     await new Promise((r) => setTimeout(r, 3000))
 
     await page.goto(`${APP}/print`)

@@ -15,6 +15,15 @@
 
 import type { WorkMode } from "@/stores/use-ui-store"
 
+/**
+ * Where the studio lives.
+ *
+ * `/` used to be the studio; it is the public landing page now, so everything
+ * that used to send a signed-in person "home" has to name a tab instead. Web
+ * is the right one: it is the default mode and the tab a new project opens on.
+ */
+export const STUDIO_HOME = "/web"
+
 export const VIEW_SLUGS: Record<WorkMode, string> = {
   web: "web",
   mobile: "mobile",
@@ -23,7 +32,6 @@ export const VIEW_SLUGS: Record<WorkMode, string> = {
   data: "data",
   code: "code",
   theme: "design",
-  prompts: "prompts",
 }
 
 const BY_SLUG = new Map(

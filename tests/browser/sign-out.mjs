@@ -39,7 +39,7 @@ async function signUp(page, email, name) {
   await page.fill('input[type="password"]', PASSWORD)
   await new Promise((r) => setTimeout(r, 400))
   await page.evaluate(clickLabelled("Create account"))
-  await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: `${name} in the studio`, timeout: 25000 })
+  await page.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: `${name} in the studio`, timeout: 25000 })
   await page.waitFor(
     `(() => { try { return Object.keys(JSON.parse(localStorage.getItem("ps:sync")).state.links).length > 0 } catch { return false } })()`,
     { label: `${name}'s project linked`, timeout: 30000 }
@@ -75,7 +75,7 @@ async function main() {
     check("a refresh token is stored", Boolean(refreshToken))
 
     console.log("\n== sign out ==")
-    await page.goto(`${APP}/`)
+    await page.goto(`${APP}/web`)
     await page.waitFor(`document.querySelector('[aria-label="Your account"]') !== null`, {
       label: "the account menu",
       timeout: 25000,

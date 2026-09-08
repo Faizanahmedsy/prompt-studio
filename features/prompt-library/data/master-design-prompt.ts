@@ -342,7 +342,71 @@ Applies to every direction; the direction decides the shape, this decides the be
 
 **Footer.** Real links, grouped, with the legal and contact information the organisation is actually obliged to show. Not a decorative sitemap.
 
-# PART 4 — NEVER SHIP THESE
+# PART 4 — ILLUSTRATION
+
+Most products reach for illustration in exactly four places and get it wrong in the same way each time: a stock vector, a purchased icon scaled to 200px, or a raster PNG that does not match the palette and never will. All three are worse than nothing.
+
+## 4.1 When a product needs illustration at all
+
+Only these, and only when the direction below permits it:
+
+- **Empty states** — one per empty thing, drawn as that thing. "No customers" is a contact card; "no visits" is a calendar; "no results" is a magnifier over an empty list. A single generic box for every empty screen is the lazy version and reads as one.
+- **Error and permission pages** — 404, 403, 500, 503, each visually distinct so the picture itself tells you which one you hit.
+- **Authentication screens** — one scene, beside the form.
+- **Confirmation moments** — success and waiting-for-approval.
+- **Stat tiles** — a small object per metric, when the direction is one that uses tiles at all.
+- **One hero object** — at most one per product.
+
+Nowhere else. An illustration next to a paragraph that already says the thing is decoration.
+
+## 4.2 The technique — soft-3D, hand-built in SVG
+
+Build every illustration as **inline SVG in the codebase**. No image files, no icon library scaled up, no external asset, no AI-generated raster. The reasons are practical: it re-colours with the palette, it stays sharp, it costs no request, and it can be edited.
+
+**Structure.** One component per illustration, taking only a \`className\`. A \`viewBox\` and no fixed width or height, so it fills whatever box you put it in. Canvas sizes that work: roughly 240×200 for a hero, 200–220×170–180 for an empty state, 140×100 for a stat tile.
+
+**Ids must be namespaced.** Every gradient id gets a short prefix unique to its component — \`eb-shadow\`, \`stv-front\`, \`pd-clock\`. Two illustrations on one page with an id called \`shadow\` will silently steal each other's gradients, and the bug looks like a rendering glitch rather than a name collision.
+
+**Colour comes from tokens, never from literals.** Every fill is \`var(--brand)\`, \`var(--accent)\`, \`var(--success)\`, \`var(--warning)\`, \`var(--primary)\` or whatever your token set calls them. Tints and shades are mixed, not picked:
+
+    color-mix(in oklch, var(--brand) 32%, white)   /* a tint */
+    color-mix(in oklch, var(--brand) 78%, black)   /* a shade */
+
+Pure \`#fff\` appears only as gloss and paper, usually under 50% opacity. Structural greys are the foreground token at 0.08–0.22 opacity, never a hard-coded grey. Done properly, changing the brand colour re-skins every illustration in the product and none of them has to be redrawn.
+
+**Form.** One focal object, low detail — a box, a card, a clipboard, a pin, a calendar. Not a scene with a person, a desk, three plants and a laptop.
+
+Four moves give the soft-3D look, and all four are needed:
+
+1. **A contact shadow.** An ellipse under the object filled with a radial gradient from the foreground token at ~0.16 opacity to fully transparent. Without it the object floats in a void.
+2. **Light from the top-left.** Linear gradients running \`x1="0" y1="0" x2="0.3" y2="1"\`, light stop first. Every surface on the object agrees about where the light is.
+3. **A gloss.** One small white ellipse or parallelogram at 0.1–0.5 opacity on the lit face. This is what makes it read as a solid rather than a flat shape.
+4. **Generous radii.** \`rx\` around 10–20 on a 100px form. Nothing in this style has a sharp corner.
+
+For an isometric solid, draw three faces and light them consistently: top lightest, left middle, right darkest. For depth between flat things, stack a second copy behind the first and rotate it two to four degrees.
+
+**Content inside an illustration is abstracted, never lettered.** Lines of text are rounded bars with \`rx\` equal to half their height, filled with the foreground token at 0.10–0.16. Never put real words inside an SVG illustration — they will not translate, will not scale, and will not survive a rename.
+
+**State is carried by the semantic colour**, the same one the interface uses: the success token for a completed row with a white tick, the warning token for something pending, a neutral for something not started. The picture and the badge beside it must agree.
+
+**Accessibility.** \`role="img"\` and an \`aria-label\` that names the *meaning*, not the drawing: \`aria-label="Waiting for approval"\`, never \`aria-label="Clipboard with clock"\`.
+
+**Motion, if any.** A hero object may drift on a slow loop — a four-to-six second ease-in-out float — with its contact shadow scaling in counterpoint. One object only, never an empty state, and disabled under \`prefers-reduced-motion\`.
+
+## 4.3 Which directions get illustration
+
+Illustration is not universal, for the same reason the console look is not.
+
+- **Light Product, Warm Consumer, Expressive App** — yes, the full soft-3D treatment above.
+- **Editorial Institutional** — no soft-3D. Illustration here is a photograph, an engraving, a crest, or a diagram drawn as line art in a single ink. Clay objects make an institution look like a startup.
+- **Technical Console** — no soft-3D. Its illustrations are diagrams: node graphs, sequence lines, a terminal, a highlighted row. Draw them in SVG with the same token discipline and none of the gloss.
+- **Operational Dense** — empty states only, small and flat, one accent. There is no room and no reason for anything else.
+- **Quiet Luxury** — none. Space and a photograph.
+- **Utility Brutal** — none at all. Not even an empty-state drawing; a sentence does the job.
+
+Say in your summary which illustrations you built, and which empty states are still using a generic one.
+
+# PART 5 — NEVER SHIP THESE
 
 Each is answerable yes or no about the finished page. Check them.
 
@@ -372,7 +436,7 @@ Each is answerable yes or no about the finished page. Check them.
 24. A light/dark toggle nobody asked for.
 25. Four stat tiles across the top when the product does not have four things worth counting.
 
-# PART 5 — AUDIT BEFORE YOU ANSWER
+# PART 6 — AUDIT BEFORE YOU ANSWER
 
 Run every check and report the result. Fix what fails before you show me anything.
 
@@ -387,7 +451,8 @@ Run every check and report the result. Fix what fails before you show me anythin
 9. **Motion.** One idea, or several? Does the page work with motion disabled?
 10. **Floor.** Contrast on muted text over tinted surfaces, visible focus states, keyboard order, 44px targets, one h1, alt text, designed empty and error states.
 11. **Narrow.** Is the small-screen layout designed, or is it the wide one stacked?
-12. **The 0.5 test.** Does the page avoid the wrong impression you named in Part 0.5?
+12. **Illustration.** Any stock art, scaled-up icons or raster images? Any hard-coded colour inside an SVG? Any gradient id without a component prefix? Any real words lettered into a drawing?
+13. **The 0.5 test.** Does the page avoid the wrong impression you named in Part 0.5?
 
 Report as a short list: what you checked, what failed, what you changed.
 

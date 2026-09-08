@@ -38,7 +38,7 @@ async function main() {
     await page.evaluate(
       `[...document.querySelectorAll("button")].find((b) => b.textContent.includes("Create account")).click(); return true`
     )
-    await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
+    await page.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     await page.waitFor(`document.querySelector(".react-flow") !== null`, {
       label: "the canvas",
       timeout: 25000,
@@ -87,7 +87,7 @@ async function main() {
     check("the print view prints the edit", printed.includes(MINE))
 
     console.log("\n== and it can be given back ==")
-    await page.goto(`${APP}/`)
+    await page.goto(`${APP}/web`)
     await page.waitFor(`document.querySelector(".react-flow") !== null`, {
       label: "back on the canvas",
       timeout: 25000,

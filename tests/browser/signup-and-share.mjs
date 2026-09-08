@@ -70,15 +70,17 @@ async function main() {
   const two = await launch({ port: 9334 })
   try {
     console.log("\n== the app is behind the login ==")
-    await one.goto(`${APP}/`)
+    // A studio tab, not `/` — that is the public landing page now, and the
+    // wall starts one step further in than it used to.
+    await one.goto(`${APP}/web`)
     await one.waitFor(`location.pathname === "/login"`, { label: "redirect to /login" })
-    check("visiting / signed out lands on /login", true)
+    check("visiting a studio tab signed out lands on /login", true)
     await one.waitFor(`document.body.innerText.includes("Sign in")`, { label: "the sign-in form" })
     check("and shows the sign-in form", true)
 
     console.log("\n== sign up, and the studio opens ==")
     await signUp(one, alice, "Alice A")
-    await one.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
+    await one.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     check("registering signs you straight in", true)
     await one.waitFor(`document.querySelector('[data-testid="flow-canvas"], .react-flow') !== null || document.body.innerText.includes("Prompt Studio")`, { label: "the workbench" })
     check(
@@ -131,7 +133,7 @@ async function main() {
     const invite = inviteTokenFor(bob)
     check("the invitation email carries a link", Boolean(invite))
     await signUp(two, bob, "Bob B", invite)
-    await two.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio for the invitee", timeout: 25000 })
+    await two.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio for the invitee", timeout: 25000 })
     await two.waitFor(
       `(() => { try { const s = JSON.parse(localStorage.getItem("ps:sync")); return Object.values(s.state.links || {}).includes(${JSON.stringify(remoteId)}) } catch { return false } })()`,
       { label: "the shared project pulled down", timeout: 30000 }

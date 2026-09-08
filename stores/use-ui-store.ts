@@ -20,11 +20,6 @@ export type WorkMode =
   // surface inherits. It is a tab because choosing it needs the whole window —
   // a colour judged in a 340px sidebar is a colour judged wrong.
   | "theme"
-  // Not about this project at all: hand-written prompts to copy into whatever
-  // assistant you already have open. A tab rather than a route because every
-  // cloud hook — sync, sharing, presence, the read-only guard — is mounted
-  // inside Workbench, and a route would quietly bypass them.
-  | "prompts"
 
 /**
  * Easy keeps only what a dev needs to draw screens and get a prompt out —

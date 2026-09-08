@@ -1,5 +1,9 @@
 /**
- * The prompt library, in a real browser.
+ * The prompt library and the landing page, in a real browser — signed out.
+ *
+ * The point of this file changed when the library became public: the first
+ * thing it proves is that a visitor with no account reaches both pages and is
+ * never bounced to a login form. Everything after that is the library itself.
  *
  * Unit tests cover the catalogue — that the prompts are whole, that search
  * narrows. What they cannot see is the path a person actually uses: the tab
@@ -36,6 +40,10 @@ async function clearToasts(page) {
     if (!present) return
     await new Promise((r) => setTimeout(r, 500))
   }
+}
+
+async function onPath(page, path) {
+  return (await page.evaluate(`return location.pathname`)) === path
 }
 
 async function clickText(page, text, selector = "button") {
@@ -75,35 +83,47 @@ async function clickAria(page, label) {
 }
 
 async function main() {
-  const tag = Math.random().toString(36).slice(2, 10)
   const page = await launch({ port: 9384 })
   try {
-    console.log("\n== sign up and open the library ==")
-    await page.goto(`${APP}/register`)
-    await page.waitFor(`document.querySelector('input[type=email]')`, { label: "register form" })
-    await page.fill('input[autocomplete="name"]', "Library Lena")
-    await page.fill('input[type="email"]', `library.${tag}@example.com`)
-    await page.fill('input[type="password"]', "Password123")
-    await new Promise((r) => setTimeout(r, 400))
-    await clickText(page, "create account")
-    await page.waitFor(
-      `["/","/web","/mobile","/backend","/landing","/data","/code","/design","/prompts"].includes(location.pathname)`,
-      { label: "the studio", timeout: 25000 }
-    )
-
-    // The tab is reachable by its own URL, which is the point of putting it
-    // in the path: a colleague can be sent straight to it.
-    await page.goto(`${APP}/prompts`)
-    await page.waitFor(`document.body.innerText.includes("Prompt library")`, {
-      label: "the library",
+    console.log("\n== a visitor with no account ==")
+    await page.goto(`${APP}/`)
+    await page.waitFor(`document.body.innerText.includes("Prompt Studio")`, {
+      label: "the landing page",
       timeout: 25000,
     })
-    check("the library opens at its own URL", true)
+    // The studio is behind the login; these two pages are not. A visitor
+    // pushed to /login here is the regression this whole file guards.
+    check("the landing page opens without an account", await onPath(page, "/"))
     check(
-      "and the tab is selected rather than the app defaulting to Web",
+      "it says what the product does",
       await page.evaluate(
-        `return [...document.querySelectorAll('[role=tab]')].some((t) => t.getAttribute("aria-selected") === "true" && (t.textContent || "").includes("Prompts"))`
+        `return document.body.innerText.includes("Draw the app. Get the prompt that builds it.")`
       )
+    )
+    check(
+      "and offers a way in",
+      await page.evaluate(
+        `return [...document.querySelectorAll("a")].some((a) => a.getAttribute("href") === "/login")`
+      )
+    )
+    check(
+      "signed out, it invites you to start rather than to open the studio",
+      await page.evaluate(`return document.body.innerText.includes("Start a project")`)
+    )
+
+    await clickText(page, "Browse the prompt library", "a")
+    await page.waitFor(`location.pathname === "/prompts"`, {
+      label: "the library",
+      timeout: 20000,
+    })
+    check("the landing page links straight into the library", true)
+    check(
+      "which also opens without an account",
+      await page.evaluate(`return document.body.innerText.includes("Prompt library")`)
+    )
+    check(
+      "and says so, rather than asking for one",
+      !(await page.evaluate(`return document.body.innerText.includes("Sign in")`))
     )
 
     console.log("\n== the flagship design prompt ==")
@@ -220,19 +240,20 @@ async function main() {
     const home = await page.evaluate(`return document.querySelector("article").innerText`)
     check("the entry-screen prompt is still here", home.includes("Who opens this?"))
 
-    console.log("\n== it does not disturb the project ==")
-    // The library writes nothing. A page that quietly touched the document
-    // would show up as a new version or a changed doc; the cheapest proof is
-    // that the diagram is still there and unchanged after all of the above.
+    console.log("\n== and back out to the studio ==")
+    // The header is the only route from here into the app. Signed out it
+    // points at the login, and the login is where the account wall starts.
+    await clickText(page, "Log in", "a")
+    await page.waitFor(`location.pathname === "/login"`, { label: "the login", timeout: 20000 })
+    check("the library offers a signed-out way into the app", true)
+
     await page.goto(`${APP}/web`)
-    await page.waitFor(`location.pathname === "/web"`, { label: "the web tab", timeout: 15000 })
-    check(
-      "the project is untouched",
-      await page.evaluate(`
-        const store = JSON.parse(localStorage.getItem("ps:v1"));
-        const project = store.state.projects.find((p) => p.id === store.state.activeId);
-        return project.screens.length > 0;`)
-    )
+    await page.waitFor(`location.pathname === "/login"`, {
+      label: "the login wall",
+      timeout: 20000,
+    })
+    check("while the studio itself is still behind the wall", true)
+
   } finally {
     await page.close()
   }

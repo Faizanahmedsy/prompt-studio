@@ -51,7 +51,7 @@ async function main() {
     await page.fill('input[type="password"]', PASSWORD)
     await new Promise((r) => setTimeout(r, 400))
     await page.evaluate(clickText("Create account"))
-    await page.waitFor(`["/","/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
+    await page.waitFor(`["/web","/mobile","/backend","/landing","/data","/code","/design"].includes(location.pathname)`, { label: "the studio", timeout: 25000 })
     await page.waitFor(
       `(() => { try { return Object.keys(JSON.parse(localStorage.getItem("ps:sync")).state.links).length > 0 } catch { return false } })()`,
       { label: "linked to the server", timeout: 30000 }
@@ -86,7 +86,7 @@ async function main() {
 
     console.log("\n== and it stays gone ==")
     // The whole bug in one step: the old code passed everything above.
-    await page.goto(`${APP}/`)
+    await page.goto(`${APP}/web`)
     // Deleting the last project is allowed to leave the studio empty now, so
     // the honest landing state is the "No projects" screen rather than a
     // canvas — and definitely not a starter conjured to fill the gap.

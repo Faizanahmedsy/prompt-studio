@@ -10,6 +10,7 @@ import { AuthError } from "@/features/auth/components/auth-error"
 import { AuthLink, AuthShell } from "@/features/auth/components/auth-shell"
 import * as authApi from "@/lib/api/auth"
 import { isApiError } from "@/lib/api/client"
+import { STUDIO_HOME } from "@/lib/view-url"
 import { useAuthStore } from "@/stores/use-auth-store"
 
 function messageOf(error: unknown): string {
@@ -150,7 +151,7 @@ export function SetInitialPasswordForm() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    if (user && !user.must_change_password) router.replace("/")
+    if (user && !user.must_change_password) router.replace(STUDIO_HOME)
   }, [user, router])
 
   async function submit(event: React.FormEvent) {
@@ -160,7 +161,7 @@ export function SetInitialPasswordForm() {
     try {
       await authApi.setInitialPassword({ new_password: password })
       setUser(await authApi.getMe())
-      router.push("/")
+      router.push(STUDIO_HOME)
     } catch (failure) {
       setError(messageOf(failure))
     } finally {
@@ -225,7 +226,7 @@ export function VerifyEmailScreen() {
       subtitle={
         state === "done" ? "Thanks — your address is verified." : (error ?? undefined)
       }
-      footer={<AuthLink href="/">Go to your projects</AuthLink>}
+      footer={<AuthLink href={STUDIO_HOME}>Go to your projects</AuthLink>}
     >
       <div />
     </AuthShell>

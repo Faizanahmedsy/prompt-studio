@@ -226,7 +226,9 @@ export function CommandPalette({ project }: { project: Project }) {
             <CommandItem onSelect={() => run(() => setMode("theme"))}>
               <Palette /> Design
             </CommandItem>
-            <CommandItem onSelect={() => run(() => setMode("prompts"))}>
+            <CommandItem
+              onSelect={() => run(() => window.open("/prompts", "_blank", "noopener"))}
+            >
               <BookOpen /> Prompt library
             </CommandItem>
           </CommandGroup>
