@@ -22,7 +22,7 @@ export const designPrompts: LibraryPrompt[] = [
     id: "master-design",
     title: "Master design brief",
     blurb:
-      "Classify the project, pick one of eight directions, then build — with the laws, the components, the never-list and an audit.",
+      "Write the scene, pick one of nine directions, then build — the stack, a token system with real numbers, components, illustration, a never-list and an audit that fills a decision record.",
     category: "Design",
     tags: [
       "design",
@@ -33,11 +33,14 @@ export const designPrompts: LibraryPrompt[] = [
       "principles",
       "master",
       "direction",
+      "shadcn",
+      "tailwind",
+      "tokens",
       "typography",
       "accessibility",
     ],
     howToUse:
-      "Paste the whole thing, then describe your product at the end. It will name a direction before it writes code — read that line first, because everything after it follows from it. If it picks wrong, say so and it will re-pick.",
+      "Paste the whole thing, then describe your product at the end. Say what device and what situation if you know — it changes the answer. It will write a Decision Record as a comment at the top of the main file; read the DIRECTION and AUDIT lines first, and if the direction is wrong, quote the record back and ask it to re-pick.",
     body: `${MASTER_DESIGN_PROMPT}${MASTER_DESIGN_SLOT}`,
   },
 

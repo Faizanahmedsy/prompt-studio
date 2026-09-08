@@ -250,13 +250,57 @@ function CategoryChip({
  * here and not what is drawn.
  */
 function PromptBody({ body }: { body: string }) {
-  const blocks = useMemo(() => body.split("\n"), [body])
+  // Fenced blocks are gathered first, because a fence is state that spans
+  // lines and the rest of the renderer is per-line. Each entry is either one
+  // line of prose or a whole code block.
+  const blocks = useMemo(() => {
+    const out: Array<{ kind: "line"; text: string } | { kind: "code"; text: string }> = []
+    let fence: string[] | null = null
+    for (const line of body.split("\n")) {
+      if (line.trim().startsWith("```")) {
+        if (fence) {
+          out.push({ kind: "code", text: fence.join("\n") })
+          fence = null
+        } else {
+          fence = []
+        }
+        continue
+      }
+      if (fence) fence.push(line)
+      else out.push({ kind: "line", text: line })
+    }
+    if (fence) out.push({ kind: "code", text: fence.join("\n") })
+    return out
+  }, [body])
 
   return (
     <div className="mt-6 space-y-3 text-sm leading-relaxed">
-      {blocks.map((line, index) => {
-        const key = `${index}-${line.slice(0, 12)}`
+      {blocks.map((block, index) => {
+        const key = `${index}-${block.text.slice(0, 12)}`
+        if (block.kind === "code") {
+          return (
+            <pre
+              key={key}
+              className="overflow-x-auto rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-xs leading-relaxed text-foreground"
+            >
+              {block.text}
+            </pre>
+          )
+        }
+        const line = block.text
         if (!line.trim()) return <div key={key} className="h-1" />
+
+        // A quoted paragraph — the brief uses one for the example scene.
+        if (line.startsWith("> ")) {
+          return (
+            <blockquote
+              key={key}
+              className="border-l-2 border-primary/50 pl-3 text-muted-foreground italic"
+            >
+              {emphasise(line.slice(2))}
+            </blockquote>
+          )
+        }
 
         // Two levels. The master brief is long enough to need both: `#` for
         // its parts and `##` for the rules inside them.
@@ -333,7 +377,20 @@ function PromptBody({ body }: { body: string }) {
  * consumed, and the page would fill with stray asterisks.
  */
 function emphasise(text: string) {
-  return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((part, index) => {
+  // Bold is non-greedy `.+?` rather than `[^*]+`: a bold span may legitimately
+  // contain a lone asterisk — `**…gets \`[&>*]:min-w-0\`.**` — and the stricter
+  // class refused to match it, so the markers leaked onto the page.
+  return text.split(/(`[^`]+`|\*\*.+?\*\*|\*[^*\n]+\*)/g).map((part, index) => {
+    if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
+      return (
+        <code
+          key={index}
+          className="rounded bg-muted/60 px-1 py-0.5 font-mono text-[0.85em] text-foreground"
+        >
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
         <strong key={index} className="font-semibold text-foreground">

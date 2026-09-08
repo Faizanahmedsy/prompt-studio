@@ -137,13 +137,13 @@ async function main() {
     check("its body is rendered, not a raw dump", rendered.length > 2000, String(rendered.length))
     check(
       "headings are drawn rather than left as hashes",
-      !rendered.includes("## ") && rendered.toLowerCase().includes("classify, then choose"),
+      !rendered.includes("## ") && rendered.toLowerCase().includes("read the project. before any code"),
       JSON.stringify(rendered.slice(0, 120))
     )
     check("bold markers do not leak through", !rendered.includes("**"))
     check(
-      "nor italics, nor the part headings",
-      !rendered.includes("*audience*") && !rendered.includes("# PART 0"),
+      "nor italics, nor the part headings, nor code fences",
+      !rendered.includes("*audience*") && !rendered.includes("# PART 0") && !rendered.includes("```"),
       JSON.stringify(rendered.slice(rendered.indexOf("PART 0") - 40, rendered.indexOf("PART 0") + 40))
     )
     check(
@@ -152,11 +152,11 @@ async function main() {
     )
     check(
       "the monospace rule that broke a school site is stated as a hard rule",
-      rendered.includes("MONOSPACE IS OFF BY DEFAULT")
+      rendered.includes("Monospace is off by default")
     )
     check(
-      "and all eight directions are there to choose between",
-      ["EDITORIAL INSTITUTIONAL", "TECHNICAL CONSOLE", "QUIET LUXURY", "EXPRESSIVE APP"].every(
+      "and all nine directions are there to choose between",
+      ["EDITORIAL INSTITUTIONAL", "TECHNICAL CONSOLE", "QUIET LUXURY", "EXPRESSIVE APP", "REFINED OPERATIONAL"].every(
         (name) => rendered.includes(name)
       )
     )
@@ -168,8 +168,8 @@ async function main() {
     // What lands on the clipboard is the source, not what was drawn: the
     // renderer strips the markdown, and a person pasting it into an assistant
     // needs the structure back.
-    check("copies the raw prompt", copied.includes("## 1.2 Type"), copied.slice(0, 80))
-    check("and the whole thing, not the visible part", copied.length > 18000, String(copied.length))
+    check("copies the raw prompt", copied.includes("## 2.3 Type"), copied.slice(0, 80))
+    check("and the whole thing, not the visible part", copied.length > 50000, String(copied.length))
     check(
       "the button says it worked",
       await page.evaluate(`return document.body.innerText.includes("Copied")`)
@@ -189,7 +189,10 @@ async function main() {
 
     console.log("\n== finding one ==")
     await clearToasts(page)
-    await page.fill('input[aria-label="Search prompts"]', "root cause")
+    // "root cause" used to be unique; the master brief now carries `:root`
+    // and "because", and search is a substring match by design. This phrase
+    // is in the debug prompt's blurb and nowhere else.
+    await page.fill('input[aria-label="Search prompts"]', "guess-and-check")
     await new Promise((r) => setTimeout(r, 500))
     const searched = await page.evaluate(`
       const list = document.querySelector("aside ul");

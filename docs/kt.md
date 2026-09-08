@@ -395,46 +395,42 @@ container's log stream is frozen at 7 Sep 14:24 while the API serves requests
 normally. It is a container logging problem, not a product problem — the API
 calls inside the same test succeed. Restart the container and it should pass.
 
-### Work agreed but not started
+### The master design brief — how it got here, and the loop that shaped it
 
-The master design brief needs a second round. The user runs this loop:
+The user runs this loop, and it is how every design-prompt change happens:
 
 > 1. I give them a prompt. 2. They run it through an LLM. 3. They check the
 > output. 4. They list what is wrong with the UI. 5. I find the line in our
 > prompt responsible. 6. I brainstorm the fix. 7. I fix it. 8. They check
 > locally. 9. **Only after they approve do I push.**
 
-Round two produced this diagnosis and these agreed fixes, none of them written:
+Three rounds have run. Each is recorded in the header comment of
+`features/prompt-library/data/master-design-prompt.ts`, and the current brief
+is the accumulated result: a scene-first Part 0 with a Decision Record emitted
+as a code comment (because build-first products have no chat), a three-tier
+stack with control specs and keyless-map rules, a token system read out of
+the IntelliWealth and FieldTrack frontends with real numbers, nine directions
+including a rebuilt D and a new I, a maps component spec, and a forty-item
+never-list whose first five are the things that actually shipped.
 
-- **A.** No stack instruction anywhere in the brief, so the model hand-rolled
-  native `<select>` and `<input type="date">`. Needs a three-tier stack block
-  (shadcn+Radix when installable, CDN, hand-built to spec) plus written specs
-  for select / date picker / tabs / dialog so tiers 2 and 3 can obey "never a
-  native control".
-- **B.** Direction D (Operational Dense) is defined **entirely by subtraction**
-  — no hero, no signature move, no motion, no type pairing. It is the only
-  direction with no positive craft instruction, and it produced a Bootstrap
-  admin panel. Rewrite it with the same six craft slots the others get.
-- **C.** Add Direction I — Refined Operational, the Linear/Stripe register:
-  dense *and* crafted. Nothing in the eight offered it.
-- **D.** Semantic colour was declared free ("does not count as a second
-  accent"), so six saturated fills landed on one screen. Cap it: soft by
-  default, one solid fill per row.
-- **E.** Type scales are words ("three sizes"), not numbers. Everything landed
-  13–16px.
-- **F.** No chrome budget — seven horizontal bands stacked before content.
-- **G.** The audit hunts violations and never asks whether the result is dull.
-- **H.** ~8 never-list items for native controls and default focus rings.
-- **Part 0 has no output channel in build-first products.** AI Studio, v0 and
-  Lovable have no conversation, so "write this line out" produces nothing
-  visible — and an instruction with no visible output is one that can be
-  skipped for free. Agreed fix: emit a **decision record as a comment block at
-  the top of the primary file**, carrying direction, register, stack tier,
-  accent count, monospace percentage, band count and the one memorable thing.
-  Print it in chat too, if a chat exists.
-- Two open questions for the user: whether to ship a ~6KB compact variant for
-  products with small prompt fields, and a better name than "Refined
-  Operational".
+**When the next round comes back**, ask for the `DIRECTION` and `AUDIT` lines
+from the record before anything else. If the model did not emit a record, that
+is itself the first finding.
+
+**Where the numbers came from.** `../frontend/app/globals.css` and
+`/home/faizan/devstree_projects/field-track-nextjs/FrontendNew/src/index.css`
+share one design system, and its authors wrote the reason beside every value.
+`components/shared/display/surface.ts` in the IntelliWealth repo is the single
+best page of design reasoning in either codebase — the card recipe, the
+stack-owns-the-gap rule, and `[&>*]:min-w-0` — and is worth reading before
+touching Part 2.
+
+Open items from the last brainstorm, deliberately not done:
+
+- A ~6KB **compact variant** for products with small prompt fields. Wait until
+  the master is stable across one more round.
+- A **re-pick snippet** — a short prompt to paste when the direction came out
+  wrong, so 54KB is not re-sent.
 
 ---
 
