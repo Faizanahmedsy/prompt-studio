@@ -31,6 +31,12 @@ Two things only a real browser can answer:
   in on that browser opened the previous person's diagrams; and the tokens were
   cleared before the logout request, so it went out unauthenticated, 401'd, and
   the refresh token stayed mintable for a month.
+- **`prompt-library.mjs`** — the prompt library: its own URL, the long bodies
+  rendered rather than dumped, search narrowing without blanking the pane, and
+  the one thing a rendering bug would silently break — the Copy button putting
+  the *raw* markdown on the clipboard rather than the version with the markers
+  stripped for display. Also that the page writes nothing: it is the only view
+  that does not belong to the open project.
 - **`print-view.mjs`** — `/print` renders the prompt as prose: lists are lists,
   fences are code, no `**stars**` leak through, and a wide code block scrolls
   inside itself instead of making the page scroll sideways.

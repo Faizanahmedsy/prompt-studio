@@ -2,6 +2,7 @@
 
 import {
   ArrowRight,
+  BookOpen,
   Code2,
   Database,
   Download,
@@ -12,6 +13,7 @@ import {
   Link2,
   MessageSquareCode,
   Moon,
+  Palette,
   Plus,
   Redo2,
   Sun,
@@ -220,6 +222,12 @@ export function CommandPalette({ project }: { project: Project }) {
             </CommandItem>
             <CommandItem onSelect={() => run(() => setMode("code"))}>
               <Code2 /> Flow source
+            </CommandItem>
+            <CommandItem onSelect={() => run(() => setMode("theme"))}>
+              <Palette /> Design
+            </CommandItem>
+            <CommandItem onSelect={() => run(() => setMode("prompts"))}>
+              <BookOpen /> Prompt library
             </CommandItem>
           </CommandGroup>
 

@@ -23,6 +23,7 @@ export const VIEW_SLUGS: Record<WorkMode, string> = {
   data: "data",
   code: "code",
   theme: "design",
+  prompts: "prompts",
 }
 
 const BY_SLUG = new Map(

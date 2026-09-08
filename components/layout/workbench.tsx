@@ -26,6 +26,7 @@ import { useWorkbenchHotkeys } from "@/features/palette/use-hotkeys"
 import { useProjectLink } from "@/features/projects/use-project-link"
 import { useShareImport } from "@/features/projects/use-share-import"
 import { PromptPanel } from "@/features/prompt/components/prompt-panel"
+import { PromptLibrary } from "@/features/prompt-library/components/prompt-library"
 import { ThemeForge } from "@/features/theme/components/theme-forge"
 import { useProjectStore } from "@/stores/use-project-store"
 import { useUiStore } from "@/stores/use-ui-store"
@@ -78,7 +79,10 @@ export function Workbench({ project }: { project: Project }) {
   // being judged is the pixels themselves, and a preview squeezed into the
   // centre column between a library and a prompt panel is a preview nobody can
   // read a colour off.
-  const fullBleed = ui.mode === "theme"
+  // The prompt library joins it for a different reason: it is not about the
+  // open project at all, so a library pane and a prompt panel either side of
+  // it would be describing something else.
+  const fullBleed = ui.mode === "theme" || ui.mode === "prompts"
   const showLeft = ui.leftOpen && !fullBleed
 
   // Opening a screen on a phone should surface the inspector, not hide it.
@@ -94,6 +98,8 @@ export function Workbench({ project }: { project: Project }) {
   const canvas =
     ui.mode === "theme" ? (
       <ThemeForge project={project} />
+    ) : ui.mode === "prompts" ? (
+      <PromptLibrary />
     ) : ui.mode === "code" ? (
       <FlowCodeView project={project} />
     ) : ui.mode === "data" ? (
